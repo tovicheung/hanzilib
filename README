@@ -1,5 +1,14 @@
-PORTING IS IN PROGRESS, NOT FINISHED!
+# Hanzilib
 
+Hanzi 漢字 (Han characters) are used mainly in the Chinese language. The original repo (`cjklib`) has been dormant for more than a decade and was difficult to install for modern versions of Python. Hence, this fork is created as an attempt to port the entirety of (or most of) cjklib to modern Python.
+
+
+> [!IMPORTANT]  
+> Porting is in progress, not finished!
+
+
+
+Original README from cjklib:
 
 
 ===========================
