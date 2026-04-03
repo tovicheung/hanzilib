@@ -3,4 +3,4 @@ test/downloads
 *.egg-info
 env
 dist/
-build/
+/build/

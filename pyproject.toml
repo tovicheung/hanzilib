@@ -1,6 +1,6 @@
 [build-system]
 # Tells pip/build what tools are needed to package the library
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=82.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,7 +9,7 @@ version = "0.0.1"
 description = "Han character library for CJKV languages"
 readme = "README"
 requires-python = ">=3.12"
-license = {text = "LGPL-3.0-only"}
+license = { text = "LGPL-3.0-only" }
 authors = [
     {name = "Christoph Burgmer", email = "cburgmer@ira.uka.de"}
 ]
@@ -22,7 +22,6 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
-    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
     "Natural Language :: Chinese (Simplified)",
     "Natural Language :: Chinese (Traditional)",
     "Natural Language :: Japanese",
