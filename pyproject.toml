@@ -1,0 +1,57 @@
+[build-system]
+# Tells pip/build what tools are needed to package the library
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hanzilib"
+version = "0.0.1"
+description = "Han character library for CJKV languages"
+readme = "README"
+requires-python = ">=3.12"
+license = {text = "LGPL-3.0-only"}
+authors = [
+    {name = "Christoph Burgmer", email = "cburgmer@ira.uka.de"}
+]
+classifiers = [
+    "Topic :: Text Processing :: Linguistic",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Development Status :: 5 - Production/Stable",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
+    "Natural Language :: Chinese (Simplified)",
+    "Natural Language :: Chinese (Traditional)",
+    "Natural Language :: Japanese",
+    "Natural Language :: Korean",
+    "Natural Language :: Vietnamese",
+]
+
+dependencies = [
+    "SQLAlchemy>=1.4", # Recommending at least 1.4 for Python 3 compatibility
+]
+
+[project.scripts]
+buildcjkdb = "hanzilib.build.cli:main"
+installcjkdict = "hanzilib.dictionary.install:main"
+cjknife = "hanzilib.cjknife:main"
+
+[tool.setuptools]
+packages = [
+    "hanzilib", 
+    "hanzilib.reading", 
+    "hanzilib.dictionary", 
+    "hanzilib.build", 
+    "hanzilib.test"
+]
+
+[tool.setuptools.package-data]
+hanzilib = ["data/*.csv", "data/*.sql", "cjklib.db", "cjklib.conf"]
+
+# Replacement for setup.cfg [build_sphinx]
+[tool.sphinx]
+source-dir = "hanzilib/"
+build-dir = "hanzilib/_build"

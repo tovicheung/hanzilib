@@ -1,6 +1,6 @@
-*~
 *.pyc
 test/downloads
 *.egg-info
 env
-.noseids
+dist/
+build/
