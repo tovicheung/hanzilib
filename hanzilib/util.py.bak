@@ -27,7 +27,7 @@ import re
 import copy
 import os.path
 import platform
-import configparser
+import ConfigParser
 from optparse import Option, OptionValueError
 import csv
 
@@ -70,10 +70,10 @@ def getConfigSettings(section, projectName='cjklib'):
     :return: configuration settings for the given project
     """
     # don't convert to lowercase
-    h = configparser.SafeConfigParser.optionxform
+    h = ConfigParser.SafeConfigParser.optionxform
     try:
-        configparser.SafeConfigParser.optionxform = lambda self, x: x
-        config = configparser.SafeConfigParser()
+        ConfigParser.SafeConfigParser.optionxform = lambda self, x: x
+        config = ConfigParser.SafeConfigParser()
         homeDir = os.path.expanduser('~')
 
         configFiles = []
@@ -112,10 +112,10 @@ def getConfigSettings(section, projectName='cjklib'):
         config.read(configFiles)
 
         configuration = dict(config.items(section))
-    except configparser.NoSectionError:
+    except ConfigParser.NoSectionError:
         configuration = {}
 
-    configparser.SafeConfigParser.optionxform = h
+    ConfigParser.SafeConfigParser.optionxform = h
 
     return configuration
 
@@ -200,13 +200,13 @@ def getDataPath():
 # define our own titlecase methods, as the Python implementation is currently
 #   buggy (http://bugs.python.org/issue6412), see also
 #   http://www.unicode.org/mail-arch/unicode-ml/y2009-m07/0066.html
-_FIRST_NON_CASE_IGNORABLE = re.compile(r"(?u)([.˳｡￮₀ₒ]?\W*)(\w)(.*)$")
+_FIRST_NON_CASE_IGNORABLE = re.compile(ur"(?u)([.˳｡￮₀ₒ]?\W*)(\w)(.*)$")
 """
 Regular expression matching the first alphabetic character. Include GR neutral
 tone forms.
 """
 def titlecase(strng):
-    """
+    u"""
     Returns the string (without "word borders") in titlecase.
 
     This function is not designed to work for multi-entity strings in general
@@ -260,9 +260,9 @@ if sys.maxunicode < 0x10000:
         """
         if codepoint >= 0x10000:
             hi, lo = divmod(codepoint - 0x10000, 0x400)
-            return chr(0xd800 + hi) + chr(0xdc00 + lo)
+            return unichr(0xd800 + hi) + unichr(0xdc00 + lo)
         else:
-            return chr(codepoint)
+            return unichr(codepoint)
 
     def toCodepoint(char):
         """
@@ -287,8 +287,8 @@ if sys.maxunicode < 0x10000:
 
         Always returns ``False`` for wide builds.
         """
-        return (len(string) == 2 and '\ud800' < string[0] < '\udbff'
-            and '\udc00' < string[1] < '\udfff')
+        return (len(string) == 2 and u'\ud800' < string[0] < u'\udbff'
+            and u'\udc00' < string[1] < u'\udfff')
 
     def getCharacterList(string):
         """
@@ -319,7 +319,7 @@ else:
 
             `PEP 261 <http://www.python.org/dev/peps/pep-0261/>`_
         """
-        return chr(codepoint)
+        return unichr(codepoint)
 
     def toCodepoint(char):
         """
@@ -394,7 +394,7 @@ class CharacterRangeIterator(object):
             return []
     def __iter__(self):
         return self
-    def __next__(self):
+    def next(self):
         if not self._curRange:
             raise StopIteration
 
@@ -426,11 +426,11 @@ class UnicodeCSVFileIterator(object):
     def __iter__(self):
         return self
 
-    def __next__(self):
+    def next(self):
         if not hasattr(self, '_csvReader'):
             self._csvReader = self._getCSVReader(self.fileHandle)
 
-        return [str(cell, 'utf-8') for cell in next(self._csvReader)]
+        return [unicode(cell, 'utf-8') for cell in self._csvReader.next()]
 
     @staticmethod
     def utf_8_encoder(unicode_csv_data):
@@ -478,7 +478,7 @@ class UnicodeCSVFileIterator(object):
         line = '#'
         try:
             while line.strip().startswith('#'):
-                line = next(fileHandle)
+                line = fileHandle.next()
         except StopIteration:
             return csv.reader(fileHandle)
         try:
@@ -745,70 +745,176 @@ else:
                 self[key] = value = self.creator(key)
                 return value
 
-from collections import MutableMapping
+if sys.version_info >= (2, 6):
+    from collections import MutableMapping
 
-class OrderedDict(dict, MutableMapping):
+    class OrderedDict(dict, MutableMapping):
 
-    # Methods with direct access to underlying attributes
+        # Methods with direct access to underlying attributes
 
-    def __init__(self, *args, **kwds):
-        if len(args) > 1:
-            raise TypeError('expected at 1 argument, got %d', len(args))
-        if not hasattr(self, '_keys'):
-            self._keys = []
-        self.update(*args, **kwds)
+        def __init__(self, *args, **kwds):
+            if len(args) > 1:
+                raise TypeError('expected at 1 argument, got %d', len(args))
+            if not hasattr(self, '_keys'):
+                self._keys = []
+            self.update(*args, **kwds)
 
-    def clear(self):
-        del self._keys[:]
-        dict.clear(self)
+        def clear(self):
+            del self._keys[:]
+            dict.clear(self)
 
-    def __setitem__(self, key, value):
-        if key not in self:
-            self._keys.append(key)
-        dict.__setitem__(self, key, value)
+        def __setitem__(self, key, value):
+            if key not in self:
+                self._keys.append(key)
+            dict.__setitem__(self, key, value)
 
-    def __delitem__(self, key):
-        dict.__delitem__(self, key)
-        self._keys.remove(key)
+        def __delitem__(self, key):
+            dict.__delitem__(self, key)
+            self._keys.remove(key)
 
-    def __iter__(self):
-        return iter(self._keys)
+        def __iter__(self):
+            return iter(self._keys)
 
-    def __reversed__(self):
-        return reversed(self._keys)
+        def __reversed__(self):
+            return reversed(self._keys)
 
-    def popitem(self):
-        if not self:
-            raise KeyError
-        key = self._keys.pop()
-        value = dict.pop(self, key)
-        return key, value
+        def popitem(self):
+            if not self:
+                raise KeyError
+            key = self._keys.pop()
+            value = dict.pop(self, key)
+            return key, value
 
-    def __reduce__(self):
-        items = [[k, self[k]] for k in self]
-        inst_dict = vars(self).copy()
-        inst_dict.pop('_keys', None)
-        return (self.__class__, (items,), inst_dict)
+        def __reduce__(self):
+            items = [[k, self[k]] for k in self]
+            inst_dict = vars(self).copy()
+            inst_dict.pop('_keys', None)
+            return (self.__class__, (items,), inst_dict)
 
-    # Methods with indirect access via the above methods
+        # Methods with indirect access via the above methods
 
-    setdefault = MutableMapping.setdefault
-    update = MutableMapping.update
-    pop = MutableMapping.pop
-    keys = MutableMapping.keys
-    values = MutableMapping.values
-    items = MutableMapping.items
+        setdefault = MutableMapping.setdefault
+        update = MutableMapping.update
+        pop = MutableMapping.pop
+        keys = MutableMapping.keys
+        values = MutableMapping.values
+        items = MutableMapping.items
 
-    def __repr__(self):
-        pairs = ', '.join(map('%r: %r'.__mod__, self.items()))
-        return '%s({%s})' % (self.__class__.__name__, pairs)
+        def __repr__(self):
+            pairs = ', '.join(map('%r: %r'.__mod__, self.items()))
+            return '%s({%s})' % (self.__class__.__name__, pairs)
 
-    def copy(self):
-        return self.__class__(self)
+        def copy(self):
+            return self.__class__(self)
 
-    @classmethod
-    def fromkeys(cls, iterable, value=None):
-        d = cls()
-        for key in iterable:
-            d[key] = value
-        return d
+        @classmethod
+        def fromkeys(cls, iterable, value=None):
+            d = cls()
+            for key in iterable:
+                d[key] = value
+            return d
+
+else:
+    from UserDict import DictMixin
+
+    class OrderedDict(dict, DictMixin):
+
+        def __init__(self, *args, **kwds):
+            if len(args) > 1:
+                raise TypeError('expected at most 1 arguments, got %d'
+                    % len(args))
+            try:
+                self.__end
+            except AttributeError:
+                self.clear()
+            self.update(*args, **kwds)
+
+        def clear(self):
+            self.__end = end = []
+            end += [None, end, end]      # sentinel node for doubly linked list
+            self.__map = {}              # key --> [key, prev, next]
+            dict.clear(self)
+
+        def __setitem__(self, key, value):
+            if key not in self:
+                end = self.__end
+                curr = end[1]
+                curr[2] = end[1] = self.__map[key] = [key, curr, end]
+            dict.__setitem__(self, key, value)
+
+        def __delitem__(self, key):
+            dict.__delitem__(self, key)
+            key, prev, next = self.__map.pop(key)
+            prev[2] = next
+            next[1] = prev
+
+        def __iter__(self):
+            end = self.__end
+            curr = end[2]
+            while curr is not end:
+                yield curr[0]
+                curr = curr[2]
+
+        def __reversed__(self):
+            end = self.__end
+            curr = end[1]
+            while curr is not end:
+                yield curr[0]
+                curr = curr[1]
+
+        def popitem(self, last=True):
+            if not self:
+                raise KeyError('dictionary is empty')
+            if last:
+                key = reversed(self).next()
+            else:
+                key = iter(self).next()
+            value = self.pop(key)
+            return key, value
+
+        def __reduce__(self):
+            items = [[k, self[k]] for k in self]
+            tmp = self.__map, self.__end
+            del self.__map, self.__end
+            inst_dict = vars(self).copy()
+            self.__map, self.__end = tmp
+            if inst_dict:
+                return (self.__class__, (items,), inst_dict)
+            return self.__class__, (items,)
+
+        def keys(self):
+            return list(self)
+
+        setdefault = DictMixin.setdefault
+        update = DictMixin.update
+        pop = DictMixin.pop
+        values = DictMixin.values
+        items = DictMixin.items
+        iterkeys = DictMixin.iterkeys
+        itervalues = DictMixin.itervalues
+        iteritems = DictMixin.iteritems
+
+        def __repr__(self):
+            if not self:
+                return '%s()' % (self.__class__.__name__,)
+            return '%s(%r)' % (self.__class__.__name__, self.items())
+
+        def copy(self):
+            return self.__class__(self)
+
+        @classmethod
+        def fromkeys(cls, iterable, value=None):
+            d = cls()
+            for key in iterable:
+                d[key] = value
+            return d
+
+        def __eq__(self, other):
+            if isinstance(other, OrderedDict):
+                return len(self)==len(other) and \
+                    all(p==q for p, q in  zip(self.items(), other.items()))
+            return dict.__eq__(self, other)
+
+        def __ne__(self, other):
+            return not self == other
+

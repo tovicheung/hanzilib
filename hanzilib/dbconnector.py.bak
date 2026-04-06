@@ -25,7 +25,7 @@ import os
 import logging
 import glob
 import operator
-
+from itertools import imap
 
 from sqlalchemy import MetaData, Table, engine_from_config
 from sqlalchemy.sql import text
@@ -40,9 +40,6 @@ _dbconnectInst = None
 
 _dbconnectInstSettings = None
 # Connection configuration for cached instance
-
-def cmp(a, b):
-    return (a > b) - (a < b)
 
 def getDBConnector(configuration=None, projectName='cjklib'):
     """
@@ -70,7 +67,7 @@ def getDBConnector(configuration=None, projectName='cjklib'):
     """
     global _dbconnectInst, _dbconnectInstSettings
     # allow single string and interpret as url
-    if isinstance(configuration, str):
+    if isinstance(configuration, basestring):
         configuration = {'sqlalchemy.url': configuration}
 
     elif not configuration:
@@ -173,7 +170,7 @@ class DatabaseConnector(object):
         """
         if not configuration:
             configuration = {}
-        elif isinstance(configuration, str):
+        elif isinstance(configuration, basestring):
             # backwards compatibility to option databaseUrl
             configuration = {'sqlalchemy.url': configuration}
         else:
@@ -192,7 +189,7 @@ class DatabaseConnector(object):
         self.databaseUrl = configuration['sqlalchemy.url']
         """Database url"""
         registerUnicode = configuration.pop('registerUnicode', False)
-        if isinstance(registerUnicode, str):
+        if isinstance(registerUnicode, basestring):
             registerUnicode = (registerUnicode.lower()
                 in ['1', 'yes', 'true', 'on'])
         self.registerUnicode = registerUnicode
@@ -280,8 +277,8 @@ class DatabaseConnector(object):
         engines.
         """
         if self.engine.name == 'sqlite':
-            uUmlaut = self.selectScalar(text("SELECT lower('Ü');"))
-            if uUmlaut != 'ü':
+            uUmlaut = self.selectScalar(text(u"SELECT lower('Ü');"))
+            if uUmlaut != u'ü':
                 # register own Unicode aware functions
                 con = self.connection.connection
                 con.create_function("lower", 1, lambda s: s and s.lower())
@@ -303,7 +300,7 @@ class DatabaseConnector(object):
         """
         # get views that are currently not (well) supported by SQLalchemy
         #   http://www.sqlalchemy.org/trac/ticket/812
-        schemas = [self._mainSchema] + list(self.attached.values())
+        schemas = [self._mainSchema] + self.attached.values()
 
         if self.engine.name == 'mysql':
             views = []
@@ -525,7 +522,7 @@ class DatabaseConnector(object):
         :return: an iterator of scalars
         """
         result = self.execute(request)
-        return map(self._decode, map(operator.itemgetter(0), result))
+        return imap(self._decode, imap(operator.itemgetter(0), result))
 
     def selectRow(self, request):
         """
@@ -560,4 +557,4 @@ class DatabaseConnector(object):
         :return: an iterator of tuples
         """
         result = self.execute(request)
-        return map(self._decode, result)
+        return imap(self._decode, result)
