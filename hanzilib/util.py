@@ -638,112 +638,56 @@ def cachedproperty(fget):
     return property(fget_wrapper, fdel=fdel, doc=fget.__doc__)
 
 
-if sys.version_info >= (2, 5):
-    import functools
-    class cachedmethod(object):
-        """
-        Decorate a method to memoize its return value. Only applicable for
-        methods without arguments.
-        """
-        def __init__(self, fget):
-            self.fget = fget
-            self.__doc__ = fget.__doc__
-            self.__name__ = fget.__name__
+import functools
+class cachedmethod(object):
+    """
+    Decorate a method to memoize its return value. Only applicable for
+    methods without arguments.
+    """
+    def __init__(self, fget):
+        self.fget = fget
+        self.__doc__ = fget.__doc__
+        self.__name__ = fget.__name__
 
-        def __get__(self, obj, cls):
+    def __get__(self, obj, cls):
+        @functools.wraps(self.fget)
+        def oneshot(*args, **kwargs):
             @functools.wraps(self.fget)
-            def oneshot(*args, **kwargs):
-                @functools.wraps(self.fget)
-                def memo(*a, **k): return result
-                result = self.fget(*args, **kwargs)
-                # save to instance __dict__
-                args[0].__dict__[self.__name__] = memo
-                return result
-            return oneshot.__get__(obj, cls)
-else:
-    class cachedmethod(object):
-        """
-        Decorate a method to memoize its return value. Only applicable for
-        methods without arguments.
-        """
-        def __init__(self, fget, doc=None):
-            self.fget = fget
-            self.__doc__ = doc or fget.__doc__
-            self.__name__ = fget.__name__
-
-        def __get__(self, obj, cls):
-            def oneshot(*args, **kwargs):
-                result = self.fget(*args, **kwargs)
-                memo = lambda *a, **k: result
-                memo.__name__ = self.__name__
-                memo.__doc__ = self.__doc__
-                # save to instance __dict__
-                args[0].__dict__[self.__name__] = memo
-                return result
-            oneshot.__name__ = self.__name__
-            oneshot.__doc__ = self.__doc__
-            return oneshot.__get__(obj, cls)
+            def memo(*a, **k): return result
+            result = self.fget(*args, **kwargs)
+            # save to instance __dict__
+            args[0].__dict__[self.__name__] = memo
+            return result
+        return oneshot.__get__(obj, cls)
 
 
-if sys.version_info >= (2, 5):
-    import warnings
-    import functools
+import warnings
+import functools
 
-    def deprecated(func):
-        """
-        Decorator which can be used to mark functions
-        as deprecated. It will result in a warning being emitted
-        when the function is used.
-        """
-        @functools.wraps(func)
-        def new_func(*args, **kwargs):
-            warnings.warn("Call to deprecated function %s." % func.__name__,
-                category=DeprecationWarning, stacklevel=2)
-            return func(*args, **kwargs)
-        return new_func
-else:
-    import warnings
-
-    def deprecated(func):
-        """
-        Decorator which can be used to mark functions
-        as deprecated. It will result in a warning being emitted
-        when the function is used.
-        """
-        def new_func(*args, **kwargs):
-            warnings.warn("Call to deprecated function %s." % func.__name__,
-                category=DeprecationWarning, stacklevel=2)
-            return func(*args, **kwargs)
-        new_func.__name__ = func.__name__
-        new_func.__doc__ = func.__doc__
-        new_func.__dict__.update(func.__dict__)
-        return new_func
+def deprecated(func):
+    """
+    Decorator which can be used to mark functions
+    as deprecated. It will result in a warning being emitted
+    when the function is used.
+    """
+    @functools.wraps(func)
+    def new_func(*args, **kwargs):
+        warnings.warn("Call to deprecated function %s." % func.__name__,
+            category=DeprecationWarning, stacklevel=2)
+        return func(*args, **kwargs)
+    return new_func
 
 #{ Collection classes
 
-if sys.version_info >= (2, 5):
-    class LazyDict(dict):
-        """A dict that will load entries on-demand."""
-        def __init__(self, creator, *args):
-            dict.__init__(self, *args)
-            self.creator = creator
+class LazyDict(dict):
+    """A dict that will load entries on-demand."""
+    def __init__(self, creator, *args):
+        dict.__init__(self, *args)
+        self.creator = creator
 
-        def __missing__(self, key):
-            self[key] = value = self.creator(key)
-            return value
-else:
-    class LazyDict(dict):
-        """A dict that will load entries on-demand."""
-        def __init__(self, creator):
-            dict.__init__(self, *args)
-            self.creator = creator
-
-        def __getitem__(self, key):
-            try:
-                return dict.__getitem__(self, key)
-            except KeyError:
-                self[key] = value = self.creator(key)
-                return value
+    def __missing__(self, key):
+        self[key] = value = self.creator(key)
+        return value
 
 from collections import MutableMapping
 

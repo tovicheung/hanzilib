@@ -31,8 +31,7 @@ from sqlalchemy import MetaData, Table, engine_from_config
 from sqlalchemy.sql import text
 from sqlalchemy.engine.url import make_url
 
-from cjklib.util import (locateProjectFile, getConfigSettings, getSearchPaths,
-    deprecated, LazyDict, OrderedDict)
+from .util import locateProjectFile, getConfigSettings, getSearchPaths, LazyDict, OrderedDict
 
 _dbconnectInst = None
 # Cached instance of a DatabaseConnector used for connections with settings of
@@ -136,23 +135,6 @@ class DatabaseConnector(object):
     """
     Database connection object.
     """
-    @classmethod
-    @deprecated
-    def getDBConnector(cls, configuration=None, projectName='cjklib'):
-        """
-        .. note:: Deprecated method, use
-                  :meth:`~cjklib.dbconnector.getDBConnector` instead.
-        """
-        return getDBConnector(configuration, projectName)
-
-    @classmethod
-    @deprecated
-    def getDefaultConfiguration(cls, projectName='cjklib'):
-        """
-        .. note:: Deprecated method, use
-                  :meth:`~cjklib.dbconnector.getDefaultConfiguration` instead.
-        """
-        return getDefaultConfiguration(projectName)
 
     def __init__(self, configuration):
         """
