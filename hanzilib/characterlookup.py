@@ -24,12 +24,38 @@ import math
 from sqlalchemy import select, union
 from sqlalchemy.sql import and_, or_
 
+from typing import Literal, Optional
+
+type Locale = Literal["T", "C", "J", "K", "V"]
+"""
+Character locale
+"""
+
+type VariantType = Literal["CMPZST"]
+"""
+Character variant
+- C, *compatible character* form (if character was added to Unicode
+to maintain compatibility and round-trip convertibility)
+- M, *semantic variant* forms, which are often used interchangeably
+instead of the character.
+- P, *specialised semantic variant* forms, which are often used
+interchangeably instead of the character but limited to certain
+contexts.
+- Z, *Z-variant* forms, which only differ in typeface (and would
+have been unified if not to maintain round trip convertibility)
+- S, *simplified Chinese character* forms, originating from the
+character simplification process of the PR China.
+- T, *traditional character* forms for a *simplified Chinese character*.
+"""
+
 from . import reading
 from . import exception
 from . import dbconnector
 from . import util
 
-class CharacterLookup(object):
+from .dbconnector import DatabaseConnector
+
+class CharacterLookup:
     """
     CharacterLookup provides access to lookup methods related to Han characters.
 
@@ -76,8 +102,8 @@ class CharacterLookup(object):
     see ``Scripts.txt`` from Unicode
     """
 
-    def __init__(self, locale, characterDomain="Unicode", databaseUrl=None,
-        dbConnectInst=None):
+    def __init__(self, locale: Locale, characterDomain: str = "Unicode", databaseUrl: Optional[str] = None,
+        dbConnectInst: Optional[DatabaseConnector] = None):
         """
         If no parameters are given default values are assumed for the connection
         to the database. The database connection parameters can be given in
@@ -98,27 +124,25 @@ class CharacterLookup(object):
         :param dbConnectInst: instance of a
             :class:`~cjklib.dbconnector.DatabaseConnector`
         """
-        if locale not in set('TCJKV'):
+
+        if locale not in "TCJKV":
             raise ValueError('Locale not one out of TCJKV: ' + repr(locale))
-        else:
-            self.locale = locale
-            """*character locale*"""
+        self.locale = locale
+
         # get connector to database
         if dbConnectInst:
             self.db = dbConnectInst
         else:
             self.db = dbconnector.getDBConnector(databaseUrl)
-            """:class:`~cjklib.dbconnector.DatabaseConnector` instance"""
+
         # character domain
-        self.setCharacterDomain(characterDomain)
+        self.characterDomain = characterDomain
 
         self._readingFactory = None
 
         # test for existing tables that can be used to speed up look up
         self.hasComponentLookup = self.db.hasTable('ComponentLookup')
-        """``True`` if table ``ComponentLookup`` exists"""
         self.hasStrokeCount = self.db.hasTable('StrokeCount')
-        """``True`` if table ``StrokeCount`` exists"""
 
     def _getReadingFactory(self):
         """
@@ -132,18 +156,14 @@ class CharacterLookup(object):
             self._readingFactory = reading.ReadingFactory(dbConnectInst=self.db)
         return self._readingFactory
 
-    #{ Character domains
+    # Character domains
 
-    def getCharacterDomain(self):
-        """
-        Returns the current *character domain*.
-
-        :rtype: str
-        :return: the current *character domain*
-        """
+    @property
+    def characterDomain(self):
         return self._characterDomain
 
-    def setCharacterDomain(self, characterDomain):
+    @characterDomain.setter
+    def characterDomain(self, characterDomain):
         """
         Sets the current *character domain*.
 
@@ -165,9 +185,6 @@ class CharacterLookup(object):
         else:
             raise ValueError("Unknown character domain '%s'" % characterDomain)
 
-    characterDomain = property(getCharacterDomain, setCharacterDomain, None,
-        """current *character domain*""")
-
     def getDomainCharacterIterator(self):
         """
         Returns an iterator over the full set of domain characters.
@@ -175,13 +192,13 @@ class CharacterLookup(object):
         :rtype: iterator
         :return: iterator of characters inside the current *character domain*
         """
-        if self.getCharacterDomain() == 'Unicode':
+        if self.characterDomain == 'Unicode':
             return util.CharacterRangeIterator(self.HAN_SCRIPT_RANGES)
         else:
             return self.db.iterScalars(select(
                 [self._characterDomainTable.c.ChineseCharacter]))
 
-    def filterDomainCharacters(self, charList):
+    def filterDomainCharacters(self, charList: list[str]):
         """
         Filters a given list of characters to match only those inside the
         current *character domain*. Returns the characters in the given order.
@@ -192,7 +209,7 @@ class CharacterLookup(object):
         :return: list of characters inside the current *character domain*
         """
         # constrain to selected character domain
-        if self.getCharacterDomain() == 'Unicode':
+        if self.characterDomain == 'Unicode':
             charSet = set(charList)
             filteredCharList = set()
             for char in self.getDomainCharacterIterator():
@@ -214,7 +231,7 @@ class CharacterLookup(object):
                 sortedFiltered.append(char)
         return sortedFiltered
 
-    def isCharacterInDomain(self, char):
+    def isCharacterInDomain(self, char: str) -:
         """
         Checks if the given character is inside the current character domain.
 
@@ -291,7 +308,7 @@ class CharacterLookup(object):
         table = self.db.tables[tableName]
 
         # constrain to selected character domain
-        if self.getCharacterDomain() == 'Unicode':
+        if self.characterDomain == 'Unicode':
             fromObj = []
         else:
             fromObj = [table.join(self._characterDomainTable,
@@ -450,26 +467,11 @@ class CharacterLookup(object):
             raise ValueError("'" + locale + "' is not a valid character locale")
         return '%' + locale + '%'
 
-    #{ Character glyph/variant lookup
+    # Character glyph/variant lookup
 
-    def getCharacterVariants(self, char, variantType):
+    def getCharacterVariants(self, char: str, variantType: VariantType):
         """
         Gets the variant forms of the given type for the character.
-
-        The type can be one out of:
-            - C, *compatible character* form (if character was added to Unicode
-                to maintain compatibility and round-trip convertibility)
-            - M, *semantic variant* forms, which are often used interchangeably
-                instead of the character.
-            - P, *specialised semantic variant* forms, which are often used
-                interchangeably instead of the character but limited to certain
-                contexts.
-            - Z, *Z-variant* forms, which only differ in typeface (and would
-                have been unified if not to maintain round trip convertibility)
-            - S, *simplified Chinese character* forms, originating from the
-                character simplification process of the PR China.
-            - T, *traditional character* forms for a
-                *simplified Chinese character*.
 
         Variants depend on the locale which is not taken into account here. Thus
         some of the returned characters might be only be variants under some
@@ -495,12 +497,12 @@ class CharacterLookup(object):
               some not. Is there any rule?
         """
         variantType = variantType.upper()
-        if not variantType in set('CMPZST'):
+        if not variantType in "CMPZST":
             raise ValueError("'%s' is not a valid variant type" % variantType)
 
         table = self.db.tables['CharacterVariant']
         # constrain to selected character domain
-        if self.getCharacterDomain() == 'Unicode':
+        if self.characterDomain == 'Unicode':
             fromObj = []
         else:
             fromObj = [table.join(self._characterDomainTable, table.c.Variant
@@ -530,7 +532,7 @@ class CharacterLookup(object):
         """
         table = self.db.tables['CharacterVariant']
         # constrain to selected character domain
-        if self.getCharacterDomain() == 'Unicode':
+        if self.characterDomain == 'Unicode':
             fromObj = []
         else:
             fromObj = [table.join(self._characterDomainTable, table.c.Variant \
@@ -540,7 +542,7 @@ class CharacterLookup(object):
             table.c.ChineseCharacter == char,
             from_obj=fromObj).order_by(table.c.Variant))
 
-    def getDefaultGlyph(self, char):
+    def getDefaultGlyph(self, char: str) -> int:
         """
         Gets the default *glyph* for the given character under the chosen
         *character locale*.
@@ -557,7 +559,7 @@ class CharacterLookup(object):
         """
         return self.getLocaleDefaultGlyph(char, self.locale)
 
-    def getLocaleDefaultGlyph(self, char, locale):
+    def getLocaleDefaultGlyph(self, char: str, locale: Locale) -> int:
         """
         Gets the default *glyph* for the given character under the given
         locale.
@@ -587,7 +589,7 @@ class CharacterLookup(object):
             # if no entry given, assume default
             return self.getCharacterGlyphs(char)[0]
 
-    def getCharacterGlyphs(self, char):
+    def getCharacterGlyphs(self, char: str) -> list[int]:
         """
         Gets a list of character *glyph* indices supported by the database.
 
@@ -670,7 +672,7 @@ class CharacterLookup(object):
         if self.hasStrokeCount:
             table = self.db.tables['StrokeCount']
             # constrain to selected character domain
-            if self.getCharacterDomain() == 'Unicode':
+            if self.characterDomain == 'Unicode':
                 fromObj = []
             else:
                 fromObj = [table.join(self._characterDomainTable,
@@ -1050,7 +1052,7 @@ class CharacterLookup(object):
                 strokeOrder.append(None)
         return strokeOrder
 
-    def getStrokeOrderAbbrev(self, char, glyph=None, includePartial=False):
+    def getStrokeOrderAbbrev(self, char: str, glyph: Optional[int] = None, includePartial: bool = False):
         """
         Gets the stroke order sequence for the given character as a string of
         *abbreviated stroke names* separated by spaces and hyphens.
@@ -1101,7 +1103,7 @@ class CharacterLookup(object):
         tables = [self.db.tables[tableName] \
             for tableName in ['StrokeOrder', 'CharacterDecomposition']]
         # constrain to selected character domain
-        if self.getCharacterDomain() != 'Unicode':
+        if self.characterDomain != 'Unicode':
             tables = [table.join(self._characterDomainTable,
                 table.c.ChineseCharacter \
                     == self._characterDomainTable.c.ChineseCharacter) \
@@ -1142,7 +1144,8 @@ class CharacterLookup(object):
             a = "".join(a)
         return a
 
-    def _buildStrokeOrder(self, char: str, glyph: int, includePartial=False, cache=None) -> str:
+    def _buildStrokeOrder(self, char: str, glyph: int, includePartial: bool = False,
+                          cache: Optional[dict[tuple[str, int], str]] = None) -> str:
         """
         Gets the stroke order sequence for the given character as a string of
         *abbreviated stroke names* separated by spaces and hyphens.
@@ -1288,12 +1291,11 @@ class CharacterLookup(object):
                     try:
                         a = ' '.join(so)
                     except TypeError as e:
-                        print("TYPE ERROR", so)
                         raise
                     return ' '.join(so)
 
         if cache is None:
-            cache: dict[tuple[str, int], str] = {}
+            cache = {}
         if (char, glyph) not in cache:
             # if there is an entry for the whole character return it
             order = self._getStrokeOrderEntry(char, glyph)
@@ -1303,8 +1305,7 @@ class CharacterLookup(object):
 
         return cache[(char, glyph)]
 
-    #}
-    #{ Character radical functions
+    # Character radical functions
 
     def getCharacterKangxiRadicalIndex(self, char):
         """
@@ -1563,7 +1564,7 @@ class CharacterLookup(object):
         # get entries from database
         table = self.db.tables['CharacterResidualStrokeCount']
         # constrain to selected character domain
-        if self.getCharacterDomain() == 'Unicode':
+        if self.characterDomain == 'Unicode':
             fromObj = []
         else:
             fromObj = [table.join(self._characterDomainTable,
@@ -1602,7 +1603,7 @@ class CharacterLookup(object):
         """
         table = self.db.tables['CharacterKangxiRadical']
         # constrain to selected character domain
-        if self.getCharacterDomain() == 'Unicode':
+        if self.characterDomain == 'Unicode':
             fromObj = []
         else:
             fromObj = [table.join(self._characterDomainTable,
@@ -1629,7 +1630,7 @@ class CharacterLookup(object):
         """
         table = self.db.tables['CharacterResidualStrokeCount']
         # constrain to selected character domain
-        if self.getCharacterDomain() == 'Unicode':
+        if self.characterDomain == 'Unicode':
             fromObj = []
         else:
             fromObj = [table.join(self._characterDomainTable,
@@ -1663,7 +1664,7 @@ class CharacterLookup(object):
                 == kangxiTable.c.ChineseCharacter,
                 residualTable.c.RadicalIndex == kangxiTable.c.RadicalIndex))]
         # constrain to selected character domain
-        if self.getCharacterDomain() != 'Unicode':
+        if self.characterDomain != 'Unicode':
             fromObj[0] = fromObj[0].join(self._characterDomainTable,
                 residualTable.c.ChineseCharacter \
                     == self._characterDomainTable.c.ChineseCharacter)
@@ -1693,7 +1694,7 @@ class CharacterLookup(object):
         """
         table = self.db.tables['CharacterResidualStrokeCount']
         # constrain to selected character domain
-        if self.getCharacterDomain() == 'Unicode':
+        if self.characterDomain == 'Unicode':
             fromObj = []
         else:
             fromObj = [table.join(self._characterDomainTable,
@@ -2139,7 +2140,7 @@ class CharacterLookup(object):
                         == joinTables[0].c.ChineseCharacter,
                     table.c.Glyph == joinTables[0].c.Glyph))
         # constrain to selected character domain
-        if self.getCharacterDomain() != 'Unicode':
+        if self.characterDomain != 'Unicode':
             fromObject = fromObject.join(self._characterDomainTable,
                 joinTables[0].c.ChineseCharacter \
                     == self._characterDomainTable.c.ChineseCharacter)
@@ -2215,7 +2216,7 @@ class CharacterLookup(object):
         # get entries from database
         table = self.db.tables['CharacterDecomposition']
         # constrain to selected character domain
-        if self.getCharacterDomain() == 'Unicode':
+        if self.characterDomain == 'Unicode':
             fromObj = []
         else:
             fromObj = [table.join(self._characterDomainTable,
@@ -2258,9 +2259,6 @@ class CharacterLookup(object):
             else:
                 # is Chinese character
                 # Special handling for surrogate pairs on UCS-2 systems
-                if util.isValidSurrogate(decomposition[index:index+2]):
-                    char = decomposition[index:index+2]  # A surrogate pair now
-                    index += 1  # Bypass trailing surrogate
                 if char == '#':
                     # pseudo character, find digit end
                     offset = 2

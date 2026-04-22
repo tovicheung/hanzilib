@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 # This file is part of cjklib.
@@ -25,13 +27,14 @@ import os
 import logging
 import glob
 import operator
+from collections import OrderedDict
 
 
 from sqlalchemy import MetaData, Table, engine_from_config
 from sqlalchemy.sql import text
 from sqlalchemy.engine.url import make_url
 
-from .util import locateProjectFile, getConfigSettings, getSearchPaths, LazyDict, OrderedDict
+from .util import getConfigSettings, getSearchPaths, LazyDict
 
 _dbconnectInst = None
 # Cached instance of a DatabaseConnector used for connections with settings of
@@ -43,7 +46,7 @@ _dbconnectInstSettings = None
 def cmp(a, b):
     return (a > b) - (a < b)
 
-def getDBConnector(configuration=None, projectName='hanzilib'):
+def getDBConnector(configuration=None, projectName='hanzilib') -> DatabaseConnector:
     """
     Returns a shared :class:`~cjklib.dbconnector.DatabaseConnector` instance.
 
@@ -112,13 +115,8 @@ def getDefaultConfiguration(projectName='hanzilib'):
             configuration['sqlalchemy.url'] = url
 
     if 'sqlalchemy.url' not in configuration:
-        dbFile = locateProjectFile(
-            '%(proj)s/%(proj)s.db' % {'proj': projectName},
-            projectName)
-        if not dbFile:
-            # fall back to the directory of this file, only works for cjklib
-            libdir = os.path.dirname(os.path.abspath(__file__))
-            dbFile = os.path.join(libdir, '%(proj)s.db' % {'proj': projectName})
+        libdir = os.path.dirname(os.path.abspath(__file__))
+        dbFile = os.path.join(libdir, '%(proj)s.db' % {'proj': projectName})
 
         configuration['sqlalchemy.url'] = 'sqlite:///%s' % dbFile
 
@@ -375,7 +373,7 @@ class DatabaseConnector(object):
         Returns a function that retrieves a SQLAlchemy Table object for a given
         table name.
         """
-        def getTable(tableName):
+        def getTable(tableName: str) -> Table:
             schema = self._findTable(tableName)
             if schema is not None:
                 return Table(tableName, self.metadata, autoload=True,

@@ -72,6 +72,7 @@ __all__ = [
     "SimpleWenlinFormatBuilder"
     ]
 
+from abc import ABC, abstractmethod
 import types
 import re
 import os.path
@@ -89,8 +90,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from .. import characterlookup
 from .. import exception
 from . import warn
-from ..util import (UnicodeCSVFileIterator, CollationString, CollationText,
-    deprecated, fromCodepoint, getCharacterList)
+from ..util import UnicodeCSVFileIterator, CollationString, CollationText, deprecated
 
 import typing
 if typing.TYPE_CHECKING:
@@ -101,7 +101,7 @@ if typing.TYPE_CHECKING:
 
 #{ TableBuilder and generic classes
 
-class TableBuilder(object):
+class TableBuilder(ABC):
     """
     TableBuilder provides the abstract layout for classes that build a distinct
     table.
@@ -164,6 +164,7 @@ class TableBuilder(object):
                 'description': "don't print anything on stdout"}}
         return optionsMetaData[option]
 
+    @abstractmethod
     def build(self):
         """
         Build the table provided by the TableBuilder.
@@ -282,6 +283,7 @@ class EntryGeneratorBuilder(TableBuilder):
     COLUMN_TYPES = {}
     """Column types for created table"""
 
+    @abstractmethod
     def getGenerator(self):
         """
         Returns the entry generator.
@@ -449,7 +451,7 @@ class UnihanGenerator:
                         del handleDict[fileName]
 
             if entryIndex >= 0:
-                char = fromCodepoint(entryIndex)
+                char = chr(entryIndex)
                 yield(char, entry)
 
             # if the read buffer is empty, all files are finished
@@ -1110,7 +1112,7 @@ class CharacterVariantBuilder(EntryGeneratorBuilder):
                             for unicodeHexIndex in variantIndices:
                                 codePoint = int(unicodeHexIndex, 16)
                                 if self.wideBuild or codePoint < 0x10000:
-                                    variant = fromCodepoint(codePoint)
+                                    variant = chr(codePoint)
                                     yield(character, variant, variantType)
                         elif not self.quiet:
                             # didn't match the regex
@@ -2032,7 +2034,7 @@ class CharacterDecompositionBuilder(NarrowBuildCSVFileLoader):
 
         if entryDict and 'Decomposition' in entryDict:
             # split into characters, take care of surrogates
-            decompositionChars = getCharacterList(entryDict['Decomposition'])
+            decompositionChars = list(entryDict['Decomposition'])
 
             for i in range(len(decompositionChars)):
                 # every char outside the BMP must be a unified ideograph

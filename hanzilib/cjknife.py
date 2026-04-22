@@ -41,8 +41,7 @@ from cjklib import reading
 from cjklib import dictionary
 from cjklib.dictionary import search
 from cjklib import exception
-from cjklib.util import (getConfigSettings, toCodepoint, isValidSurrogate,
-    getCharacterList)
+from cjklib.util import getConfigSettings
 
 class ExactMultiple(search.Exact):
     """Exact search strategy class matching any strings from a list."""
@@ -612,8 +611,8 @@ class CharacterInfo:
         infoDict['locale'] = self.locale
         infoDict['locale name'] = self.CHAR_LOCALE_NAME[self.locale]
         infoDict['characterDomain'] = self.characterLookup.getCharacterDomain()
-        infoDict['codepoint hex'] = 'U+%04X' % toCodepoint(char)
-        infoDict['codepoint dec'] = str(toCodepoint(char))
+        infoDict['codepoint hex'] = 'U+%04X' % ord(char)
+        infoDict['codepoint dec'] = str(ord(char))
 
         # radical
         if self.characterLookup.isRadicalChar(char):
@@ -1045,7 +1044,7 @@ def main():
 
         # character information table
         if command in ("-i", "--information"):
-            if len(parameter) == 1 or isValidSurrogate(parameter):
+            if len(parameter) == 1:
                 infoDict = charInfo.getCharacterInformation(parameter)
 
                 print(("Information for character " + infoDict['char'] + " (" \
@@ -1127,7 +1126,7 @@ def main():
                 sys.exit(1)
 
         elif command in ("-q", "-r", "-f", "--get-reading", "--convert-form"):
-            charList = getCharacterList(parameter)
+            charList = list(parameter)
             # character to reading conversion
             if command in ("-q", "-r", "--get-reading"):
                 try:
@@ -1189,7 +1188,7 @@ def main():
 
         # character lookup by components
         elif command in ("-p", "--by-components"):
-            componentList = getCharacterList(parameter)
+            componentList = list(parameter)
             charList = charInfo.getCharactersForComponents(componentList)
             print(''.join(charList).encode(output_encoding, "replace"))
 

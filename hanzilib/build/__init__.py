@@ -32,7 +32,6 @@ from sqlalchemy.exc import OperationalError
 
 from .. import dbconnector
 from .. import exception
-from ..util import locateProjectFile
 
 import typing
 if typing.TYPE_CHECKING:
@@ -73,10 +72,8 @@ class DatabaseBuilder:
         """
         if 'dataPath' not in options:
             # look for data underneath the build module
-            projectDataPath = locateProjectFile('hanzilib/data', 'hanzilib')
-            if not projectDataPath:
-                projectDataPath = os.path.join(
-                    os.path.dirname(os.path.abspath(__file__)), '../data')
+            projectDataPath = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), '../data')
             options['dataPath'] = [projectDataPath]
 
         elif isinstance(options['dataPath'], str):

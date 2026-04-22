@@ -90,14 +90,14 @@ class GlyphReader(object):
 
         # unify data
         glyphEntries = {}
-        characters = set(decompositionEntries.keys() + strokeOrderEntries.keys()
-            + localeEntries.keys())
+        characters = set(list(decompositionEntries.keys()) + list(strokeOrderEntries.keys())
+            + list(localeEntries.keys()))
         for char in characters:
             glyphEntries[char] = {}
 
-            glyphs = set(decompositionEntries.get(char, {}).keys()
-                + strokeOrderEntries.get(char, {}).keys()
-                + localeEntries.get(char, {}).keys())
+            glyphs = set(list(decompositionEntries.get(char, {}).keys())
+                + list(strokeOrderEntries.get(char, {}).keys())
+                + list(localeEntries.get(char, {}).keys()))
             for glyphIdx in glyphs:
                 glyphEntries[char][glyphIdx] = createGlyph(char, glyphIdx)
 
@@ -115,10 +115,6 @@ class GlyphReader(object):
                 componentsList.append(char)
             else:
                 # is Chinese character
-                # Special handling for surrogate pairs on UCS-2 systems
-                if util.isValidSurrogate(decomposition[index:index+2]):
-                    char = decomposition[index:index+2]  # A surrogate pair now
-                    index += 1  # Bypass trailing surrogate
                 if char == '#':
                     # pseudo character, find digit end
                     offset = 2
@@ -143,7 +139,7 @@ class GlyphReader(object):
     def readDecomposition(decompositionFilePath):
         decompositionEntries = {}
 
-        print >> sys.stderr, "reading %r" % decompositionFilePath
+        print("reading %r" % decompositionFilePath, file=sys.stderr)
         fileHandle = codecs.open(decompositionFilePath, 'r', 'utf8')
 
         # entries from CSV
@@ -155,8 +151,8 @@ class GlyphReader(object):
                 subIndex = int(subIndex)
                 decomposition = GlyphReader.decompositionFromString(
                     decomposition)
-            except ValueError, UnicodeEncodeError:
-                print entry
+            except (ValueError, UnicodeEncodeError):
+                print(entry)
                 raise
 
             if char not in decompositionEntries:
@@ -172,7 +168,7 @@ class GlyphReader(object):
     def readStrokeOrder(strokeOrderFilePath):
         strokeOrderEntries = {}
 
-        print >> sys.stderr, "reading %r" % strokeOrderFilePath
+        print("reading %r" % strokeOrderFilePath, file=sys.stderr)
         fileHandle = codecs.open(strokeOrderFilePath, 'r', 'utf8')
 
         for entry in util.UnicodeCSVFileIterator(fileHandle):
@@ -180,7 +176,7 @@ class GlyphReader(object):
                 char, strokeOrder, glyphIdx, flags = entry
                 glyphIdx = int(glyphIdx)
             except ValueError:
-                print entry
+                print(entry)
                 raise
 
             if char not in strokeOrderEntries:
@@ -193,7 +189,7 @@ class GlyphReader(object):
     def readLocaleMapping(localeFilePath):
         localeEntries = {}
 
-        print >> sys.stderr, "reading %r" % localeFilePath
+        print("reading %r" % localeFilePath, file=sys.stderr)
         fileHandle = codecs.open(localeFilePath, 'r', 'utf8')
 
         for entry in util.UnicodeCSVFileIterator(fileHandle):
@@ -201,7 +197,7 @@ class GlyphReader(object):
                 char, glyphIdx, localeString = entry
                 glyphIdx = int(glyphIdx)
             except ValueError:
-                print entry
+                print(entry)
                 raise
             if char not in localeEntries:
                 localeEntries[char] = {}
@@ -237,19 +233,19 @@ class GlyphWriter(object):
                         decompEntities.append("%s[%d]" % entity)
             return ''.join(decompEntities)
 
-        print >> sys.stderr, "writing %r" % decompositionFilePath
+        print("writing %r" % decompositionFilePath, file=sys.stderr)
         fileHandle = codecs.open(decompositionFilePath, 'w', 'utf8')
 
         for char in glyphEntries:
-            for glyphIdx, glyph in glyphEntries[char].items():
+            for glyphIdx, glyph in list(glyphEntries[char].items()):
                 for decompositionEntry in glyph.decompositions:
                     decomposition, subIndex, flags = decompositionEntry
-                    print >> fileHandle, (
+                    print((
                         '"%(char)s","%(decomp)s",%(glyph)d,%(index)d,%(flags)s'
                             % {'char': char,
                                 'decomp': getDecompositionStr(decomposition),
                                 'glyph': glyphIdx, 'index': subIndex,
-                                'flags': flags})
+                                'flags': flags}), file=fileHandle)
 
         fileHandle.close()
 
@@ -257,17 +253,17 @@ class GlyphWriter(object):
     def writeStrokeOrder(strokeOrderFilePath, glyphEntries):
         strokeOrderEntries = {}
 
-        print >> sys.stderr, "writing %r" % strokeOrderFilePath
+        print("writing %r" % strokeOrderFilePath, file=sys.stderr)
         fileHandle = codecs.open(strokeOrderFilePath, 'w', 'utf8')
 
         for char in glyphEntries:
-            for glyphIdx, glyph in glyphEntries[char].items():
+            for glyphIdx, glyph in list(glyphEntries[char].items()):
                 if glyph.strokeOrder:
                     strokeOrder, flags = glyph.strokeOrder
-                    print >> fileHandle, (
+                    print((
                         '"%(char)s","%(so)s",%(glyph)d,%(flags)s'
                             % {'char': char, 'so': strokeOrder,
-                                'glyph': glyphIdx, 'flags': flags})
+                                'glyph': glyphIdx, 'flags': flags}), file=fileHandle)
 
         fileHandle.close()
 
@@ -275,17 +271,17 @@ class GlyphWriter(object):
     def writeLocaleMapping(localeFilePath, glyphEntries):
         localeEntries = {}
 
-        print >> sys.stderr, "writing %r" % localeFilePath
+        print("writing %r" % localeFilePath, file=sys.stderr)
         fileHandle = codecs.open(localeFilePath, 'w', 'utf8')
 
         for char in glyphEntries:
-            for glyphIdx, glyph in glyphEntries[char].items():
+            for glyphIdx, glyph in list(glyphEntries[char].items()):
                 if glyph.locales:
                     locale = ''.join(glyph.locales)
-                    print >> fileHandle, (
+                    print((
                         '"%(char)s",%(glyph)d,%(locale)s'
                             % {'char': char, 'glyph': glyphIdx,
-                                'locale': locale})
+                                'locale': locale}), file=fileHandle)
 
         fileHandle.close()
 
@@ -306,7 +302,7 @@ class SortedGlyphIterator(object):
 
                     components.update(c for c, _ in
                         [entry for entry in decomp
-                            if not isinstance(entry, basestring)])
+                            if not isinstance(entry, str)])
 
             return components
 
@@ -372,7 +368,7 @@ class LocaleDecompositionConverter(object):
             defaultGlyphMapping[char] = min(glyphEntries[char].keys())
 
         for char in glyphEntries:
-            for glyphIdx, glyph in glyphEntries[char].items():
+            for glyphIdx, glyph in list(glyphEntries[char].items()):
                 for subIdx in range(len(glyph.decompositions)):
                     decomposition, subIdx, flags = glyph.decompositions[subIdx]
                     decomposition = LocaleDecompositionConverter\
@@ -415,10 +411,10 @@ class LocaleDecompositionConverter(object):
             defaultLocaleMapping[char] = min(glyphEntries[char].keys())
 
             localeMapping[char] = {}
-            for glyphIdx, glyph in glyphEntries[char].items():
+            for glyphIdx, glyph in list(glyphEntries[char].items()):
                 for locale in glyph.locales:
                     localeMapping[char][locale] = glyphIdx
-        assert u'？' not in localeMapping
+        assert '？' not in localeMapping
 
         # get in order of increasing dependencies
         sortedGlyphEntries = SortedGlyphIterator(glyphEntries)
@@ -432,9 +428,9 @@ class LocaleDecompositionConverter(object):
             # get locales without a mapping: take on default
             localesForDefaultGlyph = (set('TCJKV')
                 - set(itertools.chain(*list(
-                    glyph.locales for glyph in glyphs.values()))))
+                    glyph.locales for glyph in list(glyphs.values())))))
 
-            for glyphIdx, glyph in glyphs.items():
+            for glyphIdx, glyph in list(glyphs.items()):
                 if not glyph.decompositions:
                     # no alteration needed
                     newGlyphEntries[char][glyphIdx] = glyph
@@ -461,10 +457,10 @@ class LocaleDecompositionConverter(object):
                     if decompositions != glyph.decompositions:
                         # create new glyph
                         if glyph.strokeOrder:
-                            print >> sys.stderr, ("Warning: creating new glyph"
+                            print(("Warning: creating new glyph"
                                 " with old stroke order:"
                                 " %s[%d] for locale %s"
-                                    % (char, glyphIdx, locale))
+                                    % (char, glyphIdx, locale)), file=sys.stderr)
                         newGlyphs.append(
                             Glyph(decompositions, glyph.strokeOrder, [locale]))
                         # detach locale from old
@@ -475,9 +471,9 @@ class LocaleDecompositionConverter(object):
                 if locales and not newLocales:
                     # all locales took on a new glyph, we can probably delete
                     #   this entry
-                    print >> sys.stderr, ("Warning: deleting glyph"
+                    print(("Warning: deleting glyph"
                         " now without locale mappings:"
-                        " %s[%d]" % (char, glyphIdx))
+                        " %s[%d]" % (char, glyphIdx)), file=sys.stderr)
                 else:
                     newGlyphEntries[char][glyphIdx] = glyph
 
@@ -485,7 +481,7 @@ class LocaleDecompositionConverter(object):
                 # new glyphs need to be integrated into the list
                 nextGlyphIdx = max(glyphs.keys()) + 1
                 for newGlyph in newGlyphs:
-                    for glyphIdx, glyph in newGlyphEntries[char].items():
+                    for glyphIdx, glyph in list(newGlyphEntries[char].items()):
                         if (newGlyph.decompositions == glyph.decompositions
                             and newGlyph.strokeOrder == glyph.strokeOrder):
                             # merge with existing glyph
@@ -502,7 +498,7 @@ class LocaleDecompositionConverter(object):
                 defaultLocaleMapping[char] = min(glyphEntries[char].keys())
 
                 localeMapping[char] = {}
-                for glyphIdx, glyph in newGlyphEntries[char].items():
+                for glyphIdx, glyph in list(newGlyphEntries[char].items()):
                     for locale in glyph.locales:
                         localeMapping[char][locale] = glyphIdx
 

@@ -26,13 +26,14 @@ import re
 import os
 import new
 import unittest
+import functools
 
-from cjklib.dictionary import (getAvailableDictionaries, getDictionaryClass,
+from hanzilib.dictionary import (getAvailableDictionaries, getDictionaryClass,
     getDictionary)
-from cjklib.dictionary import search as searchstrategy
-from cjklib.build import DatabaseBuilder
-from cjklib import util
-from cjklib.test import NeedsTemporaryDatabaseTest, attr, EngineMock
+from hanzilib.dictionary import search as searchstrategy
+from hanzilib.build import DatabaseBuilder
+from hanzilib import util
+from hanzilib.test import NeedsTemporaryDatabaseTest, attr, EngineMock
 
 class DictionaryTest(NeedsTemporaryDatabaseTest):
     """Base class for testing of :mod:`cjklib.dictionary` classes."""
@@ -122,7 +123,7 @@ class DictionaryResultTest(DictionaryTest):
         self.builder.remove(self.DICTIONARY)
         assert not self.db.mainHasTable(self.DICTIONARY)
 
-    @util.cachedproperty
+    @functools.cached_property
     def resultIndexMap(self):
         content = self.INSTALL_CONTENT[:]
 

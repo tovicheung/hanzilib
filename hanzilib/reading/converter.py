@@ -38,6 +38,7 @@ __all__ = [
 import re
 import copy
 import types
+import functools
 
 from sqlalchemy import select
 from sqlalchemy.sql import and_
@@ -47,7 +48,7 @@ from ..exception import (ConversionError, AmbiguousConversionError,
 from .. import dbconnector
 from . import operator as readingoperator
 from . import ReadingFactory
-from ..util import titlecase, istitlecase, cachedproperty
+from ..util import titlecase, istitlecase
 
 class ReadingConverter(object):
     """
@@ -1297,7 +1298,7 @@ class GRPinyinConverter(RomanisationConverter):
             #   accepted by the operator
             raise ConversionError(*e.args)
 
-    @cachedproperty
+    @functools.cached_property
     def _grOperator(self):
         """GROperator instance"""
         return readingoperator.GROperator(**self.DEFAULT_READING_OPTIONS['GR'])

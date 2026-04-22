@@ -22,7 +22,6 @@
 Utilities.
 """
 
-import sys
 import re
 import copy
 import os.path
@@ -30,10 +29,12 @@ import platform
 import configparser
 from optparse import Option, OptionValueError
 import csv
+from typing import Callable
+import itertools
 
 from sqlalchemy.types import String, Text
 
-#{ Configuration and file access
+# Configuration and file access
 
 def locateProjectFile(relPath, projectName='hanzilib'):
     """
@@ -47,15 +48,7 @@ def locateProjectFile(relPath, projectName='hanzilib'):
     :param projectName: name of project which will be used as name of the
         config file
     """
-    try:
-        from pkg_resources import (Requirement, resource_filename,
-            DistributionNotFound)
-    except ImportError:
-        return
-    try:
-        return resource_filename(Requirement.parse(projectName), relPath)
-    except (DistributionNotFound, ValueError):
-        pass
+    return
 
 def getConfigSettings(section, projectName='hanzilib'):
     """
@@ -78,14 +71,14 @@ def getConfigSettings(section, projectName='hanzilib'):
 
         configFiles = []
         # Library directory
-        libdir = locateProjectFile(projectName, projectName)
-        if not libdir:
-            if projectName != 'hanzilib':
-                import warnings
-                warnings.warn("Cannot locate packaged files for project '%s'"
-                    % projectName)
-            # fall back to the directory of this file, only works for cjklib
-            libdir = os.path.dirname(os.path.abspath(__file__))
+        # libdir = locateProjectFile(projectName)
+        # if not libdir:
+        #     if projectName != 'hanzilib':
+        #         import warnings
+        #         warnings.warn("Cannot locate packaged files for project '%s'"
+        #             % projectName)
+        #     # fall back to the directory of this file, only works for cjklib
+        libdir = os.path.dirname(os.path.abspath(__file__))
         configFiles.append(os.path.join(libdir, '%s.conf' % projectName))
 
         # Windows
@@ -166,32 +159,26 @@ def getSearchPaths(projectName='hanzilib'):
         searchPath += os.environ[env].strip().split(os.path.pathsep)
 
     # Library directory
-    libdir = locateProjectFile(projectName, projectName)
-    if not libdir:
-        if projectName != 'hanzilib':
-            import warnings
-            warnings.warn("Cannot locate packaged files for project '%s'"
-                % projectName)
-        # fall back to the directory of this file, only works for cjklib
-        libdir = os.path.dirname(os.path.abspath(__file__))
+    # libdir = locateProjectFile(projectName)
+    # if not libdir:
+    #     if projectName != 'hanzilib':
+    #         import warnings
+    #         warnings.warn("Cannot locate packaged files for project '%s'"
+    #             % projectName)
+    #     # fall back to the directory of this file, only works for cjklib
+    libdir = os.path.dirname(os.path.abspath(__file__))
 
     searchPath.append(libdir)
 
     return searchPath
 
-def getDataPath():
-    """
-    Gets the path to packaged data.
+def getDataPath() -> str:
+    """Gets the path to packaged data."""
 
-    :rtype: str
-    :return: path
-    """
-    dataDir = locateProjectFile('hanzilib/data', 'hanzilib')
-    if not dataDir:
-        buildModule = __import__("hanzilib.build")
-        buildModulePath = os.path.dirname(os.path.abspath(
-            buildModule.__file__))
-        dataDir = os.path.join(buildModulePath, 'data')
+    buildModule = __import__("hanzilib.build")
+    buildModulePath = os.path.dirname(os.path.abspath(
+        buildModule.__file__))
+    dataDir = os.path.join(buildModulePath, 'data')
 
     return dataDir
 
@@ -245,142 +232,21 @@ def istitlecase(strng):
     """
     return titlecase(strng) == strng
 
-if sys.maxunicode < 0x10000:
-    def fromCodepoint(codepoint):
-        """
-        Creates a character for a Unicode codepoint similar to ``unichr``.
+# Helper methods
 
-        For Python narrow builds this function does not raise a
-        ``ValueError`` for characters outside the BMP but returns a string
-        with a UTF-16 surrogate pair of two characters.
-
-        .. seealso::
-
-            `PEP 261 <http://www.python.org/dev/peps/pep-0261/>`_
-        """
-        if codepoint >= 0x10000:
-            hi, lo = divmod(codepoint - 0x10000, 0x400)
-            return chr(0xd800 + hi) + chr(0xdc00 + lo)
-        else:
-            return chr(codepoint)
-
-    def toCodepoint(char):
-        """
-        Returns the Unicode codepoint for this character similar to ``ord``.
-
-        This function can handle surrogate pairs as used by narrow builds.
-
-        :raise ValueError: if the string is not a single char or not a valid
-            surrogate pair
-        """
-        if len(char) == 2:
-            if not isValidSurrogate(char):
-                raise ValueError('invalid surrogate pair')
-            hi, lo = char
-            return 0x10000 + (ord(hi) - 0xd800) * 0x400 + ord(lo) - 0xdc00
-        else:
-            return ord(char)
-
-    def isValidSurrogate(string):
-        """
-        Returns ``True`` if the given string is a single surrogate pair.
-
-        Always returns ``False`` for wide builds.
-        """
-        return (len(string) == 2 and '\ud800' < string[0] < '\udbff'
-            and '\udc00' < string[1] < '\udfff')
-
-    def getCharacterList(string):
-        """
-        Split a string of characters into a list of single characters.
-        Parse UTF-16 surrogate pairs.
-        """
-        charList = []
-        i = 0
-        while i < len(string):
-            if isValidSurrogate(string[i:i+2]):
-                charList.append(string[i:i+2])
-                i += 2
-            else:
-                charList.append(string[i])
-                i += 1
-        return charList
-
-else:
-    def fromCodepoint(codepoint):
-        """
-        Creates a character for a Unicode codepoint similar to ``unichr``.
-
-        For Python narrow builds this function does not raise a
-        ``ValueError`` for characters outside the BMP but returns a string
-        with a UTF-16 surrogate pair of two characters.
-
-        .. seealso::
-
-            `PEP 261 <http://www.python.org/dev/peps/pep-0261/>`_
-        """
-        return chr(codepoint)
-
-    def toCodepoint(char):
-        """
-        Returns the Unicode codepoint for this character similar to ``ord``.
-
-        This function can handle surrogate pairs as used by narrow builds.
-
-        :raise ValueError: if the string is not a single char or not a valid
-            surrogate pair
-        """
-        return ord(char)
-
-    def isValidSurrogate(string):
-        """
-        Returns ``True`` if the given string is a single surrogate pair.
-
-        Always returns ``False`` for wide builds.
-        """
-        return False
-
-    def getCharacterList(string):
-        """
-        Split a string of characters into a list of single characters.
-        Parse UTF-16 surrogate pairs.
-        """
-        return list(string)
-
-#{ Helper methods
-
-def cross(*args):
-    """
-    Builds a cross product of the given lists.
-
-    Example:
-        >>> cross(['A', 'B'], [1, 2, 3])
-        [['A', 1], ['A', 2], ['A', 3], ['B', 1], ['B', 2], ['B', 3]]
-    """
-    ans = [[]]
-    for arg in args:
-        ans = [x+[y] for x in ans for y in arg]
-    return ans
-
-def crossDict(*args):
+def cross_dict(*args: dict):
     """Builds a cross product of the given dicts."""
-    def joinDict(a, b):
-        a = a.copy()
-        a.update(b)
-        return a
+    return [{**{k: v for d in item for k, v in d.items()}} for item in itertools.product(*args)]
 
-    ans = [{}]
-    for arg in args:
-        ans = [joinDict(x, y) for x in ans for y in arg]
-    return ans
+# Helper classes
 
-#{ Helper classes
-
-class CharacterRangeIterator(object):
+class CharacterRangeIterator:
     """Iterates over a given set of codepoint ranges given in hex."""
-    def __init__(self, ranges):
+
+    def __init__(self, ranges: list[tuple[str, str]]):
         self.ranges = ranges[:]
         self._curRange = self._popRange()
+
     def _popRange(self):
         if self.ranges:
             charRange = self.ranges[0]
@@ -392,8 +258,10 @@ class CharacterRangeIterator(object):
             return (int(rangeFrom, 16), int(rangeTo, 16))
         else:
             return []
+        
     def __iter__(self):
         return self
+    
     def __next__(self):
         if not self._curRange:
             raise StopIteration
@@ -403,9 +271,9 @@ class CharacterRangeIterator(object):
             self._curRange = (curIndex + 1, toIndex)
         else:
             self._curRange = self._popRange()
-        return fromCodepoint(curIndex)
+        return chr(curIndex)
 
-#{ Library extensions
+# Library extensions
 
 class UnicodeCSVFileIterator(object):
     """Provides a CSV file iterator supporting Unicode."""
@@ -618,25 +486,7 @@ class CollationText(_CollationMixin, Text):
         else:
             return self._extend("TEXT")
 
-#{ Decorators
-
-def cachedproperty(fget):
-    """
-    Decorates a property to memoize its value.
-    """
-    def fget_wrapper(self):
-        name = '_%s_cached' % fget.__name__
-        try: return getattr(self, name)
-        except AttributeError:
-            value = fget(self)
-            setattr(self, name, value)
-            return value
-    def fdel(self):
-        name = '_%s_cached' % fget.__name__
-        try: delattr(self, name)
-        except AttributeError: pass
-    return property(fget_wrapper, fdel=fdel, doc=fget.__doc__)
-
+# Decorators
 
 import functools
 class cachedmethod(object):
@@ -677,82 +527,13 @@ def deprecated(func):
         return func(*args, **kwargs)
     return new_func
 
-#{ Collection classes
 
-class LazyDict(dict):
+class LazyDict[K, V](dict[K, V]):
     """A dict that will load entries on-demand."""
-    def __init__(self, creator, *args):
+    def __init__(self, creator: Callable[[K], V], *args):
         dict.__init__(self, *args)
         self.creator = creator
 
-    def __missing__(self, key):
+    def __missing__(self, key: K):
         self[key] = value = self.creator(key)
         return value
-
-from collections.abc import MutableMapping
-
-class OrderedDict(dict, MutableMapping):
-
-    # Methods with direct access to underlying attributes
-
-    def __init__(self, *args, **kwds):
-        if len(args) > 1:
-            raise TypeError('expected at 1 argument, got %d', len(args))
-        if not hasattr(self, '_keys'):
-            self._keys = []
-        self.update(*args, **kwds)
-
-    def clear(self):
-        del self._keys[:]
-        dict.clear(self)
-
-    def __setitem__(self, key, value):
-        if key not in self:
-            self._keys.append(key)
-        dict.__setitem__(self, key, value)
-
-    def __delitem__(self, key):
-        dict.__delitem__(self, key)
-        self._keys.remove(key)
-
-    def __iter__(self):
-        return iter(self._keys)
-
-    def __reversed__(self):
-        return reversed(self._keys)
-
-    def popitem(self):
-        if not self:
-            raise KeyError
-        key = self._keys.pop()
-        value = dict.pop(self, key)
-        return key, value
-
-    def __reduce__(self):
-        items = [[k, self[k]] for k in self]
-        inst_dict = vars(self).copy()
-        inst_dict.pop('_keys', None)
-        return (self.__class__, (items,), inst_dict)
-
-    # Methods with indirect access via the above methods
-
-    setdefault = MutableMapping.setdefault
-    update = MutableMapping.update
-    pop = MutableMapping.pop
-    keys = MutableMapping.keys
-    values = MutableMapping.values
-    items = MutableMapping.items
-
-    def __repr__(self):
-        pairs = ', '.join(map('%r: %r'.__mod__, self.items()))
-        return '%s({%s})' % (self.__class__.__name__, pairs)
-
-    def copy(self):
-        return self.__class__(self)
-
-    @classmethod
-    def fromkeys(cls, iterable, value=None):
-        d = cls()
-        for key in iterable:
-            d[key] = value
-        return d

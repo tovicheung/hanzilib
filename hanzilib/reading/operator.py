@@ -38,6 +38,8 @@ import string
 import unicodedata
 import copy
 import types
+from itertools import product
+import functools
 
 from sqlalchemy import select
 from sqlalchemy.sql import or_
@@ -46,8 +48,7 @@ from ..exception import (DecompositionError, AmbiguousDecompositionError,
     InvalidEntityError, CompositionError, UnsupportedError,
     AmbiguousConversionError)
 from .. import dbconnector
-from ..util import (titlecase, istitlecase, cross, cachedmethod,
-    cachedproperty)
+from ..util import titlecase, istitlecase, cachedmethod
 
 class ReadingOperator(object):
     """
@@ -320,7 +321,7 @@ class RomanisationOperator(ReadingOperator):
         """
         decompositionParts = self.getDecompositionTree(readingString)
         # merge segmentations to decomposition
-        decompCrossProd = cross(*decompositionParts)
+        decompCrossProd = product(*decompositionParts)
 
         decompositionList = []
         for line in decompCrossProd:
@@ -443,7 +444,7 @@ class RomanisationOperator(ReadingOperator):
         """
         return False
 
-    @cachedproperty
+    @functools.cached_property
     def _substringTable(self):
         """Set of entity substrings."""
         substrings = []
@@ -1018,7 +1019,7 @@ class TonalIPAOperator(TonalFixedEntityOperator):
 
         raise InvalidEntityError("Invalid entity given for '" + entity + "'")
 
-    @cachedproperty
+    @functools.cached_property
     def _toneMarkLookup(self):
         """Returns a mapping of tone marks to tone."""
         toneMarkLookup = {}
@@ -1622,7 +1623,7 @@ class PinyinOperator(TonalRomanisationOperator):
 
         return True
 
-    @cachedproperty
+    @functools.cached_property
     def _plainSubstringTable(self):
         """Returns a set of plain entity substrings."""
         entities = self.getPlainReadingEntities()
@@ -3131,7 +3132,7 @@ class GROperator(TonalRomanisationOperator):
 
         return tonalEntity
 
-    @cachedproperty
+    @functools.cached_property
     def _syllableToneLookup(self):
         """Mapping of tonal entities to plain entities and tone."""
         syllableToneLookup = {}
@@ -3173,7 +3174,7 @@ class GROperator(TonalRomanisationOperator):
             and entity not in ['el', 'erl', 'eel', 'ell'] \
             and self.isReadingEntity(entity)
 
-    @cachedproperty
+    @functools.cached_property
     def _rhotacisedFinals(self):
         """Mapping of entity final to rhotacised final."""
         table = self.db.tables['GRRhotacisedFinals']
@@ -3257,7 +3258,7 @@ class GROperator(TonalRomanisationOperator):
 
         return tonalEntity
 
-    @cachedproperty
+    @functools.cached_property
     def _rhotacisedColumnToneLookup(self):
         """Mapping of rhotacised to base form."""
         rhotacisedColumnToneLookup = {}
@@ -3453,7 +3454,7 @@ class GROperator(TonalRomanisationOperator):
         # return copy
         return self._abbreviatedLookup[entities][:]
 
-    @cachedproperty
+    @functools.cached_property
     def _abbreviatedLookup(self):
         """Abbreviated form lookup table."""
         abbrConversionLookup = {}
@@ -4051,7 +4052,7 @@ class JyutpingOperator(TonalRomanisationOperator):
         _, final = self.getOnsetRhyme(plainEntity)
         return final and final[-1] in ['p', 't', 'k']
 
-    @cachedproperty
+    @functools.cached_property
     def _syllableData(self):
         """Syllable structure information"""
         table = self.db.tables['JyutpingInitialFinal']
@@ -4335,7 +4336,7 @@ class CantoneseYaleOperator(TonalRomanisationOperator):
 
         return "".join(readingEntities)
 
-    @cachedproperty
+    @functools.cached_property
     def _plainSubstringTable(self):
         """Set of plain entity substrings."""
         plainEntities = self.getPlainReadingEntities()
@@ -4579,7 +4580,7 @@ class CantoneseYaleOperator(TonalRomanisationOperator):
         _, _, coda = self.getOnsetNucleusCoda(plainEntity)
         return coda in ['p', 't', 'k']
 
-    @cachedproperty
+    @functools.cached_property
     def _syllableData(self):
         """Table information about syllable structure from the database."""
         table = self.db.tables['CantoneseYaleInitialNucleusCoda']
@@ -4911,7 +4912,7 @@ class CantoneseIPAOperator(TonalIPAOperator):
         # tone might be a explicit tone
         return self.getBaseTone(tone)
 
-    @cachedproperty
+    @functools.cached_property
     def _unreleasedFinalData(self):
         """Table information about unreleased finals from the database."""
         table = self.db.tables['CantoneseIPAInitialFinal']
@@ -5070,7 +5071,7 @@ class ShanghaineseIPAOperator(TonalIPAOperator):
                 % plainSyllable)
         return (entry[0], entry[1])
 
-    @cachedproperty
+    @functools.cached_property
     def _syllableData(self):
         """
         Table information on initial status voiced/unvoiced and glotal stop

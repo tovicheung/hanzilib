@@ -403,7 +403,7 @@ class CharacterRangeIterator(object):
             self._curRange = (curIndex + 1, toIndex)
         else:
             self._curRange = self._popRange()
-        return fromCodepoint(curIndex)
+        return chr(curIndex)
 
 #{ Library extensions
 

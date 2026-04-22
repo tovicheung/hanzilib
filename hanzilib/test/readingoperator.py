@@ -30,7 +30,7 @@ import unicodedata
 from cjklib.reading import ReadingFactory
 from cjklib import exception
 from cjklib.test import NeedsDatabaseTest, attr
-from cjklib.util import crossDict
+from cjklib.util import cross_dict
 
 class ReadingOperatorTest(NeedsDatabaseTest):
     """
@@ -212,7 +212,7 @@ class ReadingOperatorConsistencyTest(ReadingOperatorTest):
             for entity in entities:
                 charList = set(entity)
                 # include NFD form
-                charList.update(unicodedata.normalize('NFD', unicode(entity)))
+                charList.update(unicodedata.normalize('NFD', str(entity)))
                 for char in charList:
                     self.assert_(char in readingCharacters,
                         "Char %s not included" % repr(char) \
@@ -611,7 +611,7 @@ class ReadingOperatorReferenceTest(ReadingOperatorTest):
                                     repr(decomposition)) \
                             + ' (reading %s, dialect %s)' \
                                 % (self.READING_NAME, dialect))
-                    except exception.DecompositionError, e:
+                    except exception.DecompositionError as e:
                         self.fail(
                             'DecompositionError for %s with target %s: %s' \
                                 % (repr(reference), repr(target), repr(e)) \
@@ -635,7 +635,7 @@ class ReadingOperatorReferenceTest(ReadingOperatorTest):
                                     repr(composition)) \
                             + ' (reading %s, dialect %s)' \
                                 % (self.READING_NAME, dialect))
-                    except exception.CompositionError, e:
+                    except exception.CompositionError as e:
                         self.fail('CompositionError for %s with target %s: %s' \
                             % (repr(reference), repr(target), repr(e)) \
                             + ' (reading %s, dialect %s)' \
@@ -677,7 +677,7 @@ class CanoneseIPAOperatorConsistencyTest(ReadingOperatorConsistencyTest,
     unittest.TestCase):
     READING_NAME = 'CantoneseIPA'
 
-    DIALECTS = crossDict(
+    DIALECTS = cross_dict(
         [{}, {'toneMarkType': 'numbers'}, {'toneMarkType': 'chaoDigits'},
             {'toneMarkType': 'numbers', 'missingToneMark': 'ignore'},
             {'toneMarkType': 'numbers', 'firstToneName': 'HighFalling'},
@@ -784,7 +784,7 @@ class CanoneseYaleOperatorConsistencyTest(ReadingOperatorConsistencyTest,
     unittest.TestCase):
     READING_NAME = 'CantoneseYale'
 
-    DIALECTS = crossDict(
+    DIALECTS = cross_dict(
         [{}, {'strictDiacriticPlacement': True}, {'toneMarkType': 'numbers'},
             {'toneMarkType': 'numbers', 'missingToneMark': 'ignore'},
             {'toneMarkType': 'numbers', 'yaleFirstTone': '1stToneFalling'},
@@ -931,7 +931,7 @@ class JyutpingOperatorConsistencyTest(ReadingOperatorConsistencyTest,
     unittest.TestCase):
     READING_NAME = 'Jyutping'
 
-    DIALECTS = crossDict(
+    DIALECTS = cross_dict(
         [{}, {'missingToneMark': 'ignore'}, {'toneMarkType': 'none'}],
         [{}, {'strictSegmentation': True}],
         [{}, {'case': 'lower'}],
@@ -1065,7 +1065,7 @@ class PinyinOperatorConsistencyTest(ReadingOperatorConsistencyTest,
             and followingEntity[0].isalpha()
     noToneApostropheRule = staticmethod(_noToneApostropheRule)
 
-    DIALECTS = crossDict(
+    DIALECTS = cross_dict(
          [{}, {'toneMarkType': 'numbers'},
             {'toneMarkType': 'numbers', 'missingToneMark': 'fifth'},
             {'toneMarkType': 'numbers', 'missingToneMark': 'ignore'},
@@ -1749,7 +1749,7 @@ class WadeGilesOperatorConsistencyTest(ReadingOperatorConsistencyTest,
     unittest.TestCase):
     READING_NAME = 'WadeGiles'
 
-    DIALECTS = crossDict(
+    DIALECTS = cross_dict(
         [{}, {'diacriticE': 'e'}],
         [{}, {'zeroFinal': 'u'}],
         [{}, {'umlautU': 'u'}],
@@ -1997,7 +1997,7 @@ class GROperatorConsistencyTest(ReadingOperatorConsistencyTest,
     unittest.TestCase):
     READING_NAME = 'GR'
 
-    DIALECTS = crossDict(
+    DIALECTS = cross_dict(
         [{}, {'strictSegmentation': True}],
         [{}, {'abbreviations': False}],
         [{}, {'grRhotacisedFinalApostrophe': "'"}],
@@ -2564,7 +2564,7 @@ class MandarinBrailleOperatorConsistencyTest(ReadingOperatorConsistencyTest,
     unittest.TestCase):
     READING_NAME = 'MandarinBraille'
 
-    DIALECTS = crossDict(
+    DIALECTS = cross_dict(
         [{}, {'toneMarkType': 'none'}, {'missingToneMark': 'fifth'}],
         )
 
@@ -2585,7 +2585,7 @@ class MandarinIPAOperatorConsistencyTest(ReadingOperatorConsistencyTest,
     unittest.TestCase):
     READING_NAME = 'MandarinIPA'
 
-    DIALECTS = crossDict(
+    DIALECTS = cross_dict(
         [{}, {'toneMarkType': 'numbers'}, {'toneMarkType': 'chaoDigits'},
             {'toneMarkType': 'numbers', 'missingToneMark': 'ignore'},
             {'toneMarkType': 'chaoDigits', 'missingToneMark': 'ignore'},
@@ -2618,7 +2618,7 @@ class ShanghaineseIPAOperatorConsistencyTest(ReadingOperatorConsistencyTest,
     unittest.TestCase):
     READING_NAME = 'ShanghaineseIPA'
 
-    DIALECTS = crossDict(
+    DIALECTS = cross_dict(
         [{}, #{'toneMarkType': 'numbers'},
             {'toneMarkType': 'chaoDigits'},
             {'toneMarkType': 'superscriptChaoDigits'},

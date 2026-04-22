@@ -41,18 +41,18 @@ __all__ = [
 
 import types
 from itertools import imap, ifilter
+import functools
 
 from sqlalchemy import select, Table
 from sqlalchemy.sql import or_
 from sqlalchemy.exc import NoSuchTableError
 
-from cjklib import dbconnector
-from cjklib import exception
-from cjklib.util import cachedproperty
+from hanzilib import dbconnector
+from hanzilib import exception
 
-from cjklib.dictionary import entry as entryfactory
-from cjklib.dictionary import format as formatstrategy
-from cjklib.dictionary import search as searchstrategy
+from hanzilib.dictionary import entry as entryfactory
+from hanzilib.dictionary import format as formatstrategy
+from hanzilib.dictionary import search as searchstrategy
 
 #{ Access methods
 
@@ -275,7 +275,7 @@ class EDICTStyleDictionary(BaseDictionary):
         return (cls.DICTIONARY_TABLE
             and dbConnectInst.hasTable(cls.DICTIONARY_TABLE))
 
-    @cachedproperty
+    @functools.cached_property
     def version(self):
         """Version (date) of the dictionary. ``None`` if not available."""
         try:
