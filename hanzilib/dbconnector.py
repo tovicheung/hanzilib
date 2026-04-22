@@ -43,7 +43,7 @@ _dbconnectInstSettings = None
 def cmp(a, b):
     return (a > b) - (a < b)
 
-def getDBConnector(configuration=None, projectName='cjklib'):
+def getDBConnector(configuration=None, projectName='hanzilib'):
     """
     Returns a shared :class:`~cjklib.dbconnector.DatabaseConnector` instance.
 
@@ -88,7 +88,7 @@ def getDBConnector(configuration=None, projectName='cjklib'):
 
     return _dbconnectInst
 
-def getDefaultConfiguration(projectName='cjklib'):
+def getDefaultConfiguration(projectName='hanzilib'):
     """
     Gets the default configuration for the given project. Settings are read
     from a configuration file.
@@ -130,6 +130,8 @@ def getDefaultConfiguration(projectName='cjklib'):
 
     return configuration
 
+
+from sqlalchemy.engine import Engine
 
 class DatabaseConnector(object):
     """
@@ -179,7 +181,7 @@ class DatabaseConnector(object):
                 in ['1', 'yes', 'true', 'on'])
         self.registerUnicode = registerUnicode
 
-        self.engine = engine_from_config(configuration, prefix='sqlalchemy.')
+        self.engine: Engine = engine_from_config(configuration, prefix='sqlalchemy.')
         """SQLAlchemy engine object"""
         self.connection = self.engine.connect()
         """SQLAlchemy database connection object"""
@@ -395,25 +397,38 @@ class DatabaseConnector(object):
         :rtype: str
         :return: schema name of database including table
         """
-        def has_table(tableName, schema):
-            identifier_preparer = self.engine.dialect.identifier_preparer
-            qschema = identifier_preparer.quote_identifier(schema)
-            tableNames = self.selectScalars(
-                text("SELECT name FROM %s.sqlite_master"  % qschema))
-            return tableName in tableNames
-
-        import sys
-        if sys.platform == 'win32' and self.engine.name == 'sqlite':
-            # work around bug http://bugs.python.org/issue8192
-            hasTable = has_table
-        else:
-            hasTable = self.engine.has_table
-        if hasTable(tableName, schema=self._mainSchema):
+        from sqlalchemy import inspect
+        # def has_table(tableName, schema):
+        #     identifier_preparer = self.engine.dialect.identifier_preparer
+        #     qschema = identifier_preparer.quote_identifier(schema)
+        #     tableNames = self.selectScalars(
+        #         text("SELECT name FROM sqlite_master WHERE type='table';"))
+        #     return tableName in tableNames
+# 
+        # import sys
+        # if sys.platform == 'win32' and self.engine.name == 'sqlite':
+        #     ## this is used
+        #     # work around bug http://bugs.python.org/issue8192
+        #     hasTable = has_table
+        # else:
+        #     hasTable = self.engine.has_table
+        # if hasTable(tableName, schema=self._mainSchema):
+        #     return self._mainSchema
+        # else:
+        #     for schema in self.attached.values():
+        #         if hasTable(tableName, schema=schema):
+        #             return schema
+        # return None
+        inspector = inspect(self.engine)
+        
+        if inspector.has_table(tableName, schema=self._mainSchema):
             return self._mainSchema
-        else:
-            for schema in self.attached.values():
-                if hasTable(tableName, schema=schema):
-                    return schema
+
+        # self.attached.values() should contain the schema names/aliases
+        for schema in self.attached.values():
+            if inspector.has_table(tableName, schema=schema):
+                return schema
+
         return None
 
     def hasTable(self, tableName):
@@ -463,15 +478,16 @@ class DatabaseConnector(object):
         if hasattr(data, '__iter__'):
             newData = []
             for cell in data:
-                if type(cell) == type(''):
-                    cell = cell.decode('utf8')
+                # if type(cell) == type(''):
+                #     cell = cell.decode('utf8')
                 newData.append(cell)
             return tuple(newData)
         else:
-            if type(data) == type(''):
-                return data.decode('utf8')
-            else:
-                return data
+            return data
+            # if type(data) == type(''):
+            #     return data.decode('utf8')
+            # else:
+            #     return data
 
     def selectScalar(self, request):
         """

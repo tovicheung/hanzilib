@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 #!/usr/bin/python
 # -*- coding: utf-8  -*-
 # This file is part of cjklib.
@@ -26,10 +28,12 @@ __all__ = [
     "UnihanGenerator", "UnihanBuilder", "Kanjidic2Builder",
     "UnihanDerivedBuilder", "UnihanStrokeCountBuilder",
     "CharacterRadicalBuilder", "CharacterKangxiRadicalBuilder",
-    "CharacterKanWaRadicalBuilder", "CharacterJapaneseRadicalBuilder",
-    "CharacterKoreanRadicalBuilder", "CharacterVariantBuilder",
+    # "CharacterKanWaRadicalBuilder", # "CharacterJapaneseRadicalBuilder",
+    # "CharacterKoreanRadicalBuilder",
+    "CharacterVariantBuilder",
     "UnihanCharacterSetBuilder", "IICoreSetBuilder", "GB2312SetBuilder",
-    "BIG5SetBuilder", "HKSCSSetBuilder", "BIG5HKSCSSetBuilder",
+    "BIG5SetBuilder", # "HKSCSSetBuilder",
+    "BIG5HKSCSSetBuilder",
     "JISX0208SetBuilder", "JISX0213SetBuilder", "JISX0208_0213SetBuilder",
     "GlyphInformationSetBuilder",
     # Unihan reading information
@@ -58,7 +62,7 @@ __all__ = [
     "GlyphBuilder", "StrokeCountBuilder", "CombinedStrokeCountBuilder",
     "CharacterComponentLookupBuilder", "CharacterRadicalStrokeCountBuilder",
     "CharacterResidualStrokeCountBuilder",
-    "CombinedCharacterResidualStrokeCountBuilder",
+    # "CombinedCharacterResidualStrokeCountBuilder",
     # Dictionary builder
     "EDICTFormatBuilder", "WordIndexBuilder", "EDICTBuilder",
     "EDICTWordIndexBuilder", "CEDICTFormatBuilder", "CEDICTBuilder",
@@ -82,11 +86,15 @@ from sqlalchemy.sql import text, func
 from sqlalchemy.sql import or_
 from sqlalchemy.exc import IntegrityError, OperationalError
 
-from cjklib import characterlookup
-from cjklib import exception
-from cjklib.build import warn
-from cjklib.util import (UnicodeCSVFileIterator, CollationString, CollationText,
+from .. import characterlookup
+from .. import exception
+from . import warn
+from ..util import (UnicodeCSVFileIterator, CollationString, CollationText,
     deprecated, fromCodepoint, getCharacterList)
+
+import typing
+if typing.TYPE_CHECKING:
+    from ..dbconnector import DatabaseConnector
 
 # pylint: disable-msg=E1101
 #  member variables are set by setattr()
@@ -98,9 +106,9 @@ class TableBuilder(object):
     TableBuilder provides the abstract layout for classes that build a distinct
     table.
     """
-    PROVIDES = ''
+    PROVIDES: str = ''
     """Contains the name of the table provided by this module."""
-    DEPENDS = []
+    DEPENDS: list[str] = []
     """Contains the names of the tables needed for the build process."""
 
     def __init__(self, **options):
@@ -112,7 +120,7 @@ class TableBuilder(object):
         :keyword quiet: if ``True`` no status information will be printed to
             stderr
         """
-        self.db = options.get('dbConnectInst')
+        self.db: DatabaseConnector = options.get('dbConnectInst')
         for option, defaultValue in list(self.getDefaultOptions().items()):
             optionValue = options.get(option, defaultValue)
             if not hasattr(optionValue, '__call__'):
@@ -231,9 +239,9 @@ class TableBuilder(object):
                 colType = columnTypeMap[column]
             else:
                 colType = Text()
-                if not self.quiet:
-                    warn("column %s has no type, assuming default 'Text()'"
-                        % column)
+                # if not self.quiet:
+                #     warn("column %s has no type, assuming default 'Text()'"
+                #         % column)
             table.append_column(Column(column, colType,
                 primary_key=(column in primaryKeys), autoincrement=False))
 
@@ -284,7 +292,10 @@ class EntryGeneratorBuilder(TableBuilder):
     def getEntryDict(self, generator):
         entryList = []
 
-        firstEntry = next(generator)
+        try: # added guard
+            firstEntry = next(generator)
+        except StopIteration:
+            return []
         if type(firstEntry) == type(dict()):
             entryList.append(firstEntry)
 
@@ -313,19 +324,19 @@ class EntryGeneratorBuilder(TableBuilder):
 
         # write table content
         #try:
-            #entries = self.getEntryDict(self.getGenerator())
-            #self.db.execute(table.insert(), entries)
-        #except IntegrityError, e:
-            #warn(unicode(e))
-            ##warn(unicode(insertStatement))
-            #raise
+        #    entries = self.getEntryDict(self.getGenerator())
+        #    if len(entries) == 0:
+        #        return
+        #    self.db.execute(table.insert(), entries)
+        #except IntegrityError as e:
+        #    print(type(self), EntryGeneratorBuilder)
+        #    print(str(e))
+        #    raise
 
         for newEntry in generator:
             try:
                 table.insert(newEntry).execute()
             except IntegrityError as e:
-                if not(self.quiet):
-                    warn(str(e))
                 raise
 
         for index in self.buildIndexObjects(self.PROVIDES, self.INDEX_KEYS):
@@ -346,6 +357,7 @@ class UnihanGenerator:
 
     UNIHAN_FILE_MEMBERS = ['Unihan_DictionaryIndices.txt',
         'Unihan_DictionaryLikeData.txt', 'Unihan_NormativeProperties.txt',
+        'Unihan_IRGSources.txt', # new
         'Unihan_NumericValues.txt', 'Unihan_OtherMappings.txt',
         'Unihan_RadicalStrokeCounts.txt', 'Unihan_Readings.txt',
         'Unihan_Variants.txt']
@@ -465,9 +477,8 @@ class UnihanGenerator:
                 handles[member] \
                     = io.StringIO(z.read(member).decode('utf-8'))
         else:
-            import codecs
             for member in self.fileNames:
-                handles[member] = codecs.open(member, 'r', 'utf-8')
+                handles[member] = open(member, 'r', encoding='utf-8')
         return handles
 
     def keys(self):
@@ -497,6 +508,7 @@ class UnihanGenerator:
                     _, key, _ = resultObj.group(1, 2, 3)
                     self.keySet.add(key)
                 handle.close()
+        # print("Unihan keys", list(self.keySet))
         return list(self.keySet)
 
 
@@ -541,13 +553,13 @@ class UnihanBuilder(EntryGeneratorBuilder):
         'kMandarin': Text(), 'kHanyuPinlu': Text(), 'kXHC1983': Text(),
         'kHanyuPinyin': Text(),
         # character frequency
-        'kFrequency': Integer(),
+        # 'kFrequency': Integer(),
         # stroke count & radicals
         'kTotalStrokes': Integer(),
-        'kRSJapanese': Text(), 'kRSKanWa': Text(), 'kRSKangXi': Text(),
-        'kRSKorean': Text(),
+        # 'kRSJapanese': Text(), 'kRSKanWa': Text(), 'kRSKangXi': Text(),
+        # 'kRSKorean': Text(),
         # encoding mappings
-        'kGB0': String(4), 'kBigFive': String(4), 'kHKSCS': String(4),
+        'kGB0': String(4), 'kBigFive': String(4), # 'kHKSCS': String(4),
         'kJis0': String(4), 'kJIS0213': String(7), 'kIICore': String(3),
         # variant mappings
         'kZVariant': Text(), 'kSimplifiedVariant': Text(),
@@ -557,13 +569,13 @@ class UnihanBuilder(EntryGeneratorBuilder):
 
     PRIMARY_KEYS = [CHARACTER_COLUMN]
 
-    INCLUDE_KEYS = ['kCompatibilityVariant', 'kCantonese', 'kFrequency',
+    INCLUDE_KEYS = ['kCompatibilityVariant', 'kCantonese',
         'kHangul', 'kHanyuPinlu', 'kJapaneseKun', 'kJapaneseOn', 'kMandarin',
-        'kRSJapanese', 'kRSKanWa', 'kRSKangXi', 'kRSKorean', 'kSemanticVariant',
+        'kSemanticVariant',
         'kSimplifiedVariant', 'kSpecializedSemanticVariant', 'kTotalStrokes',
         'kTraditionalVariant', 'kVietnamese', 'kXHC1983', 'kZVariant',
-        'kIICore', 'kGB0', 'kBigFive', 'kHKSCS', 'kHanyuPinyin', 'kJis0',
-        'kJIS0213']
+        'kIICore', 'kGB0', 'kBigFive', 'kHanyuPinyin', 'kJis0',
+        'kJIS0213'] # several are removed
     """Keys included in a slim version if explicitly specified."""
 
     def __init__(self, **options):
@@ -629,6 +641,7 @@ class UnihanBuilder(EntryGeneratorBuilder):
                         pathList.append(filePath)
                 assert(len(pathList) > 0)
 
+            # executed
             self.unihanGenerator = UnihanGenerator(pathList, useKeys=columns,
                 wideBuild=self.wideBuild, quiet=self.quiet)
             if not self.quiet:
@@ -729,8 +742,7 @@ class Kanjidic2Builder(EntryGeneratorBuilder):
                 z = gzip.GzipFile(self.dataPath, 'r')
                 handle = io.StringIO(z.read())
             else:
-                import codecs
-                handle = codecs.open(self.dataPath, 'r')
+                handle = open(self.dataPath, 'r', encoding="utf-8")
             return handle
 
         def generator(self):
@@ -995,39 +1007,39 @@ class CharacterRadicalBuilder(UnihanDerivedBuilder):
     GENERATOR_CLASS = RadicalExtractor
 
 
-class CharacterKangxiRadicalBuilder(CharacterRadicalBuilder):
-    """
-    Builds the character Kangxi radical mapping table from the Unihan database.
-    """
-    PROVIDES = 'CharacterKangxiRadical'
-    COLUMN_SOURCE = 'kRSKangXi'
+# class CharacterKangxiRadicalBuilder(CharacterRadicalBuilder):
+#     """
+#     Builds the character Kangxi radical mapping table from the Unihan database.
+#     """
+#     PROVIDES = 'CharacterKangxiRadical'
+#     COLUMN_SOURCE = 'kRSKangXi'
 
 
-class CharacterKanWaRadicalBuilder(CharacterRadicalBuilder):
-    """
-    Builds the character Dai Kan-Wa jiten radical mapping table from the Unihan
-    database.
-    """
-    PROVIDES = 'CharacterKanWaRadical'
-    COLUMN_SOURCE = 'kRSKanWa'
+# class CharacterKanWaRadicalBuilder(CharacterRadicalBuilder):
+#     """
+#     Builds the character Dai Kan-Wa jiten radical mapping table from the Unihan
+#     database.
+#     """
+#     PROVIDES = 'CharacterKanWaRadical'
+#     COLUMN_SOURCE = 'kRSKanWa'
 
 
-class CharacterJapaneseRadicalBuilder(CharacterRadicalBuilder):
-    """
-    Builds the character Japanese radical mapping table from the Unihan
-    database.
-    """
-    PROVIDES = 'CharacterJapaneseRadical'
-    COLUMN_SOURCE = 'kRSJapanese'
+# class CharacterJapaneseRadicalBuilder(CharacterRadicalBuilder):
+#     """
+#     Builds the character Japanese radical mapping table from the Unihan
+#     database.
+#     """
+#     PROVIDES = 'CharacterJapaneseRadical'
+#     COLUMN_SOURCE = 'kRSJapanese'
 
 
-class CharacterKoreanRadicalBuilder(CharacterRadicalBuilder):
-    """
-    Builds the character Korean radical mapping table from the Unihan
-    database.
-    """
-    PROVIDES = 'CharacterKoreanRadical'
-    COLUMN_SOURCE = 'kRSKorean'
+# class CharacterKoreanRadicalBuilder(CharacterRadicalBuilder):
+#     """
+#     Builds the character Korean radical mapping table from the Unihan
+#     database.
+#     """
+#     PROVIDES = 'CharacterKoreanRadical'
+#     COLUMN_SOURCE = 'kRSKorean'
 
 
 class CharacterVariantBuilder(EntryGeneratorBuilder):
@@ -1228,13 +1240,13 @@ class BIG5SetBuilder(UnihanCharacterSetBuilder):
     COLUMN_SOURCE = 'kBigFive'
 
 
-class HKSCSSetBuilder(UnihanCharacterSetBuilder):
-    """
-    Builds a simple list of all supplementary characters in the Hong Kong
-    standard *HKSCS*.
-    """
-    PROVIDES = 'HKSCSSet'
-    COLUMN_SOURCE = 'kHKSCS'
+# class HKSCSSetBuilder(UnihanCharacterSetBuilder):
+#     """
+#     Builds a simple list of all supplementary characters in the Hong Kong
+#     standard *HKSCS*.
+#     """
+#     PROVIDES = 'HKSCSSet'
+#     COLUMN_SOURCE = 'kHKSCS'
 
 
 class BIG5HKSCSSetBuilder(EntryGeneratorBuilder):
@@ -1250,13 +1262,14 @@ class BIG5HKSCSSetBuilder(EntryGeneratorBuilder):
 
     def getGenerator(self):
         big5 = BIG5SetBuilder(dbConnectInst=self.db).getGenerator()
-        hkscs = HKSCSSetBuilder(dbConnectInst=self.db).getGenerator()
+        return big5
+        # hkscs = HKSCSSetBuilder(dbConnectInst=self.db).getGenerator()
         return itertools.chain(big5, hkscs)
 
     def build(self):
         if not self.quiet:
             warn("Reading table content from Unihan columns "
-                "'kBigFive' and 'kHKSCS'")
+                "'kBigFive' // and 'kHKSCS'") # not supported anymore
         super(BIG5HKSCSSetBuilder, self).build()
 
 
@@ -1644,8 +1657,6 @@ class CSVFileLoader(TableBuilder):
         #return entry
 
     def build(self):
-        import codecs
-
         definitionFile = self.findFile([self.TABLE_DECLARATION_FILE_MAPPING],
             "SQL table definition file")
         contentFile = self.findFile([self.TABLE_CSV_FILE_MAPPING], "table")
@@ -1654,7 +1665,7 @@ class CSVFileLoader(TableBuilder):
         if not self.quiet:
             warn("Reading table definition from file '" + definitionFile + "'")
 
-        fileHandle = codecs.open(definitionFile, 'r', 'utf-8')
+        fileHandle = open(definitionFile, 'r', encoding='utf-8')
         createStatement = ''.join(fileHandle.readlines()).strip("\n")
         # get create statement
         self.db.execute(text(createStatement))
@@ -1664,7 +1675,7 @@ class CSVFileLoader(TableBuilder):
         if not self.quiet:
             warn("Reading table '" + self.PROVIDES + "' from file '" \
                 + contentFile + "'")
-        fileHandle = codecs.open(contentFile, 'r', 'utf-8')
+        fileHandle = open(contentFile, 'r', encoding='utf-8')
 
         doFilter = hasattr(self, 'filterEntry')
 
@@ -1686,12 +1697,13 @@ class CSVFileLoader(TableBuilder):
                     entries.append(entryDict)
 
             try:
+                print("Entries added:", table, len(entries))
                 self.db.execute(table.insert(), entries)
             except IntegrityError as e:
-                if not self.quiet:
-                    warn(str(e))
-                    warn('Run builder with option \'--entrywise=True\''
-                        ' to find violating entry')
+                # if not self.quiet:
+                #     warn(str(e))
+                #     warn('Run builder with option \'--entrywise=True\''
+                #         ' to find violating entry')
                 raise
         else:
             for line in UnicodeCSVFileIterator(fileHandle):
@@ -1708,8 +1720,8 @@ class CSVFileLoader(TableBuilder):
                 try:
                     table.insert(entryDict).execute()
                 except IntegrityError as e:
-                    if not(self.quiet):
-                        warn(str(e))
+                    # if not(self.quiet):
+                    #     warn(str(e))
                     raise
 
 
@@ -2099,11 +2111,13 @@ class GlyphBuilder(EntryGeneratorBuilder):
         #characterSet.update(self.db.select('LocaleCharacterGlyph',
             #['ChineseCharacter', 'Glyph']))
         # Add characters from Unihan as glyph 0
-        unihanCharacters = self.db.selectScalars(
-            select([unihanTable.c.ChineseCharacter],
-                or_(unihanTable.c.kTotalStrokes != None,
-                    unihanTable.c.kRSKangXi != None)))
-        characterSet.update([(char, 0) for char in unihanCharacters])
+
+
+        # XXX: AttributeError: 'int' object has no attribute 'items'
+        # unihanCharacters = self.db.selectScalars(
+        #     select([unihanTable.c.ChineseCharacter],
+        #         unihanTable.c.kTotalStrokes != None))
+        # characterSet.update([(char, 0) for char in unihanCharacters])
 
         return iter(characterSet)
 
@@ -2773,7 +2787,8 @@ class CharacterRadicalStrokeCountBuilder(EntryGeneratorBuilder):
     PROVIDES = 'CharacterRadicalResidualStrokeCount'
     DEPENDS = ['CharacterDecomposition', 'StrokeCount', 'KangxiRadical',
         'KangxiRadicalIsolatedCharacter', 'RadicalEquivalentCharacter',
-        'CharacterKangxiRadical', 'Strokes']
+        # 'CharacterKangxiRadical',
+        'Strokes']
 
     COLUMNS = ['ChineseCharacter', 'Glyph', 'RadicalIndex', 'RadicalForm',
         'RadicalGlyph', 'MainCharacterLayout', 'RadicalRelativePosition',
@@ -2898,80 +2913,80 @@ class CharacterResidualStrokeCountBuilder(EntryGeneratorBuilder):
             self.db, characterSet).generator()
 
 
-class CombinedCharacterResidualStrokeCountBuilder(
-    CharacterResidualStrokeCountBuilder):
-    """
-    Builds a mapping between characters and their residual stroke count when
-    splitting of the radical form. Includes stroke count data from the Unihan
-    database to make up for missing data in own data files.
-    """
-    class CombinedResidualStrokeCountExtractor:
-        """
-        Generates the character to residual stroke count mapping.
-        """
-        RADICAL_REGEX = re.compile(r"(\d+)\.(\d+)")
-
-        def __init__(self, tableEntries, preferredBuilder, quiet=False):
-            """
-            :type tableEntries: list of list
-            :param tableEntries: list of characters with glyph
-            :type preferredBuilder: instance
-            :param preferredBuilder: TableBuilder which forms are preferred over
-                entries from the Unihan table
-            :type quiet: bool
-            :param quiet: if true no status information will be printed
-            """
-            self.tableEntries = tableEntries
-            self.preferredBuilder = preferredBuilder
-            self.quiet = quiet
-
-        def generator(self):
-            """Provides one entry per character and *glyph*."""
-            # handle chars from own data first
-            seenCharactersSet = set()
-            for entry in self.preferredBuilder:
-                yield entry
-                char = entry[0]
-                radicalIdx = entry[2]
-                seenCharactersSet.add((char, radicalIdx))
-
-            # now fill up with characters from Unihan, glyph missing though
-            for char, radicalStroke in self.tableEntries:
-                matchObj = self.RADICAL_REGEX.match(radicalStroke)
-                if matchObj:
-                    try:
-                        radicalIndex = int(matchObj.group(1))
-                        residualStrokeCount = int(matchObj.group(2))
-                        if (char, radicalIndex) not in seenCharactersSet:
-                            yield [char, 0, radicalIndex, residualStrokeCount]
-                        continue
-                    except ValueError:
-                        pass
-
-                if not self.quiet:
-                    warn("unable to read radical information of " \
-                        + "character '%s': '%s'" % (char, radicalStroke))
-
-    DEPENDS = ['CharacterRadicalResidualStrokeCount', 'Unihan']
-    COLUMN_SOURCE = 'kRSKangXi'
-
-    def getGenerator(self):
-        residualSCTable = self.db.tables['CharacterRadicalResidualStrokeCount']
-        characterSet = set(self.db.selectRows(
-            select([residualSCTable.c.ChineseCharacter,
-                residualSCTable.c.Glyph], distinct=True)))
-        preferredBuilder = CombinedCharacterResidualStrokeCountBuilder\
-            .ResidualStrokeCountExtractor(self.db, characterSet).generator()
-
-        # get main builder
-        unihanTable = self.db.tables['Unihan']
-        tableEntries = set(self.db.selectRows(
-            select([unihanTable.c.ChineseCharacter,
-                unihanTable.c[self.COLUMN_SOURCE]],
-                unihanTable.c[self.COLUMN_SOURCE] != None)))
-        return CombinedCharacterResidualStrokeCountBuilder\
-            .CombinedResidualStrokeCountExtractor(tableEntries,
-                preferredBuilder, self.quiet).generator()
+# class CombinedCharacterResidualStrokeCountBuilder(
+#     CharacterResidualStrokeCountBuilder):
+#     """
+#     Builds a mapping between characters and their residual stroke count when
+#     splitting of the radical form. Includes stroke count data from the Unihan
+#     database to make up for missing data in own data files.
+#     """
+#     class CombinedResidualStrokeCountExtractor:
+#         """
+#         Generates the character to residual stroke count mapping.
+#         """
+#         RADICAL_REGEX = re.compile(r"(\d+)\.(\d+)")
+# 
+#         def __init__(self, tableEntries, preferredBuilder, quiet=False):
+#             """
+#             :type tableEntries: list of list
+#             :param tableEntries: list of characters with glyph
+#             :type preferredBuilder: instance
+#             :param preferredBuilder: TableBuilder which forms are preferred over
+#                 entries from the Unihan table
+#             :type quiet: bool
+#             :param quiet: if true no status information will be printed
+#             """
+#             self.tableEntries = tableEntries
+#             self.preferredBuilder = preferredBuilder
+#             self.quiet = quiet
+# 
+#         def generator(self):
+#             """Provides one entry per character and *glyph*."""
+#             # handle chars from own data first
+#             seenCharactersSet = set()
+#             for entry in self.preferredBuilder:
+#                 yield entry
+#                 char = entry[0]
+#                 radicalIdx = entry[2]
+#                 seenCharactersSet.add((char, radicalIdx))
+# 
+#             # now fill up with characters from Unihan, glyph missing though
+#             for char, radicalStroke in self.tableEntries:
+#                 matchObj = self.RADICAL_REGEX.match(radicalStroke)
+#                 if matchObj:
+#                     try:
+#                         radicalIndex = int(matchObj.group(1))
+#                         residualStrokeCount = int(matchObj.group(2))
+#                         if (char, radicalIndex) not in seenCharactersSet:
+#                             yield [char, 0, radicalIndex, residualStrokeCount]
+#                         continue
+#                     except ValueError:
+#                         pass
+# 
+#                 if not self.quiet:
+#                     warn("unable to read radical information of " \
+#                         + "character '%s': '%s'" % (char, radicalStroke))
+# 
+#     DEPENDS = ['CharacterRadicalResidualStrokeCount', 'Unihan']
+#     COLUMN_SOURCE = 'kRSKangXi'
+# 
+#     def getGenerator(self):
+#         residualSCTable = self.db.tables['CharacterRadicalResidualStrokeCount']
+#         characterSet = set(self.db.selectRows(
+#             select([residualSCTable.c.ChineseCharacter,
+#                 residualSCTable.c.Glyph], distinct=True)))
+#         preferredBuilder = CombinedCharacterResidualStrokeCountBuilder\
+#             .ResidualStrokeCountExtractor(self.db, characterSet).generator()
+# 
+#         # get main builder
+#         unihanTable = self.db.tables['Unihan']
+#         tableEntries = set(self.db.selectRows(
+#             select([unihanTable.c.ChineseCharacter,
+#                 unihanTable.c[self.COLUMN_SOURCE]],
+#                 unihanTable.c[self.COLUMN_SOURCE] != None)))
+#         return CombinedCharacterResidualStrokeCountBuilder\
+#             .CombinedResidualStrokeCountExtractor(tableEntries,
+#                 preferredBuilder, self.quiet).generator()
 
 #}
 #{ Dictionary builder
@@ -3210,7 +3225,7 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
                 mode = ':bz2'
             elif ending.endswith('gz'):
                 mode = ':gz'
-            z = tarfile.open(filePath, 'r' + mode)
+            z = tarfile.open(filePath, 'r' + mode, encoding="utf-8")
             archiveContent = self.getArchiveContentName(z.getnames(), filePath)
             fileObj = z.extractfile(archiveContent)
             return io.StringIO(fileObj.read().decode(self.ENCODING))
@@ -3221,8 +3236,7 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
             z = gzip.GzipFile(filePath, 'r')
             return io.StringIO(z.read().decode(self.ENCODING))
         else:
-            import codecs
-            return codecs.open(filePath, 'r', self.ENCODING)
+            return open(filePath, 'r', encoding=self.ENCODING)
 
     def buildFTS3CreateTableStatement(self, table):
         """
@@ -3333,9 +3347,9 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
                 simpleTable.insert(simpleData).execute()
                 fts3Table.insert(fts3Data).execute()
             except IntegrityError as e:
-                if not self.quiet:
-                    warn(str(e))
-                    #warn(unicode(insertStatement))
+                # if not self.quiet:
+                #     warn(str(e))
+                #     #warn(unicode(insertStatement))
                 raise
 
     def testFTS3(self):
@@ -3348,7 +3362,7 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
         # Until #3436 is fixed (http://www.sqlite.org/cvstrac/tktview?tn=3436,5)
         #   do it the bad way
         try:
-            dummyTable = Table('cjklib_test_fts3_presence', self.db.metadata,
+            dummyTable = Table('hanzilib_test_fts3_presence', self.db.metadata,
                 Column('dummy'), useexisting=True)
             createStatement = self.buildFTS3CreateTableStatement(dummyTable)
             self.db.execute(createStatement)
@@ -3389,20 +3403,20 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
 
         if not hasFTS3:
             # write table content
-            #try:
-                #entries = self.getEntryDict(generator)
-                #self.db.execute(table.insert(), entries)
-            #except IntegrityError, e:
-                #warn(unicode(e))
-                ##warn(unicode(insertStatement))
-                #raise
+            try:
+                entries = self.getEntryDict(generator)
+                self.db.execute(table.insert(), entries)
+            except IntegrityError as e:
+                # warn(str(e))
+                #warn(unicode(insertStatement))
+                raise
             for newEntry in generator:
                 try:
                     table.insert(newEntry).execute()
                 except IntegrityError as e:
-                    if not self.quiet:
-                        warn(str(e))
-                        #warn(unicode(insertStatement))
+                    # if not self.quiet:
+                    #     warn(str(e))
+                    #     #warn(unicode(insertStatement))
                     raise
         else:
             # write table content
@@ -3978,5 +3992,4 @@ class SimpleWenlinFormatBuilder(EntryGeneratorBuilder):
             z = gzip.GzipFile(filePath, 'r')
             return io.StringIO(z.read().decode(self.ENCODING))
         else:
-            import codecs
-            return codecs.open(filePath, 'r', self.ENCODING)
+            return open(filePath, 'r', encoding=self.ENCODING)

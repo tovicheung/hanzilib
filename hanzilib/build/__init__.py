@@ -1,3 +1,5 @@
+from __future__ import annotations
+import sqlalchemy.exc
 #!/usr/bin/python
 # -*- coding: utf-8  -*-
 # This file is part of cjklib.
@@ -28,9 +30,13 @@ import os.path
 
 from sqlalchemy.exc import OperationalError
 
-from cjklib import dbconnector
-from cjklib import exception
-from cjklib.util import locateProjectFile
+from .. import dbconnector
+from .. import exception
+from ..util import locateProjectFile
+
+import typing
+if typing.TYPE_CHECKING:
+    from .builder import TableBuilder
 
 class DatabaseBuilder:
     """
@@ -67,7 +73,7 @@ class DatabaseBuilder:
         """
         if 'dataPath' not in options:
             # look for data underneath the build module
-            projectDataPath = locateProjectFile('cjklib/data', 'cjklib')
+            projectDataPath = locateProjectFile('hanzilib/data', 'hanzilib')
             if not projectDataPath:
                 projectDataPath = os.path.join(
                     os.path.dirname(os.path.abspath(__file__)), '../data')
@@ -100,7 +106,7 @@ class DatabaseBuilder:
             additionalBuilders=options.pop('additionalBuilders', []))
 
         # build lookup
-        self._tableBuilderLookup = {}
+        self._tableBuilderLookup: dict[str, type[TableBuilder]] = {}
         for tableBuilder in tableBuilderClasses:
             if tableBuilder.PROVIDES in self._tableBuilderLookup:
                 raise Exception("Table '%s' provided by several builders" \
@@ -210,7 +216,7 @@ class DatabaseBuilder:
         """
         if type(tables) != type([]):
             tables = [tables]
-
+        tables: list[str]
         if not self.quiet:
             warn("Building database '%s'" % self.db.databaseUrl)
             if self.db.attached:
@@ -261,8 +267,16 @@ class DatabaseBuilder:
         if not self.quiet and self.rebuildExisting:
             warn("Rebuilding tables and overwriting old ones...")
         builderClasses.reverse()
-        self._instancesUnrequestedTable = set()
+        self._instancesUnrequestedTable: set[TableBuilder] = set()
+
         while builderClasses:
+            if 1:
+                result = self.db.connection.execute("SELECT name FROM sqlite_master WHERE type='table';")
+                tablesBuilt = [row[0] for row in result]
+                print()
+                print(f"\033[1mBuild progress: {len(tablesBuilt)}/{56}\033[m")
+                # print(*tablesBuilt)
+
             builder = builderClasses.pop()
 
             transaction = self.db.connection.begin()
@@ -271,7 +285,7 @@ class DatabaseBuilder:
                 # get specific options given to the DatabaseBuilder
                 options = self.getBuilderOptions(builder, ignoreUnknown=True)
                 options['dbConnectInst'] = self.db
-                instance = builder(**options)
+                instance: TableBuilder = builder(**options)
                 # mark tables as deletable if its only provided because of
                 #   dependencies and the table doesn't exists yet
                 if builder.PROVIDES in buildDependentTables \
@@ -317,7 +331,10 @@ class DatabaseBuilder:
                 else:
                     if not self.quiet: warn("Error")
                     self.clearTemporary()
-                    raise
+                    # raise
+            except sqlalchemy.exc.IntegrityError:
+                transaction.rollback()
+                raise
             except Exception as e:
                 transaction.rollback()
                 if not self.quiet: warn("Error")
@@ -405,7 +422,7 @@ class DatabaseBuilder:
         else:
             return not self.db.hasTable(tableName)
 
-    def getBuildDependentTables(self, tableNames):
+    def getBuildDependentTables(self, tableNames: list[str]) -> set[str]:
         """
         Gets the name of the tables that needs to be built to resolve
         dependencies.
@@ -415,7 +432,7 @@ class DatabaseBuilder:
         :rtype: list of str
         :return: names of tables needed to resolve dependencies
         """
-        def solveDependencyRecursive(table):
+        def solveDependencyRecursive(table: str):
             """
             Gets all tables on which the given table depends and that need to be
             rebuilt. Also will mark tables skipped which won't be rebuilt.
@@ -447,8 +464,8 @@ class DatabaseBuilder:
                 solveDependencyRecursive(dependantTable)
 
         tableNames = set(tableNames)
-        dependedTablesNames = set()
-        skippedTables = set()
+        dependedTablesNames: set[str] = set()
+        skippedTables: set[str] = set()
 
         for table in tableNames:
             builderClass = self._tableBuilderLookup[table]
@@ -461,7 +478,7 @@ class DatabaseBuilder:
                 + "' but skipping because they already exist")
         return dependedTablesNames
 
-    def getDependingTables(self, tableNames):
+    def getDependingTables(self, tableNames: list[str]) -> set[str]:
         """
         Gets the name of the tables that depend on the given tables to be built
         and are not included in the given set.
@@ -509,7 +526,7 @@ class DatabaseBuilder:
                 needRebuild.add(tableName)
         return needRebuild
 
-    def getExternalRebuiltDependingTables(self, tableNames):
+    def getExternalRebuiltDependingTables(self, tableNames: list[str]):
         """
         Gets the name of the tables that depend on the given tables to be built
         and already exist similar to
@@ -531,7 +548,7 @@ class DatabaseBuilder:
                 needRebuild.add(tableName)
         return needRebuild
 
-    def getClassesInBuildOrder(self, tableNames):
+    def getClassesInBuildOrder(self, tableNames) -> list[type[TableBuilder]]:
         """
         Gets the build order for the given table names.
 
@@ -556,7 +573,7 @@ class DatabaseBuilder:
         return self.getBuildDependencyOrder(tableBuilderClasses)
 
     @staticmethod
-    def getBuildDependencyOrder(tableBuilderClasses):
+    def getBuildDependencyOrder(tableBuilderClasses: list[type[TableBuilder]]) -> list[type[TableBuilder]]:
         """
         Create order in which the tables have to be created.
 
@@ -592,6 +609,7 @@ class DatabaseBuilder:
                     + "'. Builders with open depends: '" \
                     + "', '".join([builder.PROVIDES \
                         for builder in tableBuilderClasses]) + "'")
+        # print("dep", dependencyOrder)
         return dependencyOrder
 
     @staticmethod
@@ -628,7 +646,7 @@ class DatabaseBuilder:
 
     @staticmethod
     def getTableBuilderClasses(preferClassNameSet=None, resolveConflicts=True,
-        quiet=True, additionalBuilders=None):
+        quiet=True, additionalBuilders=None) -> set[type[TableBuilder]]:
         """
         Gets all classes in module that implement
         :class:`~cjklib.build.builder.TableBuilder`.
@@ -655,19 +673,20 @@ class DatabaseBuilder:
             table, if two different options with the same name collide
         """
         additionalBuilders = additionalBuilders or []
-        buildModule = __import__("cjklib.build.builder")
+        # buildModule = __import__("hanzilib.build.builder")
+        from . import builder
         # get all classes that inherit from TableBuilder
         tableBuilderClasses = set([clss \
-            for clss in list(buildModule.build.builder.__dict__.values()) \
+            for clss in list(builder.__dict__.values()) \
             if type(clss) == type \
-            and issubclass(clss, buildModule.build.builder.TableBuilder) \
+            and issubclass(clss, builder.TableBuilder) \
             and clss.PROVIDES])
         # add additionally provided
         tableBuilderClasses.update(additionalBuilders)
 
         if resolveConflicts:
             tableBuilderClasses = DatabaseBuilder.resolveBuilderConflicts(
-                tableBuilderClasses, preferClassNameSet, quiet=quiet)
+                list(tableBuilderClasses), preferClassNameSet, quiet=quiet)
 
         # check if all options are unique
         DatabaseBuilder._checkOptionUniqueness(tableBuilderClasses)
@@ -675,7 +694,7 @@ class DatabaseBuilder:
         return tableBuilderClasses
 
     @staticmethod
-    def resolveBuilderConflicts(classList, preferClassNames=None, quiet=True):
+    def resolveBuilderConflicts(classList: list[type[TableBuilder]], preferClassNames=None, quiet=True):
         """
         Returns a subset of :class:`~cjklib.build.builder.TableBuilder`
         classes so that every buildable table is only represented by
@@ -813,5 +832,4 @@ def warn(message):
     :type message: str
     :param message: message to print
     """
-    print(message.encode(locale.getpreferredencoding(),
-        'replace'), file=sys.stderr)
+    print(str(message), file=sys.stderr)

@@ -35,7 +35,7 @@ from sqlalchemy.types import String, Text
 
 #{ Configuration and file access
 
-def locateProjectFile(relPath, projectName='cjklib'):
+def locateProjectFile(relPath, projectName='hanzilib'):
     """
     Locates a project file relative to the project's directory. Returns ``None``
     if module ``pkg_resources`` is not installed or package information is not
@@ -57,7 +57,7 @@ def locateProjectFile(relPath, projectName='cjklib'):
     except (DistributionNotFound, ValueError):
         pass
 
-def getConfigSettings(section, projectName='cjklib'):
+def getConfigSettings(section, projectName='hanzilib'):
     """
     Reads the configuration from the given section of the project's config file.
 
@@ -70,17 +70,17 @@ def getConfigSettings(section, projectName='cjklib'):
     :return: configuration settings for the given project
     """
     # don't convert to lowercase
-    h = configparser.SafeConfigParser.optionxform
+    h = configparser.ConfigParser.optionxform
     try:
-        configparser.SafeConfigParser.optionxform = lambda self, x: x
-        config = configparser.SafeConfigParser()
+        configparser.ConfigParser.optionxform = lambda self, x: x
+        config = configparser.ConfigParser()
         homeDir = os.path.expanduser('~')
 
         configFiles = []
         # Library directory
         libdir = locateProjectFile(projectName, projectName)
         if not libdir:
-            if projectName != 'cjklib':
+            if projectName != 'hanzilib':
                 import warnings
                 warnings.warn("Cannot locate packaged files for project '%s'"
                     % projectName)
@@ -115,11 +115,11 @@ def getConfigSettings(section, projectName='cjklib'):
     except configparser.NoSectionError:
         configuration = {}
 
-    configparser.SafeConfigParser.optionxform = h
+    configparser.ConfigParser.optionxform = h
 
     return configuration
 
-def getSearchPaths(projectName='cjklib'):
+def getSearchPaths(projectName='hanzilib'):
     """
     Gets a list of search paths for the given project.
 
@@ -168,7 +168,7 @@ def getSearchPaths(projectName='cjklib'):
     # Library directory
     libdir = locateProjectFile(projectName, projectName)
     if not libdir:
-        if projectName != 'cjklib':
+        if projectName != 'hanzilib':
             import warnings
             warnings.warn("Cannot locate packaged files for project '%s'"
                 % projectName)
@@ -186,9 +186,9 @@ def getDataPath():
     :rtype: str
     :return: path
     """
-    dataDir = locateProjectFile('cjklib/data', 'cjklib')
+    dataDir = locateProjectFile('hanzilib/data', 'hanzilib')
     if not dataDir:
-        buildModule = __import__("cjklib.build")
+        buildModule = __import__("hanzilib.build")
         buildModulePath = os.path.dirname(os.path.abspath(
             buildModule.__file__))
         dataDir = os.path.join(buildModulePath, 'data')
@@ -366,7 +366,7 @@ def crossDict(*args):
     """Builds a cross product of the given dicts."""
     def joinDict(a, b):
         a = a.copy()
-        a.update(y)
+        a.update(b)
         return a
 
     ans = [{}]
@@ -430,12 +430,12 @@ class UnicodeCSVFileIterator(object):
         if not hasattr(self, '_csvReader'):
             self._csvReader = self._getCSVReader(self.fileHandle)
 
-        return [str(cell, 'utf-8') for cell in next(self._csvReader)]
+        return [cell for cell in next(self._csvReader)]
 
     @staticmethod
     def utf_8_encoder(unicode_csv_data):
         for line in unicode_csv_data:
-            yield line.encode('utf-8')
+            yield line
 
     @staticmethod
     def byte_string_dialect(dialect):
@@ -689,7 +689,7 @@ class LazyDict(dict):
         self[key] = value = self.creator(key)
         return value
 
-from collections import MutableMapping
+from collections.abc import MutableMapping
 
 class OrderedDict(dict, MutableMapping):
 

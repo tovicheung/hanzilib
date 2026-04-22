@@ -26,14 +26,13 @@ import sys
 import os
 import locale
 from optparse import OptionParser, OptionGroup, Values
-import ConfigParser
+import configparser
 import warnings
 
-from cjklib import build
-from cjklib import exception
-from cjklib import dbconnector
-import cjklib
-from cjklib.util import getConfigSettings, getDataPath, ExtendedOption
+from . import DatabaseBuilder
+from .. import exception
+from .. import dbconnector
+from ..util import getConfigSettings, getDataPath, ExtendedOption
 
 class CommandLineBuilder(object):
     """
@@ -91,7 +90,7 @@ format --BuilderName-option or --TableName-option, e.g.
             'LocaleCharacterGlyph', 'StrokeCount', 'ComponentLookup',
             'CharacterVariant', 'Glyphs'],
         'CharacterDomains': ['UnihanCharacterSets', 'GlyphInformationSet'],
-        'cjklibData': ['Readings', 'SupportedCharacterReadings',
+        'hanzilibData': ['Readings', 'SupportedCharacterReadings',
             'KangxiRadicalData', 'ShapeLookupData', 'CharacterDomains'],
         # language based
         'fullMandarin': ['KangxiRadicalData', 'ShapeLookupData',
@@ -185,8 +184,8 @@ format --BuilderName-option or --TableName-option, e.g.
                     #column = len(subsequentPrefix)
             outputLines.append(output)
 
-        print "\n".join(outputLines).encode(cls.output_encoding,
-            'replace')
+        print("\n".join(outputLines).encode(cls.output_encoding,
+            'replace'))
 
     @classmethod
     def getBuilderConfigSettings(cls):
@@ -199,11 +198,11 @@ format --BuilderName-option or --TableName-option, e.g.
         """
         configOptions = getConfigSettings('Builder')
         # don't convert to lowercase
-        ConfigParser.RawConfigParser.optionxform = lambda self, x: x
-        config = ConfigParser.RawConfigParser(configOptions)
+        configparser.RawConfigParser.optionxform = lambda self, x: x
+        config = configparser.RawConfigParser(configOptions)
 
         options = {}
-        for builder in build.DatabaseBuilder.getTableBuilderClasses(
+        for builder in DatabaseBuilder.getTableBuilderClasses(
             resolveConflicts=False):
             if not builder.PROVIDES:
                 continue
@@ -219,16 +218,16 @@ format --BuilderName-option or --TableName-option, e.g.
                     '--%s-%s' % (builder.PROVIDES, option)]:
                     if config.has_option(None, opt):
                         if optionType == 'bool':
-                            value = config.getboolean(ConfigParser.DEFAULTSECT,
+                            value = config.getboolean(configparser.DEFAULTSECT,
                                 opt)
                         elif optionType == 'int':
-                            value = config.getint(ConfigParser.DEFAULTSECT,
+                            value = config.getint(configparser.DEFAULTSECT,
                                 opt)
                         elif optionType == 'float':
-                            value = config.getfloat(ConfigParser.DEFAULTSECT,
+                            value = config.getfloat(configparser.DEFAULTSECT,
                                 opt)
                         else:
-                            value = config.get(ConfigParser.DEFAULTSECT, opt)
+                            value = config.get(configparser.DEFAULTSECT, opt)
 
                         options[opt] = value
 
@@ -293,7 +292,7 @@ GNU Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public License
 along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
-            % str(cjklib.__version__)
+            % str("cjklib.__version__")
         parser = OptionParser(usage=usage, description=description,
             version=version, option_class=ExtendedOption)
 
@@ -329,7 +328,7 @@ along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
             'databaseUrl', 'attach', 'prefer'])
         globalBuilderGroup = OptionGroup(parser, "Global builder commands")
         localBuilderGroup = OptionGroup(parser, "Local builder commands")
-        for builder in build.DatabaseBuilder.getTableBuilderClasses():
+        for builder in DatabaseBuilder.getTableBuilderClasses():
             if not builder.PROVIDES:
                 continue
 
@@ -344,7 +343,7 @@ along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
                     'metavar': 'metavar', 'choices': 'choices',
                         'description': 'help'}
                 options = dict([(includeOptions[key], value) for key, value \
-                    in metadata.items() if key in includeOptions])
+                    in list(metadata.items()) if key in includeOptions])
 
                 if 'metavar' not in options:
                     if 'type' in options and options['type'] == 'bool':
@@ -388,7 +387,7 @@ along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
             + "all, for all tables understood by the build script\n" \
             + "allAvail, for all data available to the build script\n")
         self.printFormattedLine("Standard groups:")
-        groupList = self.BUILD_GROUPS.keys()
+        groupList = list(self.BUILD_GROUPS.keys())
         groupList.sort()
         deprecated = self._getDeprecated()
         for groupName in groupList:
@@ -401,7 +400,7 @@ along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
                 if member in deprecated:
                     continue
 
-                if self.BUILD_GROUPS.has_key(member):
+                if member in self.BUILD_GROUPS:
                     content.append("'" + member + "'")
                 else:
                     content.append(member)
@@ -419,7 +418,7 @@ along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
                 deprecated.update(self.BUILD_GROUPS[entry])
             else:
                 # single table
-                for groupEntries in self.BUILD_GROUPS.values():
+                for groupEntries in list(self.BUILD_GROUPS.values()):
                     if entry in groupEntries:
                         deprecated.add(entry)
 
@@ -430,14 +429,14 @@ along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
         Combine two lists of preferred builders, by giving classes from the
         first list precedence.
         """
-        builderClasses = build.DatabaseBuilder.getTableBuilderClasses(
+        builderClasses = DatabaseBuilder.getTableBuilderClasses(
             resolveConflicts=False)
         preferredBuilders = preferred + otherPreferred
         dbPreferClasses = [clss for clss in builderClasses
             if clss.__name__ in (preferred + otherPreferred)]
 
         # sort out the default preferred if they collide with user's choice
-        dbPreferClasses = build.DatabaseBuilder.resolveBuilderConflicts(
+        dbPreferClasses = DatabaseBuilder.resolveBuilderConflicts(
             dbPreferClasses, preferred)
 
         return [clss.__name__ for clss in dbPreferClasses]
@@ -460,7 +459,7 @@ along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
                     raise ValueError("group 'allAvail' can't be specified " \
                         + "together with other groups.")
             # if generic group given get list
-            buildGroupList = build.DatabaseBuilder.getSupportedTables()
+            buildGroupList = DatabaseBuilder.getSupportedTables()
 
         deprecatedGroups = self._getDeprecated() & set(buildGroupList)
         if deprecatedGroups:
@@ -473,7 +472,7 @@ along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
         groups = []
         while len(buildGroupList) != 0:
             group = buildGroupList.pop()
-            if self.BUILD_GROUPS.has_key(group):
+            if group in self.BUILD_GROUPS:
                 buildGroupList.update(self.BUILD_GROUPS[group])
             else:
                 groups.append(group)
@@ -494,29 +493,27 @@ along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
             configuration['registerUnicode'] = options.pop('registerUnicode')
         try:
             db = dbconnector.DatabaseConnector(configuration)
-        except ValueError, e:
-            print >> sys.stderr, "Error: %s" % e
+        except ValueError as e:
+            print("Error: %s" % e, file=sys.stderr)
             return False
 
         # create builder instance
-        dbBuilder = build.DatabaseBuilder(dbConnectInst=db, **options)
+        dbBuilder = DatabaseBuilder(dbConnectInst=db, **options)
 
         try:
             dbBuilder.build(groups)
 
-            print "finished"
-        except exception.UnsupportedError, e:
-            print >> sys.stderr, \
-                "Error building local tables, some names do not exist: %s" % e
+            print("finished")
+        except exception.UnsupportedError as e:
+            print("Error building local tables, some names do not exist: %s" % e, file=sys.stderr)
             return False
         except KeyboardInterrupt:
-            print >> sys.stderr, "Keyboard interrupt."
+            print("Keyboard interrupt.", file=sys.stderr)
             try:
                 # remove temporary tables
                 dbBuilder.clearTemporary()
             except KeyboardInterrupt:
-                print >> sys.stderr, \
-                    "Interrupted while cleaning temporary tables"
+                print("Interrupted while cleaning temporary tables", file=sys.stderr)
             return False
 
         return True
@@ -555,6 +552,9 @@ along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
 
 
 def main():
+    # temporary measure
+    sys.argv = [sys.argv[0], "build", "allAvail"]
+    print("(Temporary) building using args:", sys.argv)
     if not CommandLineBuilder(deprecated=['fullDictionaries']).run():
         sys.exit(1)
 

@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with cjklib.  If not, see <http://www.gnu.org/licenses/>.
 
-u"""
+"""
 Conversion between character readings.
 """
 
@@ -42,15 +42,15 @@ import types
 from sqlalchemy import select
 from sqlalchemy.sql import and_
 
-from cjklib.exception import (ConversionError, AmbiguousConversionError,
+from ..exception import (ConversionError, AmbiguousConversionError,
     InvalidEntityError, UnsupportedError)
-from cjklib import dbconnector
-from cjklib.reading import operator as readingoperator
-import cjklib.reading
-from cjklib.util import titlecase, istitlecase, cachedproperty
+from .. import dbconnector
+from . import operator as readingoperator
+from . import ReadingFactory
+from ..util import titlecase, istitlecase, cachedproperty
 
 class ReadingConverter(object):
-    u"""
+    """
     Defines an abstract converter between two or more *character readings*.
     """
     CONVERSION_DIRECTIONS = []
@@ -63,17 +63,17 @@ class ReadingConverter(object):
     def __init__(self, *args, **options):
         """
         :param args: optional list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             to use for handling source and target readings.
         :param options: extra options
         :keyword dbConnectInst: instance of a
             :class:`~cjklib.dbconnector.DatabaseConnector`, if none is
             given, default settings will be assumed.
         :keyword sourceOperators: list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling source readings.
         :keyword targetOperators: list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling target readings.
         """
         if 'dbConnectInst' in options:
@@ -81,9 +81,9 @@ class ReadingConverter(object):
         else:
             self.db = dbconnector.getDBConnector()
 
-        self._f = cjklib.reading.ReadingFactory(dbConnectInst=self.db)
+        self._f = ReadingFactory(dbConnectInst=self.db)
 
-        for option, defaultValue in self.getDefaultOptions().items():
+        for option, defaultValue in list(self.getDefaultOptions().items()):
             optionValue = options.get(option, defaultValue)
             if option in ('sourceOperators', 'targetOperators'):
                 setattr(self, option, copy.copy(optionValue))
@@ -101,12 +101,12 @@ class ReadingConverter(object):
                 = dict([(operatorInst.READING_NAME, operatorInst) \
                     for operatorInst in self.targetOperators])
 
-        for operatorInst in self.sourceOperators.values():
+        for operatorInst in list(self.sourceOperators.values()):
             if not isinstance(operatorInst, readingoperator.ReadingOperator):
                 raise ValueError(
                     "Unknown type '%s' given as source reading operator"
                         % str(type(operatorInst)))
-        for operatorInst in self.targetOperators.values():
+        for operatorInst in list(self.targetOperators.values()):
             if not isinstance(operatorInst, readingoperator.ReadingOperator):
                 raise ValueError(
                     "Unknown type '%s' given as target reading operator"
@@ -165,7 +165,7 @@ class ReadingConverter(object):
         .. todo::
             * Impl: Make parameters fromReading, toReading optional if only
               one conversion direction is given. Same for
-              :meth:`~cjklib.reading.converter.ReadingConverter.convertEntities`.
+              :meth:`~_reading.converter.ReadingConverter.convertEntities`.
         """
         # decompose string
         fromReadingEntities = self._getFromOperator(fromReading).decompose(
@@ -206,7 +206,7 @@ class ReadingConverter(object):
         :type readingN: str
         :param readingN: name of reading
         :rtype: instance
-        :return: a :class:`~cjklib.reading.operator.ReadingOperator` instance
+        :return: a :class:`~_reading.operator.ReadingOperator` instance
         :raise UnsupportedError: if the given reading is not supported.
         """
         if readingN not in self.sourceOperators:
@@ -221,7 +221,7 @@ class ReadingConverter(object):
         :type readingN: str
         :param readingN: name of reading
         :rtype: instance
-        :return: a :class:`~cjklib.reading.operator.ReadingOperator` instance
+        :return: a :class:`~_reading.operator.ReadingOperator` instance
         :raise UnsupportedError: if the given reading is not supported.
         """
         if readingN not in self.targetOperators:
@@ -232,7 +232,7 @@ class ReadingConverter(object):
 
 class DialectSupportReadingConverter(ReadingConverter):
     """
-    Defines an abstract :class:`~cjklib.reading.converter.ReadingConverter`
+    Defines an abstract :class:`~_reading.converter.ReadingConverter`
     that support non-standard reading representations (dialect) as in- and
     output.
 
@@ -361,7 +361,7 @@ class DialectSupportReadingConverter(ReadingConverter):
     def convertEntitySequence(self, entitySequence, fromReading, toReading):
         """
         Convert a list of reading entities in standard representatinon given by
-        :meth:`~cjklib.reading.converter.DialectSupportReadingConverter.DEFAULT_READING_OPTIONS`
+        :meth:`~_reading.converter.DialectSupportReadingConverter.DEFAULT_READING_OPTIONS`
         and non reading entities from the source
         reading to the target reading.
 
@@ -383,12 +383,12 @@ class DialectSupportReadingConverter(ReadingConverter):
 
 class EntityWiseReadingConverter(ReadingConverter):
     """
-    Defines an abstract :class:`~cjklib.reading.converter.ReadingConverter`
+    Defines an abstract :class:`~_reading.converter.ReadingConverter`
     between two or more *readings* for doing entity wise conversion.
 
     Converters that simply convert one syllable at once can implement this class
     and merely need to overwrite
-    :meth:`~cjklib.reading.converter.EntityWiseReadingConverter.convertBasicEntity`
+    :meth:`~_reading.converter.EntityWiseReadingConverter.convertBasicEntity`
     """
     def convertEntities(self, readingEntities, fromReading, toReading):
         if (fromReading, toReading) not in self.CONVERSION_DIRECTIONS:
@@ -414,7 +414,7 @@ class EntityWiseReadingConverter(ReadingConverter):
         given target reading.
 
         This method is called by
-        :meth:`~cjklib.reading.converter.EntityWiseReadingConverter.convertEntities`
+        :meth:`~_reading.converter.EntityWiseReadingConverter.convertEntities`
         and a single entity is given for conversion.
 
         The default implementation will raise a NotImplementedError.
@@ -437,8 +437,8 @@ class EntityWiseReadingConverter(ReadingConverter):
 
 
 class RomanisationConverter(DialectSupportReadingConverter):
-    u"""
-    Defines an abstract :class:`~cjklib.reading.converter.ReadingConverter`
+    """
+    Defines an abstract :class:`~_reading.converter.ReadingConverter`
     between two or more *romanisations*.
 
     Reading dialects can produce different entities which have to be handled by
@@ -447,7 +447,7 @@ class RomanisationConverter(DialectSupportReadingConverter):
     finally converting to the specified target reading dialect. On conversion
     step thus involves three single conversion steps using a default form. This
     default form can be defined in
-    :attr:`~cjklib.reading.converter.RomanisationConverter.DEFAULT_READING_OPTIONS`.
+    :attr:`~_reading.converter.RomanisationConverter.DEFAULT_READING_OPTIONS`.
 
     Letter case will be transfered between syllables, no special formatting
     according to anyhow defined standards will be guaranteed.
@@ -460,7 +460,7 @@ class RomanisationConverter(DialectSupportReadingConverter):
     case should be handled outside of cjklib if special formatting is required.
 
     The class itself can't be used directly, it has to be subclassed and
-    :meth:`~cjklib.reading.converter.RomanisationConverter.convertBasicEntity`
+    :meth:`~_reading.converter.RomanisationConverter.convertBasicEntity`
     has to be implemented, as to make the translation of
     a syllable from one romanisation to another possible.
     """
@@ -498,19 +498,19 @@ class RomanisationConverter(DialectSupportReadingConverter):
         given target reading.
 
         This method is called by
-        :meth:`~cjklib.reading.converter.RomanisationConverter.convertEntities`
+        :meth:`~_reading.converter.RomanisationConverter.convertEntities`
         and a lower case entity is given for conversion.
         The returned value should be in lower case characters too, as
-        :meth:`~cjklib.reading.converter.RomanisationConverter.convertEntities`
+        :meth:`~_reading.converter.RomanisationConverter.convertEntities`
         will take care of capitalisation.
 
         If a single entity needs to be converted it is recommended to use
-        :meth:`~cjklib.reading.converter.RomanisationConverter.convertEntities`
+        :meth:`~_reading.converter.RomanisationConverter.convertEntities`
         instead. In the general case it can not be ensured
         that a mapping from one reading to another can be done by the simple
         conversion of a basic entity. One-to-many mappings are possible and
         there is no guarantee that any entity of a reading recognised by
-        :meth:`~cjklib.reading.operator.ReadingOperator.isReadingEntity`
+        :meth:`~_reading.operator.ReadingOperator.isReadingEntity`
         will be mapped here.
 
         The default implementation will raise a NotImplementedError.
@@ -534,26 +534,26 @@ class RomanisationConverter(DialectSupportReadingConverter):
 
 
 class PinyinDialectConverter(ReadingConverter):
-    u"""
+    """
     Provides a converter for different representations of the Chinese
     romanisation *Hanyu Pinyin*.
     """
     CONVERSION_DIRECTIONS = [('Pinyin', 'Pinyin')]
 
     def __init__(self, *args, **options):
-        u"""
+        """
         :param args: optional list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             to use for handling source and target readings.
         :param options: extra options
         :keyword dbConnectInst: instance of a
             :class:`~cjklib.dbconnector.DatabaseConnector`, if none is
             given, default settings will be assumed.
         :keyword sourceOperators: list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling source readings.
         :keyword targetOperators: list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling target readings.
         :keyword keepPinyinApostrophes: if set to ``True`` apostrophes
             separating two syllables in Pinyin will be kept even if not
@@ -688,7 +688,7 @@ class PinyinDialectConverter(ReadingConverter):
                     toReadingEntities.append(
                         self._getToOperator(toReading).getTonalEntity(
                             plainSyllable, tone))
-                except InvalidEntityError, e:
+                except InvalidEntityError as e:
                     # handle this as a conversion error as the converted
                     #   syllable is not accepted by the operator
                     raise ConversionError(*e.args)
@@ -720,7 +720,7 @@ class PinyinDialectConverter(ReadingConverter):
                 plainSyllable, _ = entry
                 if plainSyllable.lower() == 'r' \
                     and lastPlainSyllable.lower() not in ['e', 'er', 'r', 'n',
-                        'ng', 'hng', 'hm', 'm', u'ê']:
+                        'ng', 'hng', 'hm', 'm', 'ê']:
                     # merge two syllables and use tone of main syllable
                     convertedTuples.append((lastPlainSyllable + plainSyllable,
                         lastTone))
@@ -790,7 +790,7 @@ class PinyinDialectConverter(ReadingConverter):
 
 
 class WadeGilesDialectConverter(EntityWiseReadingConverter):
-    u"""
+    """
     Provides a converter for different representations of the Mandarin Chinese
     romanisation *Wade-Giles*.
     """
@@ -818,7 +818,7 @@ class WadeGilesDialectConverter(EntityWiseReadingConverter):
         try:
             return self._getToOperator(toReading).getTonalEntity(plainSyllable,
                 tone)
-        except InvalidEntityError, e:
+        except InvalidEntityError as e:
             # handle this as a conversion error as the converted syllable is not
             #   accepted by the operator
             raise ConversionError(*e.args)
@@ -878,33 +878,33 @@ class PinyinWadeGilesConverter(RomanisationConverter):
         try:
             return self._f.getTonalEntity(transSyllable, tone, toReading,
                 **self.DEFAULT_READING_OPTIONS[toReading])
-        except InvalidEntityError, e:
+        except InvalidEntityError as e:
             # handle this as a conversion error as the converted syllable is not
             #   accepted by the operator
             raise ConversionError(*e.args)
 
 
 class GRDialectConverter(ReadingConverter):
-    u"""
+    """
     Provides a converter for different representations of the Chinese
     romanisation *Gwoyeu Romatzyh*.
     """
     CONVERSION_DIRECTIONS = [('GR', 'GR')]
 
     def __init__(self, *args, **options):
-        u"""
+        """
         :param args: optional list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             to use for handling source and target readings.
         :param options: extra options
         :keyword dbConnectInst: instance of a
             :class:`~cjklib.dbconnector.DatabaseConnector`, if none is
             given, default settings will be assumed.
         :keyword sourceOperators: list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling source readings.
         :keyword targetOperators: list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling target readings.
         :keyword keepGRApostrophes: if set to ``True`` apostrophes separating
             two syllables in Gwoyeu Romatzyh will be kept even if not necessary.
@@ -1029,7 +1029,7 @@ class GRDialectConverter(ReadingConverter):
                 plainRealEntity, realTone = grOperator.splitEntityTone(
                     realEntity)
                 baseTone = grOperator.getBaseTone(realTone)
-            except UnsupportedError, e:
+            except UnsupportedError as e:
                 raise ConversionError(
                     "Unabled to get ethymological tone if  '%s': %s"
                     % (realEntity, e))
@@ -1050,9 +1050,9 @@ class GRDialectConverter(ReadingConverter):
 
         # Convert repetition markers, go backwards as 'vx' needs the 'x' to
         #   be concious about the preceding 'v'.
-        repeatLast = ['x', '.x', grOperator.optionalNeutralToneMarker + u'x']
+        repeatLast = ['x', '.x', grOperator.optionalNeutralToneMarker + 'x']
         repeatSecondLast = ['v', '.v',
-            grOperator.optionalNeutralToneMarker + u'v']
+            grOperator.optionalNeutralToneMarker + 'v']
         for idx in range(len(readingEntities)-1, -1, -1):
             # test for 'x'
             if readingEntities[idx] in repeatLast:
@@ -1114,7 +1114,7 @@ class GRDialectConverter(ReadingConverter):
         entities.
 
         To also convert *repetition markers* run
-        :meth:`~cjklib.reading.converter.GRDialectConverter.convertRepetitionMarker`
+        :meth:`~_reading.converter.GRDialectConverter.convertRepetitionMarker`
         first.
 
         :type readingEntities: list of str
@@ -1172,7 +1172,7 @@ class GRDialectConverter(ReadingConverter):
 
 
 class GRPinyinConverter(RomanisationConverter):
-    u"""
+    """
     Provides a converter between the Chinese romanisation *Gwoyeu Romatzyh* and
     *Hanyu Pinyin*.
     """
@@ -1185,17 +1185,17 @@ class GRPinyinConverter(RomanisationConverter):
     def __init__(self, *args, **options):
         """
         :param args: optional list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             to use for handling source and target readings.
         :param options: extra options
         :keyword dbConnectInst: instance of a
             :class:`~cjklib.dbconnector.DatabaseConnector`, if none is
             given, default settings will be assumed.
         :keyword sourceOperators: list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling source readings.
         :keyword targetOperators: list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling target readings.
         :keyword grOptionalNeutralToneMapping: if set to 'original' GR syllables
             marked with an optional neutral tone will be mapped to the
@@ -1282,7 +1282,7 @@ class GRPinyinConverter(RomanisationConverter):
                     # lookup Erlhuah form for GR
                     return self._grOperator.getRhotacisedTonalEntity(
                         transSyllable, transTone)
-                except UnsupportedError, e:
+                except UnsupportedError as e:
                     # handle this as a conversion error as the there is no
                     #   Erlhuah form given for the given tone
                     raise ConversionError(e)
@@ -1292,7 +1292,7 @@ class GRPinyinConverter(RomanisationConverter):
 
                 return self._f.getTonalEntity(transSyllable, transTone,
                     toReading, **self.DEFAULT_READING_OPTIONS[toReading])
-        except InvalidEntityError, e:
+        except InvalidEntityError as e:
             # handle this as a conversion error as the converted syllable is not
             #   accepted by the operator
             raise ConversionError(*e.args)
@@ -1304,7 +1304,7 @@ class GRPinyinConverter(RomanisationConverter):
 
 
 class PinyinIPAConverter(DialectSupportReadingConverter):
-    u"""
+    """
     Provides a converter between the Mandarin Chinese romanisation
     *Hanyu Pinyin* and the *International Phonetic Alphabet* (*IPA*) for
     Standard Mandarin. This converter provides only basic support for tones and
@@ -1337,17 +1337,17 @@ class PinyinIPAConverter(DialectSupportReadingConverter):
     def __init__(self, *args, **options):
         """
         :param args: optional list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             to use for handling source and target readings.
         :param options: extra options
         :keyword dbConnectInst: instance of a
             :class:`~cjklib.dbconnector.DatabaseConnector`, if none is
             given, default settings will be assumed.
         :keyword sourceOperators: list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling source readings.
         :keyword targetOperators: list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling target readings.
         :keyword sandhiFunction: a function that handles tonal changes
             and converts a given list of entities to accommodate sandhi
@@ -1508,7 +1508,7 @@ class PinyinIPAConverter(DialectSupportReadingConverter):
     @staticmethod
     def finalECoarticulation(converterInst, leftContext, plainSyllable, tone,
         rightContext):
-        u"""
+        """
         Example function for handling coarticulation of final *e* for the
         neutral tone.
 
@@ -1552,7 +1552,7 @@ class PinyinIPAConverter(DialectSupportReadingConverter):
 
 
 class PinyinBrailleConverter(DialectSupportReadingConverter):
-    u"""
+    """
     PinyinBrailleConverter defines a converter between the Mandarin Chinese
     romanisation *Hanyu Pinyin* and the *Braille* system for Mandarin Chinese.
     """
@@ -1562,24 +1562,24 @@ class PinyinBrailleConverter(DialectSupportReadingConverter):
     DEFAULT_READING_OPTIONS = {'Pinyin': {'erhua': 'ignore',
         'toneMarkType': 'numbers', 'missingToneMark': 'noinfo'}}
 
-    PUNCTUATION_SIGNS_MAPPING = {u'。': u'⠐⠆', u',': u'⠐', u'?': u'⠐⠄',
-        u'!': u'⠰⠂', u':': u'⠒', u';': u'⠰', u'-': u'⠠⠤', u'…': u'⠐⠐⠐',
-        u'·': u'⠠⠄', u'(': u'⠰⠄', u')': u'⠠⠆', u'[': u'⠰⠆', u']': u'⠰⠆'}
+    PUNCTUATION_SIGNS_MAPPING = {'。': '⠐⠆', ',': '⠐', '?': '⠐⠄',
+        '!': '⠰⠂', ':': '⠒', ';': '⠰', '-': '⠠⠤', '…': '⠐⠐⠐',
+        '·': '⠠⠄', '(': '⠰⠄', ')': '⠠⠆', '[': '⠰⠆', ']': '⠰⠆'}
 
     def __init__(self, *args, **options):
         """
         :param args: optional list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             to use for handling source and target readings.
         :param options: extra options
         :keyword dbConnectInst: instance of a
             :class:`~cjklib.dbconnector.DatabaseConnector`, if none is
             given, default settings will be assumed.
         :keyword sourceOperators: list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling source readings.
         :keyword targetOperators: list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling target readings.
         """
         super(PinyinBrailleConverter, self).__init__(*args, **options)
@@ -1597,15 +1597,15 @@ class PinyinBrailleConverter(DialectSupportReadingConverter):
                 self._reversePunctuationMapping[value] = key
 
         # regex to split out punctuation
-        self._pinyinPunctuationRegex = re.compile(ur'(' \
+        self._pinyinPunctuationRegex = re.compile(r'(' \
             + '|'.join([re.escape(p) for p \
-                in self.PUNCTUATION_SIGNS_MAPPING.keys()]) \
+                in list(self.PUNCTUATION_SIGNS_MAPPING.keys())]) \
             + '|.+?)')
 
         braillePunctuation = list(set(self.PUNCTUATION_SIGNS_MAPPING.values()))
         # longer marks first in regex
         braillePunctuation.sort(lambda x, y: len(y) - len(x))
-        self._braillePunctuationRegex = re.compile(ur'(' \
+        self._braillePunctuationRegex = re.compile(r'(' \
             + '|'.join([re.escape(p) for p in braillePunctuation]) + '|.+?)')
 
     def _createMappings(self):
@@ -1654,7 +1654,7 @@ class PinyinBrailleConverter(DialectSupportReadingConverter):
             self._braille2PinyinFinal[brailleChar].add(pinyinFinal)
 
         # map ê to same Braille character as e
-        self._pinyinFinal2Braille[u'ê'] = self._pinyinFinal2Braille[u'e']
+        self._pinyinFinal2Braille['ê'] = self._pinyinFinal2Braille['e']
 
     def convertEntitySequence(self, entitySequence, fromReading, toReading):
         toReadingEntities = []
@@ -1707,16 +1707,16 @@ class PinyinBrailleConverter(DialectSupportReadingConverter):
         target reading.
 
         This method is called by
-        :meth:`~cjklib.reading.converter.PinyinBrailleConverter.convertEntities`
+        :meth:`~_reading.converter.PinyinBrailleConverter.convertEntities`
         and a single entity is given for conversion.
 
         If a single entity needs to be converted it is recommended to use
-        :meth:`~cjklib.reading.converter.PinyinBrailleConverter.convertEntities`
+        :meth:`~_reading.converter.PinyinBrailleConverter.convertEntities`
         instead. In the general case it can not be ensured
         that a mapping from one reading to another can be done by the simple
         conversion of a basic entity. One-to-many mappings are possible and
         there is no guarantee that any entity of a reading recognised by
-        :meth:`~cjklib.reading.operator.ReadingOperator.isReadingEntity`
+        :meth:`~_reading.operator.ReadingOperator.isReadingEntity`
         will be mapped here.
 
         :type entity: str
@@ -1796,14 +1796,14 @@ class PinyinBrailleConverter(DialectSupportReadingConverter):
         try:
             return self._getToOperator(toReading).getTonalEntity(transSyllable,
                 tone)
-        except InvalidEntityError, e:
+        except InvalidEntityError as e:
             # handle this as a conversion error as the converted syllable is not
             #   accepted by the operator
             raise ConversionError(*e.args)
 
 
 class JyutpingDialectConverter(EntityWiseReadingConverter):
-    u"""
+    """
     Provides a converter for different representations of the Cantonese
     romanisation *Jyutping*.
     """
@@ -1822,14 +1822,14 @@ class JyutpingDialectConverter(EntityWiseReadingConverter):
         try:
             return self._getToOperator(toReading).getTonalEntity(plainSyllable,
                 tone)
-        except InvalidEntityError, e:
+        except InvalidEntityError as e:
             # handle this as a conversion error as the converted syllable is not
             #   accepted by the operator
             raise ConversionError(*e.args)
 
 
 class CantoneseYaleDialectConverter(EntityWiseReadingConverter):
-    u"""
+    """
     Provides a converter for different representations of the *Cantonese Yale*
     romanisation system.
     """
@@ -1854,14 +1854,14 @@ class CantoneseYaleDialectConverter(EntityWiseReadingConverter):
                 # don't change uppercase
                 transEntity = titlecase(transEntity)
             return transEntity
-        except InvalidEntityError, e:
+        except InvalidEntityError as e:
             # handle this as a conversion error as the converted syllable is not
             #   accepted by the operator
             raise ConversionError(*e.args)
 
 
 class JyutpingYaleConverter(RomanisationConverter):
-    u"""
+    """
     Provides a converter between the Cantonese romanisation systems *Jyutping*
     and *Cantonese Yale*.
     """
@@ -1882,17 +1882,17 @@ class JyutpingYaleConverter(RomanisationConverter):
     def __init__(self, *args, **options):
         """
         :param args: optional list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             to use for handling source and target readings.
         :param options: extra options
         :keyword dbConnectInst: instance of a
             :class:`~cjklib.dbconnector.DatabaseConnector`, if none is
             given, default settings will be assumed.
         :keyword sourceOperators: list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling source readings.
         :keyword targetOperators: list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling target readings.
         :keyword yaleFirstTone: tone in Yale which the first tone from Jyutping
             should be mapped to. Value can be ``'1stToneLevel'`` to map to the
@@ -1953,14 +1953,14 @@ class JyutpingYaleConverter(RomanisationConverter):
         try:
             return self._f.getTonalEntity(transSyllable, transTone, toReading,
                 **self.DEFAULT_READING_OPTIONS[toReading])
-        except InvalidEntityError, e:
+        except InvalidEntityError as e:
             # handle this as a conversion error as the converted syllable is not
             #   accepted by the operator
             raise ConversionError(*e.args)
 
 
 class ShanghaineseIPADialectConverter(EntityWiseReadingConverter):
-    u"""
+    """
     Provides a converter for different representations of Shanghainese IPA
     forms.
     """
@@ -1975,7 +1975,7 @@ class ShanghaineseIPADialectConverter(EntityWiseReadingConverter):
         try:
             return self._getToOperator(toReading).getTonalEntity(plainSyllable,
                 tone)
-        except InvalidEntityError, e:
+        except InvalidEntityError as e:
             # handle this as a conversion error as the converted syllable is not
             #   accepted by the operator
             raise ConversionError(*e.args)
@@ -1983,7 +1983,7 @@ class ShanghaineseIPADialectConverter(EntityWiseReadingConverter):
 
 class BridgeConverter(ReadingConverter):
     """
-    Provides a :class:`~cjklib.reading.converter.ReadingConverter`
+    Provides a :class:`~_reading.converter.ReadingConverter`
     that converts between readings over a third reading called bridge reading.
     """
     def _getConversionDirections(bridge):
@@ -2023,18 +2023,18 @@ class BridgeConverter(ReadingConverter):
     def __init__(self, *args, **options):
         """
         :param args: optional list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             to use for handling source and target readings.
         :param options: extra options passed to the
-            :class:`~cjklib.reading.converter.ReadingConverter` instances
+            :class:`~_reading.converter.ReadingConverter` instances
         :keyword dbConnectInst: instance of a
             :class:`~cjklib.dbconnector.DatabaseConnector`, if none is
             given, default settings will be assumed.
         :keyword sourceOperators: list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling source readings.
         :keyword targetOperators: list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling target readings.
         """
         super(BridgeConverter, self).__init__(*args, **options)
@@ -2049,13 +2049,13 @@ class BridgeConverter(ReadingConverter):
     def getDefaultOptions(cls):
         # merge together options of converters involved in bridge conversion
         def mergeOptions(defaultOptions, options):
-            for option, value in options.items():
+            for option, value in list(options.items()):
                 assert(option not in defaultOptions \
                     or defaultOptions[option] == value)
                 defaultOptions[option] = value
 
         converterClassLookup = {}
-        for clss in cjklib.reading.ReadingFactory.getReadingConverterClasses():
+        for clss in ReadingFactory.getReadingConverterClasses():
             for fromReading, targetReading in clss.CONVERSION_DIRECTIONS:
                 converterClassLookup[(fromReading, targetReading)] = clss
 

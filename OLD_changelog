@@ -1,0 +1,45 @@
+Changes
+
+0.3.1 release
+=============
+- follow up on changes to the HanDeDict & CFDICT download
+- fix issues with MySQL
+- work with SQLAlchemy >= 0.6.0
+- updates glyph data: decomposition, stroke order, locale mapping
+  (Uriah Eisenstein)
+- augment glyph entries with locale dependent decompositions, so that for
+  each locale the locale-specific component is used in a decomposition
+- add script to produce locale dependent decomposition entries (see above)
+- add option "-y" to cjknife to search the dictionary for headword
+  substrings (annotation of text)
+- initial support for dico, exposing supported dictionaries to a dict server
+
+0.3 release
+===========
+- easy dictionary access for EDICT, CEDICT and others
+- multiple database support
+- easy dictionary installation
+- support for Win32 and OS X, improved package installation
+- support for narrow Python builds (UCS-2)
+- documentation ported to Sphinx
+- pronunciation data for Shanghainese and new reading ShanghaineseIPA
+  (Kellen Parker and Allan Simon)
+- pronunciation information from Unihan's kMandarin is not used anymore due to
+  unknown provenance, see thread under
+  http://www.unicode.org/mail-arch/unicode-ml/y2010-m01/0246.html
+- stroke order corrections and new entries (Uriah Eisenstein, Hugo Lopez)
+- character decomposition corrections (Uriah Eisenstein)
+- fix stroke order calculation for scheme ⿷ that affects characters with
+  radicals 匚 and ⼖, ⿺ for characters other than 辶, 廴, 乙 and include 
+  automatic calculation for ⿴ (Uriah Eisenstein)
+- fix reading converters not using dbconnector of ReadingFactory
+- added BIG5HKSCS character domain for zh_HK
+- added JISX0208 and JISX0208_0213 character domains for ja
+- possibility to return partial stroke order information, now shown in cjknife
+- show character domains for option '-i' in cjknife
+- new examples check-strokes.py for showing stroke order coverage and
+  icutransliterator.py for exposing cjklib's conversions as ICU transliterators.
+
+0.2 release
+===========
+- initial stable release

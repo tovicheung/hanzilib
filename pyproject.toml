@@ -4,18 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hanzilib"
-version = "0.0.1"
+version = "0.0.3"
 description = "Python 3 Han character library for CJKV languages"
-readme = "README"
+readme = "README.md"
 requires-python = ">=3.12"
 license = "LGPL-3.0-only"
 license-files = ["COPYING"]
 authors = [
-    {name = "Christoph Burgmer", email = "cburgmer@ira.uka.de"}
+    {name = "Christoph Burgmer", email = "cburgmer@ira.uka.de"},
+    {name = "Tovi Cheung", email = "tovicheung@gmail.com"},
 ]
 classifiers = [
     "Topic :: Text Processing :: Linguistic",
-    "Environment :: Console",
     "Intended Audience :: Developers",
     "Intended Audience :: Education",
     "Development Status :: 2 - Pre-Alpha",
@@ -33,8 +33,11 @@ dependencies = [
     "SQLAlchemy>=1.4",
 ]
 
-# [project.scripts]
-# buildcjkdb = "hanzilib.build.cli:main"
+[project.urls]
+Repository = "https://github.com/tovicheung/hanzilib"
+
+[project.scripts]
+hzbuild = "hanzilib.build.cli:main"
 # installcjkdict = "hanzilib.dictionary.install:main"
 # cjknife = "hanzilib.cjknife:main"
 
@@ -48,7 +51,7 @@ packages = [
 ]
 
 [tool.setuptools.package-data]
-hanzilib = ["data/*.csv", "data/*.sql", "cjklib.db", "cjklib.conf"]
+hanzilib = ["data/*.csv", "data/*.sql", "data/*.txt", "hanzilib.db", "hanzilib.conf"]
 
 # Replacement for setup.cfg [build_sphinx]
 [tool.sphinx]

@@ -24,10 +24,10 @@ import math
 from sqlalchemy import select, union
 from sqlalchemy.sql import and_, or_
 
-from cjklib import reading
-from cjklib import exception
-from cjklib import dbconnector
-from cjklib import util
+from . import reading
+from . import exception
+from . import dbconnector
+from . import util
 
 class CharacterLookup(object):
     """
@@ -1121,7 +1121,7 @@ class CharacterLookup(object):
 
         return strokeOrderDict
 
-    def _getStrokeOrderEntry(self, char, glyph):
+    def _getStrokeOrderEntry(self, char: str, glyph: int) -> str | None:
         """
         Gets the stroke order sequence for the given character from the
         database's stroke order lookup table.
@@ -1135,11 +1135,14 @@ class CharacterLookup(object):
             hyphens.
         """
         table = self.db.tables['StrokeOrder']
-        return self.db.selectScalar(select([table.c.StrokeOrder],
+        a = self.db.selectScalar(select([table.c.StrokeOrder],
             and_(table.c.ChineseCharacter == char,
                 table.c.Glyph == glyph), distinct=True))
+        if a is not None:
+            a = "".join(a)
+        return a
 
-    def _buildStrokeOrder(self, char, glyph, includePartial=False, cache=None):
+    def _buildStrokeOrder(self, char: str, glyph: int, includePartial=False, cache=None) -> str:
         """
         Gets the stroke order sequence for the given character as a string of
         *abbreviated stroke names* separated by spaces and hyphens.
@@ -1160,7 +1163,7 @@ class CharacterLookup(object):
         :rtype: str
         :return: string of stroke abbreviations separated by spaces and hyphens.
         """
-        def getFromDecomposition(char, glyph):
+        def getFromDecomposition(char: str, glyph: int) -> str:
             """
             Gets stroke order from the tree of a single partition entry.
 
@@ -1183,7 +1186,7 @@ class CharacterLookup(object):
                 :rtype: list of str
                 :return: list of stroke abbreviations of the single components
                 """
-                strokeOrder = []
+                strokeOrder: list[str] = []
                 if type(subTree[index]) != type(()):
                     # IDS operator
                     character = subTree[index]
@@ -1235,7 +1238,7 @@ class CharacterLookup(object):
                                 # IDS operators with order left one first
                                 subSequence = [0, 1]
                             # Get stroke order for both components
-                            subStrokeOrder = []
+                            subStrokeOrder: list[list[str]] = []
                             for _ in range(0, 2):
                                 so, index = getFromEntry(subTree, index+1)
                                 if not so:
@@ -1276,16 +1279,21 @@ class CharacterLookup(object):
                                 return None, index
                         strokeOrder.append(so)
 
-                return (strokeOrder, index)
+                return strokeOrder, index
 
             # Try to find a partition without unknown components
             for decomposition in self.getDecompositionEntries(char, glyph):
                 so, _ = getFromEntry(decomposition)
                 if so:
+                    try:
+                        a = ' '.join(so)
+                    except TypeError as e:
+                        print("TYPE ERROR", so)
+                        raise
                     return ' '.join(so)
 
         if cache is None:
-            cache = {}
+            cache: dict[tuple[str, int], str] = {}
         if (char, glyph) not in cache:
             # if there is an entry for the whole character return it
             order = self._getStrokeOrderEntry(char, glyph)
@@ -2186,6 +2194,9 @@ class CharacterLookup(object):
         result = self.db.selectScalars(select([table.c.Decomposition],
             and_(table.c.ChineseCharacter == char,
                 table.c.Glyph == glyph)).order_by(table.c.SubIndex))
+        # print("PPPPPE", result)
+        for x in range(len(result)):
+            result[x] = "".join(result[x])
 
         # extract character glyph information (example entry: '⿱卜[1]尸')
         return [CharacterLookup.decompositionFromString(decomposition) \
