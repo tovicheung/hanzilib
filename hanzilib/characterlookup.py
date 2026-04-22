@@ -231,7 +231,7 @@ class CharacterLookup:
                 sortedFiltered.append(char)
         return sortedFiltered
 
-    def isCharacterInDomain(self, char: str) -:
+    def isCharacterInDomain(self, char: str):
         """
         Checks if the given character is inside the current character domain.
 
