@@ -1,5 +1,5 @@
 # test build
-if 0:
+if 1:
     from hanzilib.build.cli import main
     main()
 from hanzilib.characterlookup import CharacterLookup

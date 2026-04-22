@@ -211,6 +211,7 @@ class DatabaseBuilder:
         :raise IOError: if a table builder fails to read its data; only if
             :attr:`~cjklib.build.DatabaseBuilder.noFail` is set to ``False``
         """
+        print("Starting building ...", tables)
         if type(tables) != type([]):
             tables = [tables]
         tables: list[str]
@@ -675,7 +676,7 @@ class DatabaseBuilder:
         # get all classes that inherit from TableBuilder
         tableBuilderClasses = set([clss \
             for clss in list(builder.__dict__.values()) \
-            if type(clss) == type \
+            if isinstance(clss, type) \
             and issubclass(clss, builder.TableBuilder) \
             and clss.PROVIDES])
         # add additionally provided

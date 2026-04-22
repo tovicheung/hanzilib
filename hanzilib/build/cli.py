@@ -470,6 +470,7 @@ along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
 
         # unpack groups
         groups = []
+    
         while len(buildGroupList) != 0:
             group = buildGroupList.pop()
             if group in self.BUILD_GROUPS:
