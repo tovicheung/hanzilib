@@ -250,8 +250,6 @@ class TableBuilder(ABC):
 
     def buildIndexObjects(self, tableName, indexKeyList):
         """
-        Returns a SQLAlchemy Table object.
-
         :type tableName: str
         :param tableName: name of table
         :type indexKeyList: list of list of str
@@ -260,7 +258,7 @@ class TableBuilder(ABC):
         :return: SQLAlchemy Index
         """
         indexList = []
-        table = Table(tableName, self.db.metadata, autoload=True)
+        table = Table(tableName, self.db.metadata, autoload_with=self.db.connection)
         for indexKeyColumns in indexKeyList:
             indexName = tableName + '__' + '_'.join(indexKeyColumns)
             indexList.append(Index(indexName,
@@ -291,7 +289,7 @@ class EntryGeneratorBuilder(TableBuilder):
         """
         pass
 
-    def getEntryDict(self, generator):
+    def getEntryDict(self, generator) -> list[dict]:
         entryList = []
 
         try: # added guard
@@ -322,27 +320,20 @@ class EntryGeneratorBuilder(TableBuilder):
         # get create statement
         table = self.buildTableObject(self.PROVIDES, self.COLUMNS,
             self.COLUMN_TYPES, self.PRIMARY_KEYS)
-        table.create()
+        table.create(bind=self.db.connection)
 
         # write table content
-        #try:
-        #    entries = self.getEntryDict(self.getGenerator())
-        #    if len(entries) == 0:
-        #        return
-        #    self.db.execute(table.insert(), entries)
-        #except IntegrityError as e:
-        #    print(type(self), EntryGeneratorBuilder)
-        #    print(str(e))
-        #    raise
+        try:
+            entries = self.getEntryDict(self.getGenerator())
+            if len(entries) == 0:
+                return
+            self.db.execute(table.insert(), entries)
+        except IntegrityError as e:
+            raise
 
-        for newEntry in generator:
-            try:
-                table.insert(newEntry).execute()
-            except IntegrityError as e:
-                raise
 
         for index in self.buildIndexObjects(self.PROVIDES, self.INDEX_KEYS):
-            index.create()
+            index.create(bind=self.db.connection)
 
 #}
 #{ Unihan and Kanjidic character information
@@ -924,8 +915,11 @@ class UnihanDerivedBuilder(EntryGeneratorBuilder):
         table = self.db.tables['Unihan']
         if self.COLUMN_SOURCE in table.c:
             tableEntries = self.db.selectRows(
-                select([table.c.ChineseCharacter, table.c[self.COLUMN_SOURCE]],
-                    table.c[self.COLUMN_SOURCE] != None))
+                select(table.c.ChineseCharacter, table.c[self.COLUMN_SOURCE])
+                .where(
+                    table.c[self.COLUMN_SOURCE] != None
+                )
+            )
         elif self.ignoreMissing:
             tableEntries = []
             if not self.quiet:
@@ -1176,7 +1170,7 @@ class CharacterVariantBuilder(EntryGeneratorBuilder):
 
         table = self.db.tables['Unihan']
         tableEntries = self.db.selectRows(
-            select([table.c[column] for column in selectKeys]))
+            select(*[table.c[column] for column in selectKeys]))
         return CharacterVariantBuilder.VariantGenerator(tableEntries,
             variantTypes, wideBuild=self.wideBuild, quiet=self.quiet)\
                 .generator()
@@ -1204,8 +1198,11 @@ class UnihanCharacterSetBuilder(EntryGeneratorBuilder):
         table = self.db.tables['Unihan']
         # read rows here instead of scalars to yield tuples for the generator
         tableEntries = self.db.selectRows(
-            select([table.c.ChineseCharacter],
-                table.c[self.COLUMN_SOURCE] != None))
+            select(table.c.ChineseCharacter)
+            .where(
+                table.c[self.COLUMN_SOURCE] != None
+            )
+        )
         return iter(tableEntries)
 
     def build(self):
@@ -1336,8 +1333,13 @@ class GlyphInformationSetBuilder(EntryGeneratorBuilder):
 
     def getGenerator(self):
         characterSet = self.db.selectRows(
-            union(*[select([self.db.tables[tableName].c.ChineseCharacter]) \
-                for tableName in self.DEPENDS]))
+            union(
+                *[
+                    select(self.db.tables[tableName].c.ChineseCharacter) 
+                    for tableName in self.DEPENDS
+                ]
+            )
+        )
         return iter(characterSet)
 
     # TODO Implementation as view
@@ -1616,7 +1618,8 @@ class CharacterPinyinBuilder(EntryGeneratorBuilder):
         for tableName in self.DEPENDS:
             table = self.db.tables[tableName]
             selectQueries.append(
-                select([table.c[column] for column in self.COLUMNS]))
+                select(*[table.c[column] for column in self.COLUMNS])
+            )
 
         tableEntries = self.db.selectRows(union(*selectQueries))
         return iter(tableEntries)
@@ -1671,7 +1674,7 @@ class CSVFileLoader(TableBuilder):
         createStatement = ''.join(fileHandle.readlines()).strip("\n")
         # get create statement
         self.db.execute(text(createStatement))
-        table = Table(self.PROVIDES, self.db.metadata, autoload=True)
+        table = Table(self.PROVIDES, self.db.metadata, autoload_with=self.db.engine)
 
         # write table content
         if not self.quiet:
@@ -1699,8 +1702,8 @@ class CSVFileLoader(TableBuilder):
                     entries.append(entryDict)
 
             try:
-                print("Entries added:", table, len(entries))
                 self.db.execute(table.insert(), entries)
+                print("Entries added:", table, len(entries))
             except IntegrityError as e:
                 # if not self.quiet:
                 #     warn(str(e))
@@ -1729,7 +1732,7 @@ class CSVFileLoader(TableBuilder):
 
         # get create index statement
         for index in self.buildIndexObjects(self.PROVIDES, self.INDEX_KEYS):
-            index.create()
+            index.create(bind=self.db.connection)
 
 
 class PinyinSyllablesBuilder(CSVFileLoader):
@@ -2104,11 +2107,15 @@ class GlyphBuilder(EntryGeneratorBuilder):
         unihanTable = self.db.tables['Unihan']
 
         characterSet = set(self.db.selectRows(
-            select([decompositionTable.c.ChineseCharacter,
-                decompositionTable.c.Glyph], distinct=True)))
+            select(
+                decompositionTable.c.ChineseCharacter,
+                decompositionTable.c.Glyph
+            )
+            .distinct()
+        ))
         characterSet.update(self.db.selectRows(
-            select([strokeOrderTable.c.ChineseCharacter,
-                strokeOrderTable.c.Glyph])))
+            select(strokeOrderTable.c.ChineseCharacter, strokeOrderTable.c.Glyph))
+        )
         # TODO
         #characterSet.update(self.db.select('LocaleCharacterGlyph',
             #['ChineseCharacter', 'Glyph']))
@@ -2395,19 +2402,31 @@ class CombinedStrokeCountBuilder(StrokeCountBuilder):
         unihanTable = self.db.tables['Unihan']
 
         tableEntries = self.db.selectRows(
-            select([unihanTable.c.ChineseCharacter,
-                unihanTable.c[self.COLUMN_SOURCE]],
-                unihanTable.c[self.COLUMN_SOURCE] != None))
+            select(
+                unihanTable.c.ChineseCharacter,
+                unihanTable.c[self.COLUMN_SOURCE]
+            )
+            .where(
+                unihanTable.c[self.COLUMN_SOURCE] != None
+            )
+        )
 
         # get characters to build combined stroke count for. Some characters
         #   from the CharacterDecomposition table might not have a stroke count
         #   entry in Unihan though their components do have.
         characterSet = set(self.db.selectRows(
-            select([decompositionTable.c.ChineseCharacter,
-                decompositionTable.c.Glyph], distinct=True)))
+            select(
+                decompositionTable.c.ChineseCharacter,
+                decompositionTable.c.Glyph
+            )
+            .distinct()
+        ))
         characterSet.update(self.db.selectRows(
-            select([strokeOrderTable.c.ChineseCharacter,
-                strokeOrderTable.c.Glyph])))
+            select(
+                strokeOrderTable.c.ChineseCharacter,
+                strokeOrderTable.c.Glyph
+            )
+        ))
         characterSet.update([(char, 0) for char, _ in tableEntries])
 
         return CombinedStrokeCountBuilder.CombinedStrokeCountGenerator(self.db,
@@ -2488,8 +2507,12 @@ class CharacterComponentLookupBuilder(EntryGeneratorBuilder):
     def getGenerator(self):
         decompositionTable = self.db.tables['CharacterDecomposition']
         characterSet = set(self.db.selectRows(
-            select([decompositionTable.c.ChineseCharacter,
-                decompositionTable.c.Glyph], distinct=True)))
+            select(
+                decompositionTable.c.ChineseCharacter,
+                decompositionTable.c.Glyph
+            )
+            .distinct()
+        ))
         return CharacterComponentLookupBuilder.CharacterComponentGenerator(
             self.db, characterSet).generator()
 
@@ -2806,8 +2829,12 @@ class CharacterRadicalStrokeCountBuilder(EntryGeneratorBuilder):
         # get all characters we have component information for
         decompositionTable = self.db.tables['CharacterDecomposition']
         characterSet = set(self.db.selectRows(
-            select([decompositionTable.c.ChineseCharacter,
-                decompositionTable.c.Glyph], distinct=True)))
+            select(
+                decompositionTable.c.ChineseCharacter,
+                decompositionTable.c.Glyph
+            )
+            .distinct()
+        ))
         return CharacterRadicalStrokeCountBuilder\
             .CharacterRadicalStrokeCountGenerator(self.db, characterSet,
                 self.quiet).generator()
@@ -2909,8 +2936,12 @@ class CharacterResidualStrokeCountBuilder(EntryGeneratorBuilder):
     def getGenerator(self):
         residualSCTable = self.db.tables['CharacterRadicalResidualStrokeCount']
         characterSet = set(self.db.selectRows(
-            select([residualSCTable.c.ChineseCharacter,
-                residualSCTable.c.Glyph], distinct=True)))
+            select(
+                residualSCTable.c.ChineseCharacter,
+                residualSCTable.c.Glyph
+            )
+            .distinct()
+        ))
         return CharacterResidualStrokeCountBuilder.ResidualStrokeCountExtractor(
             self.db, characterSet).generator()
 
@@ -3428,11 +3459,11 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
         # get create index statement
         if not hasFTS3:
             for index in self.buildIndexObjects(self.PROVIDES, self.INDEX_KEYS):
-                index.create()
+                index.create(bind=self.db.connection)
         else:
             for index in self.buildIndexObjects(self.PROVIDES + '_Normal',
                 self.INDEX_KEYS):
-                index.create()
+                index.create(bind=self.db.connection)
 
     def remove(self):
         # get drop table statement
@@ -3786,7 +3817,7 @@ class SimpleWenlinFormatBuilder(EntryGeneratorBuilder):
                 elif re.match(r'^\s*$', line):
                     continue
 
-                pair = re.split('\s+', line.strip(), 1)
+                pair = re.split(r'\s+', line.strip(), 1)
                 if len(pair) != 2:
                     if not self.quiet:
                         warn("Error reading line: '%s'" % line.strip())
@@ -3840,7 +3871,7 @@ class SimpleWenlinFormatBuilder(EntryGeneratorBuilder):
                 warn("No characters defined for entry '%s'" % repr(entry))
             return entry
 
-        matchObj = re.match('^(.+)\s*\[(.+)\]\s*$', entry['characters'])
+        matchObj = re.match(r'^(.+)\s*\[(.+)\]\s*$', entry['characters'])
         if not matchObj:
             simplified = tranditional = entry['characters']
         else:

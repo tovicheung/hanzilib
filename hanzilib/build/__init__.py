@@ -269,10 +269,11 @@ class DatabaseBuilder:
 
         while builderClasses:
             if 1:
-                result = self.db.connection.execute("SELECT name FROM sqlite_master WHERE type='table';")
+                result = self.db.connection.execute(sqlalchemy.text("SELECT name FROM sqlite_master WHERE type='table';"))
+                self.db.connection.commit()
                 tablesBuilt = [row[0] for row in result]
                 print()
-                print(f"\033[1mBuild progress: {len(tablesBuilt)}/{56}\033[m")
+                print(f"\033[1mBuild progress: {len(tablesBuilt)}/{57}\033[m")
                 # print(*tablesBuilt)
 
             builder = builderClasses.pop()

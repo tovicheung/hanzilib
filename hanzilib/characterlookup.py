@@ -578,11 +578,16 @@ class CharacterLookup:
         :raise ValueError: if an invalid *character locale* is specified
         """
         table = self.db.tables['LocaleCharacterGlyph']
-        glyph = self.db.selectScalar(select([table.c.Glyph],
-            and_(table.c.ChineseCharacter == char,
-                table.c.Locale.like(self._locale(locale))))\
-            .order_by(table.c.Glyph))
-
+        glyph = self.db.selectScalar(
+            select(table.c.Glyph)
+            .where(                                     
+                and_(
+                    table.c.ChineseCharacter == char,
+                    table.c.Locale.like(self._locale(locale)),
+                )
+            )
+            .order_by(table.c.Glyph)
+        )
         if glyph != None:
             return glyph
         else:
@@ -601,8 +606,13 @@ class CharacterLookup:
         """
         # return all known glyph indices, order to be deterministic
         table = self.db.tables['Glyphs']
-        result = self.db.selectScalars(select([table.c.Glyph],
-            table.c.ChineseCharacter == char).order_by(table.c.Glyph))
+        result = self.db.selectScalars(
+            select(table.c.Glyph)
+            .where(
+                table.c.ChineseCharacter == char,
+            )
+            .order_by(table.c.Glyph)
+        )
         if not result:
             raise exception.NoInformationError(
                 "No glyph information available for '%s'" % char)
@@ -673,15 +683,18 @@ class CharacterLookup:
             table = self.db.tables['StrokeCount']
             # constrain to selected character domain
             if self.characterDomain == 'Unicode':
-                fromObj = []
+                selectable = table
             else:
-                fromObj = [table.join(self._characterDomainTable,
-                    table.c.ChineseCharacter \
-                        == self._characterDomainTable.c.ChineseCharacter)]
+                selectable = table.join(
+                    self._characterDomainTable,
+                    table.c.ChineseCharacter == self._characterDomainTable.c.ChineseCharacter
+                )
 
-            result = self.db.selectRows(select(
-                [table.c.ChineseCharacter, table.c.Glyph, table.c.StrokeCount],
-                from_obj=fromObj))
+            result = self.db.selectRows(
+                select(table.c.ChineseCharacter, table.c.Glyph, table.c.StrokeCount)
+                .select_from(selectable)
+            )
+
             return dict([((char, glyph), strokeCount) \
                 for char, glyph, strokeCount in result])
         else:
@@ -992,8 +1005,7 @@ class CharacterLookup:
         if not self._strokeLookup:
             self._strokeLookup = {}
             table = self.db.tables['Strokes']
-            result = self.db.selectRows(select(
-                [table.c.Stroke, table.c.StrokeAbbrev]))
+            result = self.db.selectRows(select(table.c.Stroke, table.c.StrokeAbbrev))
             for stroke, strokeAbbrev in result:
                 self._strokeLookup[strokeAbbrev] = stroke
         if abbrev in self._strokeLookup:
@@ -1111,8 +1123,13 @@ class CharacterLookup:
 
         # get all character/glyph pairs for which we have glyph information
         chars = self.db.selectRows(
-            union(*[select([table.c.ChineseCharacter, table.c.Glyph]) \
-                for table in tables]))
+            union(
+                *[
+                    select(table.c.ChineseCharacter, table.c.Glyph)
+                    for table in tables
+                ]
+            )
+        )
 
         strokeOrderDict = {}
         cache = {}
@@ -1137,9 +1154,15 @@ class CharacterLookup:
             hyphens.
         """
         table = self.db.tables['StrokeOrder']
-        a = self.db.selectScalar(select([table.c.StrokeOrder],
-            and_(table.c.ChineseCharacter == char,
-                table.c.Glyph == glyph), distinct=True))
+        a = self.db.selectScalar(
+            select(table.c.StrokeOrder)
+            .where(
+                and_(
+                    table.c.ChineseCharacter == char,
+                    table.c.Glyph == glyph,
+                )
+            ).distinct()
+        )
         if a is not None:
             a = "".join(a)
         return a
@@ -1451,13 +1474,15 @@ class CharacterLookup:
         radicalDict = {}
         # get entries from database
         table = self.db.tables['CharacterRadicalResidualStrokeCount']
-        entries = self.db.selectRows(select([table.c.ChineseCharacter,
+        entries = self.db.selectRows(
+            select(table.c.ChineseCharacter,
                 table.c.Glyph, table.c.RadicalIndex, table.c.RadicalForm,
                 table.c.RadicalGlyph, table.c.MainCharacterLayout,
-                table.c.RadicalRelativePosition, table.c.ResidualStrokeCount])\
+                table.c.RadicalRelativePosition, table.c.ResidualStrokeCount)
             .order_by(table.c.ResidualStrokeCount, table.c.RadicalGlyph,
                 table.c.RadicalForm, table.c.MainCharacterLayout,
-                table.c.RadicalRelativePosition))
+                table.c.RadicalRelativePosition)
+        )
         for entry in entries:
             char, glyph, radicalIndex, radicalForm, radicalGlyph, \
                 mainCharacterLayout, radicalReladtivePosition, \
@@ -1831,21 +1856,40 @@ class CharacterLookup:
         equivalentTable = self.db.tables['RadicalEquivalentCharacter']
         isolatedTable = self.db.tables['KangxiRadicalIsolatedCharacter']
 
-        return self.db.selectScalars(union(
-            select([kangxiTable.c.Form],
-                and_(kangxiTable.c.RadicalIndex == radicalIdx,
-                    kangxiTable.c.Locale.like(self._locale(self.locale)))),
+        return self.db.selectScalars(
+            union(\
+                select(kangxiTable.c.Form).where(
+                    and_(
+                        kangxiTable.c.RadicalIndex == radicalIdx,
+                        kangxiTable.c.Locale.like(self._locale(self.locale))
+                    )
+                ),
+                
+                select(equivalentTable.c.EquivalentForm)
+                .select_from(
+                    kangxiTable.join(
+                        equivalentTable, 
+                        kangxiTable.c.Form == equivalentTable.c.Form
+                    )
+                )
+                .where(
+                    and_(
+                        kangxiTable.c.RadicalIndex == radicalIdx,
+                        equivalentTable.c.Locale.like(self._locale(self.locale)),
+                        kangxiTable.c.Locale.like(self._locale(self.locale))
+                    )
+                ),
+                
+                select(isolatedTable.c.EquivalentForm)
+                .where(
+                    and_(
+                        isolatedTable.c.RadicalIndex == radicalIdx,
+                        isolatedTable.c.Locale.like(self._locale(self.locale))
+                    )
+                )
+            )
 
-            select([equivalentTable.c.EquivalentForm],
-                and_(kangxiTable.c.RadicalIndex == radicalIdx,
-                    equivalentTable.c.Locale.like(self._locale(self.locale)),
-                    kangxiTable.c.Locale.like(self._locale(self.locale))),
-                from_obj=[kangxiTable.join(equivalentTable,
-                    kangxiTable.c.Form == equivalentTable.c.Form)]),
-
-            select([isolatedTable.c.EquivalentForm],
-                and_(isolatedTable.c.RadicalIndex == radicalIdx,
-                    isolatedTable.c.Locale.like(self._locale(self.locale))))))
+        )
 
     def isKangxiRadicalFormOrEquivalent(self, form):
         """
@@ -2192,9 +2236,16 @@ class CharacterLookup:
 
         # get entries from database
         table = self.db.tables['CharacterDecomposition']
-        result = self.db.selectScalars(select([table.c.Decomposition],
-            and_(table.c.ChineseCharacter == char,
-                table.c.Glyph == glyph)).order_by(table.c.SubIndex))
+        result = self.db.selectScalars(
+            select(table.c.Decomposition)
+            .where(
+                and_(
+                    table.c.ChineseCharacter == char,
+                    table.c.Glyph == glyph,
+                )
+            )
+            .order_by(table.c.SubIndex)
+        )
         # print("PPPPPE", result)
         for x in range(len(result)):
             result[x] = "".join(result[x])
@@ -2217,15 +2268,19 @@ class CharacterLookup:
         table = self.db.tables['CharacterDecomposition']
         # constrain to selected character domain
         if self.characterDomain == 'Unicode':
-            fromObj = []
+            # In 2.x, we don't need a select_from for a single table
+            selectable = table
         else:
-            fromObj = [table.join(self._characterDomainTable,
-                table.c.ChineseCharacter \
-                    == self._characterDomainTable.c.ChineseCharacter)]
+            selectable = table.join(
+                self._characterDomainTable,
+                table.c.ChineseCharacter == self._characterDomainTable.c.ChineseCharacter
+            )
 
-        entries = self.db.selectRows(select([table.c.ChineseCharacter,
-            table.c.Glyph, table.c.Decomposition], from_obj=fromObj)\
-                .order_by(table.c.SubIndex))
+        entries = self.db.selectRows(
+            select(table.c.ChineseCharacter, table.c.Glyph, table.c.Decomposition)
+            .select_from(selectable)
+            .order_by(table.c.SubIndex)
+        )
         for char, glyph, decomposition in entries:
             if (char, glyph) not in decompDict:
                 decompDict[(char, glyph)] = []

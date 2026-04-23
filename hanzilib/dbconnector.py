@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Optional
 
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
@@ -32,7 +33,7 @@ from collections import OrderedDict
 
 from sqlalchemy import MetaData, Table, engine_from_config
 from sqlalchemy.sql import text
-from sqlalchemy.engine.url import make_url
+from sqlalchemy.engine.url import URL, make_url
 
 from .util import getConfigSettings, getSearchPaths, LazyDict
 
@@ -179,11 +180,11 @@ class DatabaseConnector(object):
                 in ['1', 'yes', 'true', 'on'])
         self.registerUnicode = registerUnicode
 
-        self.engine: Engine = engine_from_config(configuration, prefix='sqlalchemy.')
+        self.engine: Engine = engine_from_config(configuration, prefix='sqlalchemy.', future=True)
         """SQLAlchemy engine object"""
         self.connection = self.engine.connect()
         """SQLAlchemy database connection object"""
-        self.metadata = MetaData(bind=self.connection)
+        self.metadata = MetaData()
         """SQLAlchemy metadata object"""
 
         # multi-database table access
@@ -198,7 +199,7 @@ class DatabaseConnector(object):
             self._mainSchema = self.engine.url.database
 
         # attach other databases
-        self.attached = OrderedDict()
+        self.attached = OrderedDict[str, str]()
         """Mapping of attached database URLs to internal schema names"""
         attach = configuration.pop('attach', [])
         searchPaths = self.engine.name == 'sqlite'
@@ -313,7 +314,7 @@ class DatabaseConnector(object):
 
         return views
 
-    def attachDatabase(self, databaseUrl):
+    def attachDatabase(self, databaseUrl: str) -> Optional[str]:
         """
         Attaches a database to the main database.
 
@@ -328,7 +329,7 @@ class DatabaseConnector(object):
         if databaseUrl == self.databaseUrl or databaseUrl in self.attached:
             return
 
-        url = make_url(databaseUrl)
+        url: URL = make_url(databaseUrl)
         if url.drivername != self.engine.name:
             raise ValueError(
                 ("Unable to attach database '%s': Incompatible engines."
@@ -342,7 +343,7 @@ class DatabaseConnector(object):
             if dbName.endswith('.db'): dbName = dbName[:-3]
             schema = '%s_%d' % (dbName, len(self.attached))
 
-            self.execute(text("""ATTACH DATABASE :database AS :schema"""),
+            self.execute(text("ATTACH DATABASE :database AS :schema"),
                 database=databaseFile, schema=schema)
         else:
             schema = url.database
@@ -376,8 +377,7 @@ class DatabaseConnector(object):
         def getTable(tableName: str) -> Table:
             schema = self._findTable(tableName)
             if schema is not None:
-                return Table(tableName, self.metadata, autoload=True,
-                    autoload_with=self.engine, schema=schema)
+                return Table(tableName, self.metadata, autoload_with=self.engine, schema=schema)
 
             raise KeyError("Table '%s' not found in any database" % tableName)
 
@@ -433,8 +433,6 @@ class DatabaseConnector(object):
         """
         Returns ``True`` if the given table exists in one of the databases.
 
-        .. versionadded:: 0.3
-
         :type tableName: str
         :param tableName: name of table to be located
         :rtype: bool
@@ -447,23 +445,25 @@ class DatabaseConnector(object):
         """
         Returns ``True`` if the given table exists in the main database.
 
-        .. versionadded:: 0.3
-
         :type tableName: str
         :param tableName: name of table to be located
         :rtype: bool
         :return: ``True`` if table is found, ``False`` otherwise
         """
+        from sqlalchemy import inspect
+        inspector = inspect(self.engine)
+        return inspector.has_table(tableName)
         return self.engine.has_table(tableName, schema=self._mainSchema)
 
-    #}
-    #{ Select commands
+    # Select commands
 
-    def execute(self, *options, **keywords):
+    def execute(self, req, *options, **keywords):
         """
         Executes a request on the given database.
         """
-        return self.connection.execute(*options, **keywords)
+        if isinstance(req, str):
+            req = text(req)
+        return self.connection.execute(req, *options, **keywords)
 
     def _decode(self, data):
         """
@@ -495,11 +495,9 @@ class DatabaseConnector(object):
         :return: a scalar
         """
         result = self.execute(request)
-        assert result.rowcount <= 1
         firstRow = result.fetchone()
-        assert not firstRow or len(firstRow) == 1
         if firstRow:
-            return self._decode(firstRow[0])
+            return firstRow[0]
 
     def selectScalars(self, request):
         """
@@ -509,19 +507,17 @@ class DatabaseConnector(object):
         :return: a list of scalars
         """
         result = self.execute(request)
-        return [self._decode(row[0]) for row in result.fetchall()]
+        return [row[0] for row in result.fetchall()]
 
     def iterScalars(self, request):
         """
         Executes a select query and returns an iterator of scalars.
 
-        .. versionadded:: 0.3
-
         :param request: SQL request
         :return: an iterator of scalars
         """
         result = self.execute(request)
-        return map(self._decode, map(operator.itemgetter(0), result))
+        return (row[0] for row in result)
 
     def selectRow(self, request):
         """
@@ -532,9 +528,7 @@ class DatabaseConnector(object):
         """
         result = self.execute(request)
         assert result.rowcount <= 1
-        firstRow = result.fetchone()
-        if firstRow:
-            return self._decode(tuple(firstRow))
+        return result.fetchone()
 
     def selectRows(self, request):
         """
@@ -544,16 +538,14 @@ class DatabaseConnector(object):
         :return: a list of tuples
         """
         result = self.execute(request)
-        return [self._decode(tuple(row)) for row in result.fetchall()]
+        return result.fetchall()
 
     def iterRows(self, request):
         """
         Executes a select query and returns an iterator of table rows.
 
-        .. versionadded:: 0.3
-
         :param request: SQL request
         :return: an iterator of tuples
         """
         result = self.execute(request)
-        return map(self._decode, result)
+        return iter(result)

@@ -457,8 +457,7 @@ class CollationString(_CollationMixin, String):
         :param collation: Optional, a column-level collation for this string
           value.
         """
-        String.__init__(self, length, kwargs.get('convert_unicode', False),
-            kwargs.get('assert_unicode', None))
+        String.__init__(self, length)
         _CollationMixin.__init__(self, collation, **kwargs)
 
     def get_col_spec(self):
@@ -476,8 +475,7 @@ class CollationText(_CollationMixin, Text):
         :param collation: Optional, a column-level collation for this string
           value.
         """
-        Text.__init__(self, length, kwargs.get('convert_unicode', False),
-            kwargs.get('assert_unicode', None))
+        Text.__init__(self, length)
         _CollationMixin.__init__(self, collation, **kwargs)
 
     def get_col_spec(self):
