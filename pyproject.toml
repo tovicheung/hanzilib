@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hanzilib"
-version = "0.0.3"
+version = "0.0.4"
 description = "Python 3 Han character library for CJKV languages"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -30,11 +30,12 @@ classifiers = [
 ]
 
 dependencies = [
-    "SQLAlchemy>=1.4",
+    "SQLAlchemy>=2.0",
 ]
 
 [project.urls]
 Repository = "https://github.com/tovicheung/hanzilib"
+"Original project" = "https://github.com/cburgmer/cjklib"
 
 [project.scripts]
 hzbuild = "hanzilib.build.cli:main"
