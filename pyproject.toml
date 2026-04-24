@@ -38,7 +38,8 @@ Repository = "https://github.com/tovicheung/hanzilib"
 "Original project" = "https://github.com/cburgmer/cjklib"
 
 [project.scripts]
-hzbuild = "hanzilib.build.cli:main"
+hanzi = "hanzilib.cli:main"
+# hzbuild = "hanzilib.build.cli:main"
 # installcjkdict = "hanzilib.dictionary.install:main"
 # cjknife = "hanzilib.cjknife:main"
 

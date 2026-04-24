@@ -273,7 +273,7 @@ class DatabaseBuilder:
                 self.db.connection.commit()
                 tablesBuilt = [row[0] for row in result]
                 print()
-                print(f"\033[1mBuild progress: {len(tablesBuilt)}/{57}\033[m")
+                print(f"\033[1mBuild progress: {len(tablesBuilt)}/{59}\033[m")
                 # print(*tablesBuilt)
 
             builder = builderClasses.pop()

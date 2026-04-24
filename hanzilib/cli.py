@@ -979,12 +979,28 @@ def cmd_information(parameter: str, charInfo: CharacterInfo):
                 + ')')\
             )
 
+TEMP_HELP = """\
+hanzi is the cli tool for hanzilib, which is the modern successor of cjklib
+
+Currently supported commands:
+  hanzi build           Build the hanzilib database
+  hanzi info <char>     Get character information
+"""
+
 def new_main():
+    if len(sys.argv) == 1:
+        print(TEMP_HELP)
+        sys.exit(0)
     output_encoding = sys.stdout.encoding or locale.getpreferredencoding() or 'ascii'
     parser = argparse.ArgumentParser(
         description="Hanzi/CJK Character Information and Dictionary Tool",
-        formatter_class=argparse.RawTextHelpFormatter
+        formatter_class=argparse.RawTextHelpFormatter,
+        usage="hanzilib"
     )
+    subparsers = parser.add_subparsers(dest='command')
+    subparsers.add_parser('build')
+    subparsers.add_parser('info').add_argument("char")
+
     group_config = parser.add_argument_group('configuration')
     group_config.add_argument("-s", "--source-reading", help="Source reading type")
     group_config.add_argument("-t", "--target-reading", help="Target reading type")
@@ -993,31 +1009,35 @@ def new_main():
     group_config.add_argument("-w", "--set-dictionary", help="Set the dictionary to use")
     group_config.add_argument("--database", help="Database URL")
 
-    action_group = parser.add_mutually_exclusive_group()
-    action_group.add_argument("-i", "--information", help="Get character information")
-    action_group.add_argument("-q", "--get-reading-and-form", help="Get reading and convert forms")
-    action_group.add_argument("-r", "--get-reading", help="Get reading for characters")
-    action_group.add_argument("-f", "--convert-form", help="Convert simplified/traditional forms")
-    action_group.add_argument("-a", "--by-reading", help="Lookup characters by reading")
-    action_group.add_argument("-k", "--by-radicalidx", type=int, help="Lookup by Kangxi radical index")
-    action_group.add_argument("-p", "--by-components", help="Lookup by components")
-    action_group.add_argument("-m", "--convert-reading", help="Convert between readings")
-    action_group.add_argument("-x", "--search-dict", help="Search dictionary")
-    action_group.add_argument("-y", "--search-headwords", help="Search headwords")
-    action_group.add_argument("-L", "--list-options", action="store_true", help="List available settings")
-    action_group.add_argument("-V", "--version", action="store_true", help="Show version")
+    # action_group = parser.add_mutually_exclusive_group()
+    # action_group.add_argument("-i", "--information", help="Get character information")
+    # action_group.add_argument("-q", "--get-reading-and-form", help="Get reading and convert forms")
+    # action_group.add_argument("-r", "--get-reading", help="Get reading for characters")
+    # action_group.add_argument("-f", "--convert-form", help="Convert simplified/traditional forms")
+    # action_group.add_argument("-a", "--by-reading", help="Lookup characters by reading")
+    # action_group.add_argument("-k", "--by-radicalidx", type=int, help="Lookup by Kangxi radical index")
+    # action_group.add_argument("-p", "--by-components", help="Lookup by components")
+    # action_group.add_argument("-m", "--convert-reading", help="Convert between readings")
+    # action_group.add_argument("-x", "--search-dict", help="Search dictionary")
+    # action_group.add_argument("-y", "--search-headwords", help="Search headwords")
+    # action_group.add_argument("-L", "--list-options", action="store_true", help="List available settings")
+    # action_group.add_argument("-V", "--version", action="store_true", help="Show version")
 
     # Legacy/Deprecated options
-    parser.add_argument("-c", help=argparse.SUPPRESS)
-    parser.add_argument("-b", help=argparse.SUPPRESS)
-    parser.add_argument("-e", help=argparse.SUPPRESS)
+    # parser.add_argument("-c", help=argparse.SUPPRESS)
+    # parser.add_argument("-b", help=argparse.SUPPRESS)
+    # parser.add_argument("-e", help=argparse.SUPPRESS)
 
     args = parser.parse_args()
 
-    if args.version:
-        version()
-        return
+    # if args.version:
+    #     version()
+    #     return
     
+    if args.command == "build":
+        from hanzilib.build.cli import main
+        main()
+        return
 
     reading_factory = reading.ReadingFactory()
     supported_readings = reading_factory.getSupportedReadings()
@@ -1067,25 +1087,19 @@ def new_main():
         if not charInfo.setCharacterDomain(char_domain):
             print(f"Warning: Unknown domain '{char_domain}'", file=sys.stderr)
 
-        if args.list_options:
-            # (Insert your existing list-options print logic here)
-            print(f"Current locale: {char_locale}")
-            pass
+        # if args.list_options:
+        #     # (Insert your existing list-options print logic here)
+        #     print(f"Current locale: {char_locale}")
+        #     pass
 
-        elif args.information:
-            param = args.information
+        if args.command == "info":
+            param = args.char
             if len(param) == 1:
                 cmd_information(param, charInfo) # output_encoding
             else:
                 print(repr(param))
                 print("Error: bad parameter or encoding error", file=sys.stderr)
                 sys.exit(1)
-
-        elif args.by_reading:
-            chars = charInfo.getCharactersForReading(args.by_reading, source_reading)
-            print("".join(chars).encode(output_encoding, "replace"))
-
-        # ... Handle other arguments like args.by_radicalidx, args.search_dict, etc.
 
     except KeyboardInterrupt:
         print("\nKeyboard interrupt.", file=sys.stderr)
