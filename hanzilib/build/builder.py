@@ -27,7 +27,8 @@ __all__ = [
     # Unihan and Kanjidic character information
     "UnihanGenerator", "UnihanBuilder", "Kanjidic2Builder",
     "UnihanDerivedBuilder", "UnihanStrokeCountBuilder",
-    "CharacterRadicalBuilder", "CharacterKangxiRadicalBuilder",
+    "CharacterRadicalBuilder", # "CharacterKangxiRadicalBuilder",
+    "CharacterChineseRadicalBuilder",
     # "CharacterKanWaRadicalBuilder", # "CharacterJapaneseRadicalBuilder",
     # "CharacterKoreanRadicalBuilder",
     "CharacterVariantBuilder",
@@ -314,9 +315,6 @@ class EntryGeneratorBuilder(TableBuilder):
         return entryList
 
     def build(self):
-        # get generator, might raise an Exception if source not found
-        generator = self.getGenerator()
-
         # get create statement
         table = self.buildTableObject(self.PROVIDES, self.COLUMNS,
             self.COLUMN_TYPES, self.PRIMARY_KEYS)
@@ -551,6 +549,7 @@ class UnihanBuilder(EntryGeneratorBuilder):
         'kTotalStrokes': Integer(),
         # 'kRSJapanese': Text(), 'kRSKanWa': Text(), 'kRSKangXi': Text(),
         # 'kRSKorean': Text(),
+        'kRSUnicode': Text(),
         # encoding mappings
         'kGB0': String(4), 'kBigFive': String(4), # 'kHKSCS': String(4),
         'kJis0': String(4), 'kJIS0213': String(7), 'kIICore': String(3),
@@ -1002,6 +1001,9 @@ class CharacterRadicalBuilder(UnihanDerivedBuilder):
     PRIMARY_KEYS = ['ChineseCharacter', 'RadicalIndex']
     GENERATOR_CLASS = RadicalExtractor
 
+class CharacterChineseRadicalBuilder(CharacterRadicalBuilder):
+    PROVIDES = 'CharacterChineseRadical'
+    COLUMN_SOURCE = "kRSUnicode"
 
 # class CharacterKangxiRadicalBuilder(CharacterRadicalBuilder):
 #     """

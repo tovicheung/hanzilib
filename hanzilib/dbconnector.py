@@ -31,7 +31,7 @@ import operator
 from collections import OrderedDict
 
 
-from sqlalchemy import MetaData, Table, engine_from_config
+from sqlalchemy import MetaData, Table, engine_from_config, inspect
 from sqlalchemy.sql import text
 from sqlalchemy.engine.url import URL, make_url
 
@@ -362,10 +362,12 @@ class DatabaseConnector(object):
         :rtype: iterable
         :return: all tables and views
         """
+
+        inspector = inspect(self.engine)
         tables = set(self._getViews())
-        tables.update(self.engine.table_names(schema=self._mainSchema))
+        tables.update(inspector.get_table_names(schema=self._mainSchema))
         for schema in self.attached.values():
-            tables.update(self.engine.table_names(schema=schema))
+            tables.update(inspector.get_table_names(schema=schema))
 
         return tables
 

@@ -65,7 +65,7 @@ def getDictionaryClasses():
     :return: list of all classes inheriting form
         :class:`~cjklib.dictionary.BaseDictionary`
     """
-    dictionaryModule = __import__("cjklib.dictionary")
+    dictionaryModule = __import__("hanzilib.dictionary")
     # get all classes that inherit from BaseDictionary
     return set([clss \
         for clss in list(dictionaryModule.dictionary.__dict__.values()) \

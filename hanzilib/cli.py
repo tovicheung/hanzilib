@@ -50,6 +50,9 @@ else:
 from hanzilib.dictionary import search
 from hanzilib.util import getConfigSettings
 
+
+locale.setlocale(locale.LC_ALL, '')
+
 class ExactMultiple(search.Exact):
     """Exact search strategy class matching any strings from a list."""
     @staticmethod
@@ -179,7 +182,7 @@ class CharacterInfo:
         :return: locale
         """
         # get local language and output encoding
-        language, _ = locale.getdefaultlocale()
+        language, _ = locale.getlocale()
 
         # get character locale
         if language in self.LANGUAGE_CHAR_LOCALE_MAPPING:
@@ -197,9 +200,8 @@ class CharacterInfo:
 
         :rtype: str
         :return: reading name
-        """
-        # get local language and output encoding
-        language, _ = locale.getdefaultlocale()
+        """        
+        language, _ = locale.getlocale()
 
         # get reading
         if language in self.CHAR_LOCALE_DEFAULT_READING:
@@ -232,8 +234,11 @@ class CharacterInfo:
         if characterDomain \
             in self.characterLookup.getAvailableCharacterDomains():
 
-            self.characterLookup.setCharacterDomain(characterDomain)
-            self.characterLookupTraditional.setCharacterDomain(characterDomain)
+            # self.characterLookup.setCharacterDomain(characterDomain)
+            # self.characterLookupTraditional.setCharacterDomain(characterDomain)
+
+            self.characterLookup.characterDomain = characterDomain
+            self.characterLookupTraditional.characterDomain = characterDomain
             return True
         else:
             return False
@@ -617,7 +622,7 @@ class CharacterInfo:
         infoDict['char'] = char
         infoDict['locale'] = self.locale
         infoDict['locale name'] = self.CHAR_LOCALE_NAME[self.locale]
-        infoDict['characterDomain'] = self.characterLookup.getCharacterDomain()
+        infoDict['characterDomain'] = self.characterLookup.characterDomain
         infoDict['codepoint hex'] = 'U+%04X' % ord(char)
         infoDict['codepoint dec'] = str(ord(char))
 
@@ -645,8 +650,7 @@ class CharacterInfo:
         else:
             infoDict['type'] = 'character'
             try:
-                infoDict['radical index'] \
-                    = self.characterLookup.getCharacterKangxiRadicalIndex(char)
+                infoDict['radical index'] = self.characterLookup.getCharacterChineseRadicalIndex(char)
             except exception.NoInformationError:
                 infoDict['radical index'] = None
 
@@ -900,10 +904,196 @@ ALTERNATIVE_READING_NAMES = {'Hangul': ['hg'], 'Pinyin': ['py'],
     'WadeGiles': ['wade-giles', 'wg'], 'Jyutping': ['lshk', 'jp'],
     'CantoneseYale': ['cy']}
 
+import argparse
+
+def cmd_information(parameter: str, charInfo: CharacterInfo):
+    infoDict = charInfo.getCharacterInformation(parameter)
+
+    print(("Information for character " + infoDict['char'] + " (" \
+        + infoDict['locale name'] + " locale, " \
+        + infoDict['characterDomain'] + ' domain)')\
+    )
+    print("Unicode codepoint: " + infoDict['codepoint hex'] + " (" \
+        + infoDict['codepoint dec'] + ", "+ infoDict['type'] \
+        + " form)")
+    print("In character domains: " + ', '.join(infoDict['domains']))
+    if 'equivalent form' in infoDict:
+        print(("Equivalent character form: " \
+            + infoDict['equivalent form'])\
+        )
+
+    if infoDict['radical index']:
+        radicalForms = ""
+        if infoDict['radical form']:
+            radicalForms = ", radical form: " \
+                + infoDict['radical form']
+        if infoDict['radical variants']:
+            radicalForms = radicalForms + ", variants: " \
+                + ", ".join(infoDict['radical variants'])
+        print(("Radical index: " + str(infoDict['radical index']) \
+            + radicalForms)\
+        )
+
+    if 'stroke count' in infoDict:
+        strokeCount = str(infoDict['stroke count'])
+    else:
+        strokeCount = 'N/A'
+    print(("Stroke count: " + strokeCount))
+
+    if infoDict['type'] == 'character':
+        readingList = list(infoDict['readings'].keys())
+        readingList.sort()
+        for readingN in readingList:
+            print(("Phonetic data (" + readingN + "): " \
+                + ", ".join(infoDict['readings'][readingN]))\
+            )
+
+        variantList = list(infoDict['variants'].keys())
+        variantList.sort()
+        for variantType in variantList:
+            print((variantType + ': ' \
+                + ', '.join(infoDict['variants'][variantType]))\
+            )
+
+    glyphList = list(infoDict['glyphs'].keys())
+    glyphList.sort()
+    for glyph in glyphList:
+        if 'stroke count' in infoDict['glyphs'][glyph]:
+            strokeCount \
+                = str(infoDict['glyphs'][glyph]['stroke count'])
+        else:
+            strokeCount = 'N/A'
+        default = ""
+        if glyph == infoDict['default glyph']:
+            default = "(default)"
+        print(f"Glyph {glyph}{default}, stroke count: {strokeCount}")
+
+        # if 'decomposition' in infoDict['glyphs'][glyph]:
+        #     stringList = getDecompositionForList(
+        #         infoDict['glyphs'][glyph]['decomposition'])
+        #     print(("\n".join(stringList)))
+        if 'stroke order' in infoDict['glyphs'][glyph]:
+            print(("Stroke order: " + ''.join(
+                infoDict['glyphs'][glyph]['stroke order']) + ' (' \
+                + infoDict['glyphs'][glyph]['stroke order abbrev'] \
+                + ')')\
+            )
+
+def new_main():
+    output_encoding = sys.stdout.encoding or locale.getpreferredencoding() or 'ascii'
+    parser = argparse.ArgumentParser(
+        description="Hanzi/CJK Character Information and Dictionary Tool",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    group_config = parser.add_argument_group('configuration')
+    group_config.add_argument("-s", "--source-reading", help="Source reading type")
+    group_config.add_argument("-t", "--target-reading", help="Target reading type")
+    group_config.add_argument("-l", "--locale", help="Locale (T, C, J, K, or V)")
+    group_config.add_argument("-d", "--domain", help="Character domain (e.g., Unicode)")
+    group_config.add_argument("-w", "--set-dictionary", help="Set the dictionary to use")
+    group_config.add_argument("--database", help="Database URL")
+
+    action_group = parser.add_mutually_exclusive_group()
+    action_group.add_argument("-i", "--information", help="Get character information")
+    action_group.add_argument("-q", "--get-reading-and-form", help="Get reading and convert forms")
+    action_group.add_argument("-r", "--get-reading", help="Get reading for characters")
+    action_group.add_argument("-f", "--convert-form", help="Convert simplified/traditional forms")
+    action_group.add_argument("-a", "--by-reading", help="Lookup characters by reading")
+    action_group.add_argument("-k", "--by-radicalidx", type=int, help="Lookup by Kangxi radical index")
+    action_group.add_argument("-p", "--by-components", help="Lookup by components")
+    action_group.add_argument("-m", "--convert-reading", help="Convert between readings")
+    action_group.add_argument("-x", "--search-dict", help="Search dictionary")
+    action_group.add_argument("-y", "--search-headwords", help="Search headwords")
+    action_group.add_argument("-L", "--list-options", action="store_true", help="List available settings")
+    action_group.add_argument("-V", "--version", action="store_true", help="Show version")
+
+    # Legacy/Deprecated options
+    parser.add_argument("-c", help=argparse.SUPPRESS)
+    parser.add_argument("-b", help=argparse.SUPPRESS)
+    parser.add_argument("-e", help=argparse.SUPPRESS)
+
+    args = parser.parse_args()
+
+    if args.version:
+        version()
+        return
+    
+
+    reading_factory = reading.ReadingFactory()
+    supported_readings = reading_factory.getSupportedReadings()
+    
+    # Build lookup table
+    readingLookup = {r.lower(): r for r in supported_readings}
+    for readingN, alts in ALTERNATIVE_READING_NAMES.items():
+        for alt in alts:
+            readingLookup[alt.lower()] = readingN
+
+
+    
+    config = getConfigSettings('hanzi')
+    url = args.database or config.get('url')
+    dict_name = args.set_dictionary or config.get('dictionary')
+    source_reading = args.source_reading or config.get('reading')
+    target_reading = args.target_reading or config.get('reading')
+    char_locale = args.locale or config.get('locale')
+    char_domain = args.domain or config.get('domain', 'Unicode')
+
+
+    # validate Locale
+    if char_locale and char_locale.upper() not in 'TCJKV':
+        print(f"Error: '{char_locale}' is not a valid locale", file=sys.stderr)
+        sys.exit(1)
+    char_locale = char_locale.upper() if char_locale else None
+
+    # validate Readings
+    for r in [source_reading, target_reading]:
+        if r and r.lower() not in readingLookup:
+            print(f"Error: '{r}' is not a valid reading", file=sys.stderr)
+            sys.exit(1)
+    
+    source_reading = readingLookup.get(source_reading.lower()) if source_reading else None
+    target_reading = readingLookup.get(target_reading.lower()) if target_reading else None
+
+    try:
+        charInfo = CharacterInfo(
+            charLocale=char_locale,
+            readingN=target_reading,
+            dictionaryN=dict_name,
+            dictionaryDatabaseUrl=url
+        )
+        
+        char_locale = charInfo.locale
+        dict_name = charInfo.dictionary
+        if not charInfo.setCharacterDomain(char_domain):
+            print(f"Warning: Unknown domain '{char_domain}'", file=sys.stderr)
+
+        if args.list_options:
+            # (Insert your existing list-options print logic here)
+            print(f"Current locale: {char_locale}")
+            pass
+
+        elif args.information:
+            param = args.information
+            if len(param) == 1:
+                cmd_information(param, charInfo) # output_encoding
+            else:
+                print(repr(param))
+                print("Error: bad parameter or encoding error", file=sys.stderr)
+                sys.exit(1)
+
+        elif args.by_reading:
+            chars = charInfo.getCharactersForReading(args.by_reading, source_reading)
+            print("".join(chars).encode(output_encoding, "replace"))
+
+        # ... Handle other arguments like args.by_radicalidx, args.search_dict, etc.
+
+    except KeyboardInterrupt:
+        print("\nKeyboard interrupt.", file=sys.stderr)
+        sys.exit(1)
+
 def main():
-    """
-    Main method
-    """
+    new_main()
+    return
     default_encoding = locale.getpreferredencoding()
     output_encoding = sys.stdout.encoding or locale.getpreferredencoding() \
         or 'ascii'

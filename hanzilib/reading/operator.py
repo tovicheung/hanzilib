@@ -4546,8 +4546,9 @@ class CantoneseYaleOperator(TonalRomanisationOperator):
 
     @cachedmethod
     def getPlainReadingEntities(self):
-        return frozenset(self.db.selectScalars(select(
-            [self.db.tables['CantoneseYaleSyllables'].c.CantoneseYale])))
+        return frozenset(self.db.selectScalars(
+            select(self.db.tables['CantoneseYaleSyllables'].c.CantoneseYale)
+        ))
 
     def getOnsetRhyme(self, plainSyllable):
         """

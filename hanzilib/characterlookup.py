@@ -195,8 +195,7 @@ class CharacterLookup:
         if self.characterDomain == 'Unicode':
             return util.CharacterRangeIterator(self.HAN_SCRIPT_RANGES)
         else:
-            return self.db.iterScalars(select(
-                [self._characterDomainTable.c.ChineseCharacter]))
+            return self.db.iterScalars(select(self._characterDomainTable.c.ChineseCharacter))
 
     def filterDomainCharacters(self, charList: list[str]):
         """
@@ -220,10 +219,12 @@ class CharacterLookup:
             # break down into small chunks
             for i in range(int(math.ceil(len(charList) / 500.0))):
                 charListPart = charList[i*500:(i+1)*500]
-                filteredCharList.update(self.db.selectScalars(select(
-                    [self._characterDomainTable.c.ChineseCharacter],
-                    self._characterDomainTable.c.ChineseCharacter.in_(
-                        charListPart))))
+                filteredCharList.update(self.db.selectScalars(
+                    select(self._characterDomainTable.c.ChineseCharacter)
+                    .where(
+                        self._characterDomainTable.c.ChineseCharacter.in_(charListPart)
+                    )
+                ))
         # sort
         sortedFiltered = []
         for char in charList:
@@ -1358,6 +1359,17 @@ class CharacterLookup:
 
     # Character radical functions
 
+    def getCharacterChineseRadicalIndex(self, char):
+        table = self.db.tables['CharacterChineseRadical']
+        result = self.db.selectScalar(
+            select(table.c.RadicalIndex)
+            .where(table.c.ChineseCharacter == char)
+        )
+        if not result:
+            raise exception.NoInformationError(
+                "Character has no Chinese radical information")
+        return result
+
     def getCharacterKangxiRadicalIndex(self, char):
         """
         Gets the Kangxi radical index for the given character as defined by the
@@ -1965,7 +1977,7 @@ class CharacterLookup:
         isolatedTable = self.db.tables['KangxiRadicalIsolatedCharacter']
 
         return self.db.selectScalars(
-            union(\
+            union(
                 select(kangxiTable.c.Form).where(
                     and_(
                         kangxiTable.c.RadicalIndex == radicalIdx,

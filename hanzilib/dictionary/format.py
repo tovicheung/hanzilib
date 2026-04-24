@@ -28,8 +28,8 @@ __all__ = [
 
 import string
 
-from cjklib.reading import ReadingFactory
-from cjklib import exception
+from hanzilib.reading import ReadingFactory
+from hanzilib import exception
 
 #{ Formatting strategies
 
