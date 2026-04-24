@@ -74,7 +74,7 @@ _FULL_WIDTH_MAP = dict((ord(halfWidth), chr(ord(halfWidth) + 65248))
 """Mapping of halfwidth characters to fullwidth."""
 
 def _mapToFullwidth(string):
-    """Maps halfwidth characters to fullwidth, e.g. ``U`` to ``Ｕ``."""
+    u"""Maps halfwidth characters to fullwidth, e.g. ``U`` to ``Ｕ``."""
     if isinstance(string, str):
         return string
     else:
@@ -781,7 +781,7 @@ class _SimpleReadingWildcardBase(_WildcardBase):
     def _getWildcardQuery(self, searchStr, **options):
         wildcardForms = self._getWildcardForms(searchStr, **options)
 
-        wildcardReadings = list(map(self._getWildcardReading, wildcardForms))
+        wildcardReadings = map(self._getWildcardReading, wildcardForms)
         return wildcardReadings
 
     def _getReadingEntities(self, reading):
@@ -988,7 +988,7 @@ class _TonelessReadingWildcardBase(_SimpleReadingWildcardBase):
         #assert not self._hasWildcardForms(searchStr, **options)
         wildcardForms = self._getWildcardForms(searchStr, **options)
 
-        simpleReadings = list(map(' '.join, wildcardForms))
+        simpleReadings = map(' '.join, wildcardForms)
         return simpleReadings
 
     def _getSimpleMatchFunction(self, searchStr, **options):
@@ -1006,7 +1006,7 @@ class _TonelessReadingWildcardBase(_SimpleReadingWildcardBase):
 
 class TonelessWildcardReading(SimpleReading,
     _TonelessReadingWildcardBase):
-    """
+    u"""
     Reading based search strategy with support for missing tonal information and
     wildcards.
 
@@ -1236,7 +1236,7 @@ class _MixedReadingWildcardBase(_SimpleReadingWildcardBase):
 
             # match against all pairs
             for searchEntities in searchPairs:
-                entities = list(zip(headwordChars, readingEntities))
+                entities = zip(headwordChars, readingEntities)
                 if self._depthFirstSearch(searchEntities, entities):
                     return True
 

@@ -3549,8 +3549,8 @@ class WordIndexBuilder(EntryGeneratorBuilder):
     def getGenerator(self):
         table = self.db.tables[self.TABLE_SOURCE]
         entries = self.db.selectRows(
-            select([table.c[self.HEADWORD_SOURCE], table.c.Reading,
-                table.c.Translation]))
+            select(table.c[self.HEADWORD_SOURCE], table.c.Reading,
+                table.c.Translation))
         return WordIndexBuilder.WordEntryGenerator(entries).generator()
 
 

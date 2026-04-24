@@ -321,7 +321,7 @@ class CharacterLookup:
 
         return self.db.selectScalars(stmt)
 
-    def getReadingForCharacter(self, char, readingN, **options):
+    def getReadingForCharacter(self, char: str, readingN: str, **options) -> list[str]:
         """
         Gets all know readings for the character in the given target reading.
 
@@ -380,7 +380,7 @@ class CharacterLookup:
         else:
             return readings
 
-    def hasMappingForCharacterToReading(self, readingN):
+    def hasMappingForCharacterToReading(self, readingN: str):
         """
         Returns ``True`` if a mapping between Chinese characters and the given
         *reading* is supported.
@@ -414,7 +414,7 @@ class CharacterLookup:
         except exception.UnsupportedError:
             return False
 
-    def _getCompatibleCharacterReading(self, readingN, toCharReading=True):
+    def _getCompatibleCharacterReading(self, readingN: str, toCharReading=True):
         """
         Gets a reading where a mapping from to Chinese characters is supported
         and that is compatible (a conversion is supported) to the given reading.

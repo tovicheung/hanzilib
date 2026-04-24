@@ -34,13 +34,20 @@ import getopt
 import locale
 import warnings
 
-import hanzilib
-from hanzilib import dbconnector
-from hanzilib import characterlookup
-from hanzilib import reading
-from hanzilib import dictionary
+import typing
+
+if typing.TYPE_CHECKING:
+    from . import dbconnector, characterlookup, reading, dictionary, exception, __version__
+else:
+    import hanzilib
+    from hanzilib import dbconnector
+    from hanzilib import characterlookup
+    from hanzilib import reading
+    from hanzilib import dictionary
+    from hanzilib import exception
+    from hanzilib import __version__
+
 from hanzilib.dictionary import search
-from hanzilib import exception
 from hanzilib.util import getConfigSettings
 
 class ExactMultiple(search.Exact):
@@ -869,7 +876,7 @@ def version():
     """
     Prints the version of this script.
     """
-    print("hanzi " + str(hanzilib.__version__) \
+    print("hanzi " + str(__version__) \
         + """\nCopyright (C) 2006-2010 cjklib developers
 
 hanzi is part of hanzilib, which is the successor of cjklib.

@@ -8,8 +8,12 @@ if 1:
 from hanzilib.characterlookup import CharacterLookup
 cjk = CharacterLookup('C')
 # Returns Pinyin readings for '我'
-readings = cjk.getReadingForCharacter(u'我', 'Pinyin')
+readings = cjk.getReadingForCharacter(u'我', 'GR')
 print(readings)
+
+from hanzilib.reading import ReadingFactory
+
+print(ReadingFactory().getSupportedReadings())
 
 if 1:
     from hanzilib.characterlookup import CharacterLookup
