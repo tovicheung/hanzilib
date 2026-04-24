@@ -18,7 +18,7 @@
 """
 *Command line interface* (*CLI*) to the library's functionality.
 
-Check what this script offers on the command line with ``cjknife -h``.
+Check what this script offers on the command line with ``hanzi -h``.
 
 The script's output depends on the following:
 
@@ -34,14 +34,14 @@ import getopt
 import locale
 import warnings
 
-import cjklib
-from cjklib import dbconnector
-from cjklib import characterlookup
-from cjklib import reading
-from cjklib import dictionary
-from cjklib.dictionary import search
-from cjklib import exception
-from cjklib.util import getConfigSettings
+import hanzilib
+from hanzilib import dbconnector
+from hanzilib import characterlookup
+from hanzilib import reading
+from hanzilib import dictionary
+from hanzilib.dictionary import search
+from hanzilib import exception
+from hanzilib.util import getConfigSettings
 
 class ExactMultiple(search.Exact):
     """Exact search strategy class matching any strings from a list."""
@@ -122,7 +122,7 @@ class CharacterInfo:
 
         if dictionaryDatabaseUrl:
             self.db = dbconnector.DatabaseConnector(
-                {'sqlalchemy.url': dictionaryDatabaseUrl, 'attach': ['cjklib']})
+                {'sqlalchemy.url': dictionaryDatabaseUrl, 'attach': ['hanzilib']})
         else:
             self.db = dbconnector.getDBConnector()
 
@@ -823,10 +823,10 @@ def usage():
     """
     Prints the usage for this script.
     """
-    print("""Usage: cjknife COMMAND
-cjknife provides a set of functions for dealing with Chinese characters and
+    print("""Usage: hanzi COMMAND
+hanzi provides a set of functions for dealing with Chinese characters and
 their readings. This tool should provide quick access to the major functions of
-the cjklib library and at the same time demonstrate how the library can be used.
+the hanzilib library and at the same time demonstrate how the library can be used.
 
 General commands:
   -i, --information=CHAR     print information about the given char
@@ -869,10 +869,10 @@ def version():
     """
     Prints the version of this script.
     """
-    print("cjknife " + str(cjklib.__version__) \
+    print("hanzi " + str(hanzilib.__version__) \
         + """\nCopyright (C) 2006-2010 cjklib developers
 
-cjknife is part of cjklib.
+hanzi is part of hanzilib, which is the successor of cjklib.
 
 cjklib is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -923,7 +923,7 @@ def main():
         for name in ALTERNATIVE_READING_NAMES[readingN]:
             readingLookup[name] = readingN
 
-    configSettings = getConfigSettings('cjknife')
+    configSettings = getConfigSettings('hanzi')
     if 'url' in configSettings and configSettings['url']:
         url = configSettings['url']
     else:
