@@ -120,6 +120,7 @@ class CharacterInfo:
         :param dictionaryDatabaseUrl: database connection setting in the format
             ``driver://user:pass@host/database``.
         """
+        print(f"CharacterInfo({charLocale=}, {characterDomain=}, {readingN=}, {dictionaryN=}, {dictionaryDatabaseUrl=})")
         if dictionaryN:
             dictObj = dictionary.getDictionaryClass(dictionaryN)
 
@@ -165,6 +166,8 @@ class CharacterInfo:
             self.locale = self.DICTIONARY_CHAR_LOCALE[self.dictionary]
         else:
             self.locale = self.guessCharacterLocale()
+        
+        print(f"CharacterInfo({self.locale=}, {self.reading=}, {self.dictionary=}, {self.db.databaseUrl=})")
 
         self.characterLookup = characterlookup.CharacterLookup(self.locale,
             characterDomain, dbConnectInst=self.db)
@@ -213,7 +216,7 @@ class CharacterInfo:
         else:
             return 'Pinyin'
 
-    def getAvailableDictionaries(self):
+    def getAvailableDictionaries(self) -> list[str]:
         """
         Gets a list of available dictionaries supported.
 
@@ -991,6 +994,11 @@ def new_main():
     if len(sys.argv) == 1:
         print(TEMP_HELP)
         sys.exit(0)
+    if sys.argv[1] == "install-dict":
+        from hanzilib.dictionary.install import main
+        sys.argv.remove("install-dict")
+        main()
+        return
     output_encoding = sys.stdout.encoding or locale.getpreferredencoding() or 'ascii'
     parser = argparse.ArgumentParser(
         description="Hanzi/CJK Character Information and Dictionary Tool",
@@ -999,7 +1007,9 @@ def new_main():
     )
     subparsers = parser.add_subparsers(dest='command')
     subparsers.add_parser('build')
+    subparsers.add_parser('install-dict')
     subparsers.add_parser('info').add_argument("char")
+    subparsers.add_parser('dict').add_argument("char")
 
     group_config = parser.add_argument_group('configuration')
     group_config.add_argument("-s", "--source-reading", help="Source reading type")
@@ -1038,6 +1048,12 @@ def new_main():
         from hanzilib.build.cli import main
         main()
         return
+    
+    # if args.command == "install-dict":
+    #     from hanzilib.dictionary.install import main
+    #     sys.argv.remove("install-dict")
+    #     main()
+    #     return
 
     reading_factory = reading.ReadingFactory()
     supported_readings = reading_factory.getSupportedReadings()
@@ -1051,8 +1067,11 @@ def new_main():
 
     
     config = getConfigSettings('hanzi')
-    url = args.database or config.get('url')
-    dict_name = args.set_dictionary or config.get('dictionary')
+    import os
+    url = None
+    # url = "sqlite:///" + os.getenv("APPDATA") + "\\hanzilib\\cedict.db"
+    # url = args.database or config.get('url')
+    dict_name = "CEDICT" # args.set_dictionary or config.get('dictionary')
     source_reading = args.source_reading or config.get('reading')
     target_reading = args.target_reading or config.get('reading')
     char_locale = args.locale or config.get('locale')
@@ -1086,6 +1105,11 @@ def new_main():
         dict_name = charInfo.dictionary
         if not charInfo.setCharacterDomain(char_domain):
             print(f"Warning: Unknown domain '{char_domain}'", file=sys.stderr)
+        
+        if not source_reading:
+            source_reading = charInfo.reading
+        if not target_reading:
+            target_reading = charInfo.reading
 
         # if args.list_options:
         #     # (Insert your existing list-options print logic here)
@@ -1100,14 +1124,31 @@ def new_main():
                 print(repr(param))
                 print("Error: bad parameter or encoding error", file=sys.stderr)
                 sys.exit(1)
+        
+        elif args.command == "dict":
+            
+            if not charInfo.hasDictionary():
+                print(("Error: no dictionary available"
+                    "\nInstall one by running 'installcjkdict DICTIONARY_NAME'"), file=sys.stderr)
+                sys.exit(1)
+
+            print("source_reading", source_reading)
+            results = charInfo.searchDictionary(args.char, source_reading)
+            for entry in results:
+                if entry.Reading:
+                    string = ("%(Headword)s %(Reading)s %(Translation)s"
+                        % entry._asdict())
+                else:
+                    string = "%(Headword)s %(Translation)s" % entry._asdict()
+                print(string.encode(output_encoding, "replace"))
 
     except KeyboardInterrupt:
         print("\nKeyboard interrupt.", file=sys.stderr)
         sys.exit(1)
 
 def main():
-    new_main()
-    return
+    # new_main()
+    # return
     default_encoding = locale.getpreferredencoding()
     output_encoding = sys.stdout.encoding or locale.getpreferredencoding() \
         or 'ascii'
@@ -1167,8 +1208,6 @@ def main():
         print("Use parameter -h for a short summary on supported functions")
 
     for o, a in opts:
-        a = a.decode(default_encoding)
-
         # help screen
         if o in ("-h", "--help"):
             usage()

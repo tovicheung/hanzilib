@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 # This file is part of cjklib.
@@ -65,31 +67,19 @@ from hanzilib import dbconnector
 from hanzilib import build
 from hanzilib.util import cachedmethod, ExtendedOption, getConfigSettings
 
-try:
-    from progressbar import Percentage, Bar, ETA, FileTransferSpeed, ProgressBar
-    def progress(i, chunkSize, total):
-        global pbar
-        if i == 0:
-            widgets = [Percentage(), ' ', Bar(), ' ', ETA(), ' ',
-                FileTransferSpeed()]
-            pbar = ProgressBar(widgets=widgets, maxval=total/chunkSize+1)
-            pbar.start()
-        pbar.update(min(i, total/chunkSize+1))
-
-except ImportError:
-    def progress(i, chunkSize, total):
-        global progressTick
-        terminalWidth = 80
-        if i == 0:
-            progressTick = 0
-            tick = 0
-        else:
-            tick = min(int(terminalWidth * (i * chunkSize) / total),
-                terminalWidth)
-        while progressTick < tick:
-            sys.stdout.write('#')
-            progressTick += 1
-        sys.stdout.flush()
+def progress(i, chunkSize, total):
+    global progressTick
+    terminalWidth = 80
+    if i == 0:
+        progressTick = 0
+        tick = 0
+    else:
+        tick = min(int(terminalWidth * (i * chunkSize) / total),
+            terminalWidth)
+    while progressTick < tick:
+        sys.stdout.write('#')
+        progressTick += 1
+    sys.stdout.flush()
 
 def warn(message, endline=True):
     """
@@ -112,7 +102,7 @@ def getDownloaderClasses():
     :return: list of all classes inheriting form
         :class:`~cjklib.dictionary.install.DownloaderBase`
     """
-    dictionaryModule = __import__("cjklib.dictionary.install")
+    dictionaryModule = __import__("hanzilib.dictionary.install")
     # get all classes that inherit from DownloaderBase
     return set([clss \
         for clss in list(dictionaryModule.dictionary.install.__dict__.values()) \
@@ -122,7 +112,7 @@ def getDownloaderClasses():
         and clss.PROVIDES])
 
 _dictionaryMap = None
-def getDownloaderClass(dictionaryName):
+def getDownloaderClass(dictionaryName) -> type[DownloaderBase]:
     """
     Get a dictionary downloader class by dictionary name.
 
@@ -141,7 +131,7 @@ def getDownloaderClass(dictionaryName):
     except KeyError:
         raise ValueError("Unknown dictionary '%s'" % dictionaryName)
 
-def getDownloader(dictionaryName, **options):
+def getDownloader(dictionaryName, **options) -> DownloaderBase:
     """
     Get a dictionary downloader instance by dictionary name.
 
@@ -273,14 +263,15 @@ class PageDownloaderBase(DownloaderBase):
 
     @cachedmethod
     def getDownloadPage(self):
-        if not self.quiet: warn("Getting download page %s..."
-            % self.DEFAULT_DOWNLOAD_PAGE, endline=False)
-        f = urllib.request.urlopen(self.DEFAULT_DOWNLOAD_PAGE)
-        downloadPage = f.read()
-        f.close()
-        if not self.quiet: warn("done")
+        if not self.quiet:
+            warn(f"Getting download page {self.DEFAULT_DOWNLOAD_PAGE}...", endline=False)
+        with urllib.request.urlopen(self.DEFAULT_DOWNLOAD_PAGE) as response:
+            download_page = response.read().decode("utf-8")
 
-        return downloadPage
+        if not self.quiet:
+            print("done")
+        
+        return download_page
 
     @cachedmethod
     def getDownloadLink(self):
@@ -302,10 +293,8 @@ class PageDownloaderBase(DownloaderBase):
 class CEDICTDownloader(PageDownloaderBase):
     """Downloader for the CEDICT dictionary."""
     PROVIDES = 'CEDICT'
-    DEFAULT_DOWNLOAD_PAGE \
-        = 'http://www.mdbg.net/chindict/chindict.php?page=cc-cedict'
-    DOWNLOAD_REGEX = re.compile(
-        '<a href="(export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz)">')
+    DEFAULT_DOWNLOAD_PAGE = 'https://www.mdbg.net/chinese/dictionary?page=cc-cedict'
+    DOWNLOAD_REGEX = re.compile('<a href="(export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz)">')
     DATE_REGEX = re.compile('Latest release: <strong>([^<]+)</strong>')
     DATE_FMT = '%Y-%m-%d %H:%M:%S %Z'
 
@@ -340,7 +329,7 @@ class DictionaryInstaller(object):
 
     @classmethod
     def getDefaultDatabaseUrl(cls, dictionaryName, prefix=None, local=False,
-        projectName='cjklib'):
+        projectName='hanzilib'):
 
         configuration = dbconnector.getDefaultConfiguration()
         if not configuration['sqlalchemy.url'].startswith('sqlite://'):
@@ -626,7 +615,7 @@ GNU Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public License
 along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
-            % str(cjklib.__version__)
+            % str(hanzilib.__version__)
         parser = OptionParser(usage=usage, description=description,
             version=version, option_class=ExtendedOption)
 

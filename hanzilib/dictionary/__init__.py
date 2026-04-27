@@ -266,6 +266,7 @@ class EDICTStyleDictionary(BaseDictionary):
                 = searchstrategy.SimpleWildcardTranslation()
         super(EDICTStyleDictionary, self).__init__(**options)
 
+        # print("67", options)
         if not self.available(self.db):
             raise ValueError("Table '%s' for dictionary does not exist"
                 % self.DICTIONARY_TABLE)
@@ -327,8 +328,10 @@ class EDICTStyleDictionary(BaseDictionary):
 
         # lookup in db
         results = self.db.iterRows(
-            select([dictionaryTable.c[col] for col in self.COLUMNS],
-                whereClause, distinct=True).order_by(*orderByCols).limit(limit))
+            select(*[dictionaryTable.c[col] for col in self.COLUMNS])
+                .distinct()
+                .where(whereClause)
+                .order_by(*orderByCols).limit(limit))
 
         # filter
         if filters:
@@ -586,6 +589,7 @@ class CEDICT(EDICTStyleEnhancedReadingDictionary):
             default, ``'t'`` if the traditional headword is used as default,
             ``'b'`` if both are tried.
         """
+        
         columnFormatStrategies = options.get('columnFormatStrategies', {})
         if None not in columnFormatStrategies:
             columnFormatStrategies[None] \

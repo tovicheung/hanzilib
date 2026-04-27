@@ -182,7 +182,7 @@ class TableBuilder(ABC):
         """
         # get drop table statement
         table = Table(self.PROVIDES, self.db.metadata)
-        table.drop()
+        table.drop(bind=self.db.connection)
         # remove table from metadata so that recreating a table with a different
         #   schema won't raise an exception. Especially for tables created via
         #   plain sql create command
@@ -1725,7 +1725,7 @@ class CSVFileLoader(TableBuilder):
                     continue
 
                 try:
-                    table.insert(entryDict).execute()
+                    self.db.execute(table.insert(), entryDict)
                 except IntegrityError as e:
                     # if not(self.quiet):
                     #     warn(str(e))
@@ -3244,8 +3244,14 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
         import zipfile
         import tarfile
 
+        def is_gz_file(filepath):
+            with open(filepath, 'rb') as f:
+                return f.read(2) == b'\x1f\x8b'
+        print("debug: FILE HANDLE", filePath, self.fileType)
+
         if self.fileType == '.zip' \
             or not self.fileType and zipfile.is_zipfile(filePath):
+            print("TEST TEST 1")
             import io
             z = zipfile.ZipFile(filePath, 'r')
             archiveContent = self.getArchiveContentName(z.namelist(), filePath)
@@ -3253,6 +3259,7 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
                 .decode(self.ENCODING))
         elif self.fileType in ('.tar', '.tar.bz2', '.tar.gz') \
             or not self.fileType and tarfile.is_tarfile(filePath):
+            print("TEST TEST 2")
             import io
             mode = ''
             ending = self.fileType or filePath
@@ -3264,13 +3271,16 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
             archiveContent = self.getArchiveContentName(z.getnames(), filePath)
             fileObj = z.extractfile(archiveContent)
             return io.StringIO(fileObj.read().decode(self.ENCODING))
-        elif self.fileType == '.gz' \
-            or not self.fileType and filePath.endswith('.gz'):
+        elif is_gz_file(filePath) or (self.fileType == '.gz' 
+            or not self.fileType and filePath.endswith('.gz')):
             import gzip
-            import io
-            z = gzip.GzipFile(filePath, 'r')
-            return io.StringIO(z.read().decode(self.ENCODING))
+            return gzip.open(filePath, mode="rt", encoding=self.ENCODING)
+            # import io
+            # z = gzip.GzipFile(filePath, 'r')
+            # return io.StringIO(z.read().decode(self.ENCODING))
         else:
+            
+            print("TEST TEST 4")
             return open(filePath, 'r', encoding=self.ENCODING)
 
     def buildFTS3CreateTableStatement(self, table):
@@ -3318,7 +3328,7 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
             if column not in fullTextColumns]
         simpleTable = self.buildTableObject(tableName + '_Normal',
             simpleColumns, columnTypeMap, primaryKeys)
-        simpleTable.create()
+        simpleTable.create(bind=self.db.connection)
 
         # FTS3 table
         fts3Table = self.buildTableObject(tableName + '_Text', fullTextColumns,
@@ -3379,8 +3389,10 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
                     fts3Data['rowid'] = func.last_insert_rowid()
 
                 # table with non-FTS3 data
-                simpleTable.insert(simpleData).execute()
-                fts3Table.insert(fts3Data).execute()
+                # simpleTable.insert(simpleData).execute()
+                self.db.execute(simpleTable.insert(), simpleData)
+                # fts3Table.insert(fts3Data).execute()
+                self.db.execute(fts3Table.insert(), fts3Data)
             except IntegrityError as e:
                 # if not self.quiet:
                 #     warn(str(e))
@@ -3402,7 +3414,7 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
             createStatement = self.buildFTS3CreateTableStatement(dummyTable)
             self.db.execute(createStatement)
             try:
-                dummyTable.drop()
+                dummyTable.drop(bind=self.db.connection)
             except OperationalError:
                 pass
             return True
@@ -3430,7 +3442,7 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
             # get create statement
             table = self.buildTableObject(self.PROVIDES, self.COLUMNS,
                 self.COLUMN_TYPES, self.PRIMARY_KEYS)
-            table.create()
+            table.create(bind=self.db.connection)
         else:
             # get create statement
             self.buildFTS3Tables(self.PROVIDES, self.COLUMNS, self.COLUMN_TYPES,
@@ -3447,7 +3459,8 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
                 raise
             for newEntry in generator:
                 try:
-                    table.insert(newEntry).execute()
+                    # table.insert(newEntry).execute()
+                    self.db.execute(table.insert(), newEntry)
                 except IntegrityError as e:
                     # if not self.quiet:
                     #     warn(str(e))
@@ -3473,7 +3486,7 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
         hasFTS3 = self.db.mainHasTable(self.PROVIDES + '_Text')
         if not hasFTS3:
             table = Table(self.PROVIDES, self.db.metadata)
-            table.drop()
+            table.drop(bind=self.db.connection)
             self.db.metadata.remove(table)
         else:
             preparer = self.db.engine.dialect.identifier_preparer
@@ -3483,10 +3496,10 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
             self.db.execute(dropViewStatement)
             self.db.metadata.remove(view)
             table = Table(self.PROVIDES + '_Normal', self.db.metadata)
-            table.drop()
+            table.drop(bind=self.db.connection)
             self.db.metadata.remove(table)
             table = Table(self.PROVIDES + '_Text', self.db.metadata)
-            table.drop()
+            table.drop(bind=self.db.connection)
             self.db.metadata.remove(table)
 
 

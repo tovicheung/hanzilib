@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # -*- coding: utf-8 -*-
 #!/usr/bin/python
 # This file is part of cjklib.
@@ -21,12 +23,17 @@ Character reading based functions (transliterations, romanizations, ...).
 
 __all__ = ['operator', 'converter', 'ReadingFactory']
 
-import types
 
 from ..exception import UnsupportedError
 from .. import dbconnector
 from . import operator as readingoperator
 # from . import converter as readingconverter
+
+from .types import Reading
+
+import typing
+if typing.TYPE_CHECKING:
+    from .converter import ReadingConverter
 
 class ReadingFactory(object):
     """
@@ -136,7 +143,7 @@ class ReadingFactory(object):
             self.toReading = toReading
             self.CONVERSION_DIRECTIONS = [(fromReading, toReading)]
 
-        def convert(self, string, fromReading=None, toReading=None):
+        def convert(self, string: str, fromReading: Reading | None = None, toReading: Reading | None = None):
             """
             Converts a string in the source reading to the target reading.
 
@@ -231,6 +238,8 @@ class ReadingFactory(object):
                 self.publishReadingOperator(readingOperator)
             for readingConverter in self.getReadingConverterClasses():
                 self.publishReadingConverter(readingConverter)
+        
+        print("ReadingFactory created with db", self.db.databaseUrl)
 
     #{ Meta
 
@@ -456,7 +465,7 @@ class ReadingFactory(object):
         else:
             raise ValueError("Wrong number of arguments")
 
-    def _getReadingOperatorInstance(self, readingN, **options):
+    def _getReadingOperatorInstance(self, readingN: Reading, **options):
         """
         Returns an instance of a
         :class:`~cjklib.reading.operator.ReadingOperator` for the given
@@ -485,7 +494,7 @@ class ReadingFactory(object):
         return instanceCache[cacheKey]
 
     def _getReadingConverterInstance(self, fromReading, toReading, *args,
-        **options):
+        **options) -> ReadingConverter:
         """
         Returns an instance of a
         :class:`~cjklib.reading.converter.ReadingConverter` for the given
@@ -644,7 +653,7 @@ class ReadingFactory(object):
     #}
     #{ ReadingConverter methods
 
-    def convert(self, readingStr, fromReading, toReading, *args, **options):
+    def convert(self, readingStr: str, fromReading: Reading, toReading: Reading, *args, **options):
         """
         Converts the given string in the source reading to the given target
         reading.

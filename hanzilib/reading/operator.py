@@ -35,6 +35,7 @@ __all__ = [
 
 import re
 import string
+from typing import Literal
 import unicodedata
 import copy
 import types
@@ -49,6 +50,8 @@ from ..exception import (DecompositionError, AmbiguousDecompositionError,
     AmbiguousConversionError)
 from .. import dbconnector
 from ..util import titlecase, istitlecase, cachedmethod
+
+from .types import *
 
 class ReadingOperator(object):
     """
@@ -90,7 +93,7 @@ class ReadingOperator(object):
         """
         return {}
 
-    def decompose(self, readingString):
+    def decompose(self, readingString: str):
         """
         Decomposes the given string into basic entities that can be mapped to
         one Chinese character each (exceptions possible).
@@ -111,7 +114,7 @@ class ReadingOperator(object):
         """
         raise NotImplementedError
 
-    def compose(self, readingEntities):
+    def compose(self, readingEntities: list[Entity]):
         """
         Composes the given list of basic entities to a string.
 
@@ -129,7 +132,7 @@ class ReadingOperator(object):
         """
         raise NotImplementedError
 
-    def isReadingEntity(self, entity):
+    def isReadingEntity(self, entity: Entity) -> bool:
         """
         Returns ``True`` if the given entity is a valid *reading entity*
         recognised by the reading operator, i.e. it will be returned by
@@ -145,7 +148,7 @@ class ReadingOperator(object):
         """
         raise NotImplementedError
 
-    def isFormattingEntity(self, entity):
+    def isFormattingEntity(self, entity: Entity):
         """
         Returns ``True`` if the given entity is a valid *formatting entity*
         recognised by the reading operator.
@@ -193,6 +196,9 @@ class RomanisationOperator(ReadingOperator):
         """
         super(RomanisationOperator, self).__init__(**options)
 
+        self.strictSegmentation: bool
+        self.case: Literal["lower", "both"]
+
         if self.case not in ['lower', 'both']:
             raise ValueError("Invalid option %s for keyword 'case'"
                 % repr(self.case))
@@ -205,7 +211,7 @@ class RomanisationOperator(ReadingOperator):
         return options
 
     @cachedmethod
-    def getReadingCharacters(self):
+    def getReadingCharacters(self) -> set[Entity]:
         """
         Gets a list of characters parsed by this reading operator as reading
         entities. For alphabetic characters, lower case is returned.
@@ -218,7 +224,7 @@ class RomanisationOperator(ReadingOperator):
         """
         return frozenset(string.ascii_lowercase)
 
-    def decompose(self, readingString):
+    def decompose(self, readingString: str) -> list[str]:
         """
         Decomposes the given string into basic entities on a one-to-one mapping
         level to Chinese characters. Decomposing can be ambiguous and there are
@@ -244,7 +250,7 @@ class RomanisationOperator(ReadingOperator):
         """
         decompositionParts = self.getDecompositionTree(readingString)
 
-        strictDecomposition = []
+        strictDecomposition: list[str] = []
         for segment in decompositionParts:
             if len(segment) == 1:
             # only one possible decomposition, don't care if strict or not
@@ -253,7 +259,7 @@ class RomanisationOperator(ReadingOperator):
                 # check for decompositions with syllables that together make up
                 #   a syllable again, don't take these into account for the
                 #   unique decomposition
-                nonMergeableParts = []
+                nonMergeableParts: list[list[str]] = []
                 for decomposition in segment:
                     if not self._hasMergeableEntities(decomposition):
                         nonMergeableParts.append(decomposition)
@@ -274,7 +280,7 @@ class RomanisationOperator(ReadingOperator):
 
         return strictDecomposition
 
-    def getDecompositionTree(self, readingString):
+    def getDecompositionTree(self, readingString: str) -> list[list[list[str]]]:
         """
         Decomposes the given string into basic entities that can be mapped to
         one Chinese character each for all possible decompositions and returns
@@ -288,7 +294,7 @@ class RomanisationOperator(ReadingOperator):
         :raise DecompositionError: if the given string has a wrong format.
         """
         # break string into pieces with alphabet and non alphabet parts
-        decompositionParts = []
+        decompositionParts: list[list[list[str]]] = []
         # get partial segmentations
         for part in self._readingEntityRegex.split(readingString):
             if part == '':
@@ -302,7 +308,7 @@ class RomanisationOperator(ReadingOperator):
 
         return decompositionParts
 
-    def getDecompositions(self, readingString):
+    def getDecompositions(self, readingString: str) -> list[Decomposition]:
         """
         Decomposes the given string into basic entities that can be mapped to
         one Chinese character each for all possible decompositions. This method
@@ -323,16 +329,16 @@ class RomanisationOperator(ReadingOperator):
         # merge segmentations to decomposition
         decompCrossProd = product(*decompositionParts)
 
-        decompositionList = []
+        decompositionList: list[Decomposition] = []
         for line in decompCrossProd:
-            resultList = []
+            resultList: list[str] = []
             for entry in line:
                 resultList.extend(entry)
             decompositionList.append(resultList)
 
         return decompositionList
 
-    def segment(self, readingString):
+    def segment(self, readingString: str) -> list[list[str]]:
         """
         Takes a string written in the romanisation and returns the possible
         segmentations as a list of syllables.
@@ -358,18 +364,20 @@ class RomanisationOperator(ReadingOperator):
         """
         segmentationTree = self._recursiveSegmentation(readingString)
         if readingString != '' and len(segmentationTree) == 0:
+            # No segmentation found
             if self.strictSegmentation:
                 raise DecompositionError(
                     "Segmentation of '%s' not possible or invalid syllable" \
                         % readingString)
             else:
                 return [[readingString]]
-        resultList = []
-        for entry in segmentationTree:
-            resultList.extend(self._treeToList(entry))
+        resultList: list[list[str]] = []
+        for tree in segmentationTree:
+            segmentation = self._treeToList(tree)
+            resultList.extend(segmentation)
         return resultList
 
-    def _recursiveSegmentation(self, readingString):
+    def _recursiveSegmentation(self, readingString: str) -> list[SyllableTree]:
         """
         Takes a string written in the romanisation and returns the possible
         segmentations as a tree of syllables.
@@ -467,7 +475,7 @@ class RomanisationOperator(ReadingOperator):
         """
         return readingString in self._substringTable
 
-    def isReadingEntity(self, entity):
+    def isReadingEntity(self, entity: str):
         """
         Returns true if the given entity is recognised by the romanisation
         operator, i.e. it is a valid entity of the reading returned by the
@@ -489,7 +497,7 @@ class RomanisationOperator(ReadingOperator):
         return entity.lower() in self.getReadingEntities()
 
     @cachedmethod
-    def getReadingEntities(self):
+    def getReadingEntities(self) -> set[str]:
         """
         Gets a set of all entities supported by the reading.
 
@@ -536,7 +544,7 @@ class RomanisationOperator(ReadingOperator):
         return frozenset()
 
     @staticmethod
-    def _treeToList(tupleTree):
+    def _treeToList(tupleTree: SyllableTree) -> list[list[str]]:
         """
         Converts a tree to a list containing all full paths from root to leaf
         node.
@@ -592,7 +600,7 @@ class TonalFixedEntityOperator(ReadingOperator):
         """
         raise NotImplementedError
 
-    def getTonalEntity(self, plainEntity, tone):
+    def getTonalEntity(self, plainEntity: str, tone: int) -> str:
         """
         Gets the entity with tone mark for the given plain entity and tone. The
         letter case of the given plain entity might not be fully conserved for
@@ -806,7 +814,7 @@ class TonalIPAOperator(TonalFixedEntityOperator):
     """
 
     TONE_MARK_MAPPING = {
-        #'numbers': {}, 'chaoDigits': {}, 'ipaToneBar': {}, 'diacritics': {}
+        'numbers': {}, 'chaoDigits': {}, 'ipaToneBar': {}, 'diacritics': {}
         }
     """
     Mapping of tone names to tone mark for each tone mark type. Needs to be
@@ -851,7 +859,7 @@ class TonalIPAOperator(TonalFixedEntityOperator):
                 % repr(self.missingToneMark))
 
         # split regex
-        self._splitRegex = re.compile('([\.\s]+)')
+        self._splitRegex = re.compile(r'([\.\s]+)')
 
     @classmethod
     def getDefaultOptions(cls):
@@ -2019,7 +2027,7 @@ class WadeGilesOperator(TonalRomanisationOperator):
     Provides an operator for the Mandarin *Wade-Giles* romanisation.
 
     .. todo::
-        * Lang: Asterisk (\*) marking the entering tone (入聲): e.g. *chio²\**
+        * Lang: Asterisk (\\*) marking the entering tone (入聲): e.g. *chio²\**
           and *chüeh²\** for 覺 used by Giles (A Chinese-English Dictionary,
           second edition, 1912).
     """
@@ -2812,10 +2820,10 @@ class GROperator(TonalRomanisationOperator):
                 "Invalid value %s for keyword 'optionalNeutralToneMarker'"
                 % repr(self.optionalNeutralToneMarker))
 
-        self._readingEntityRegex = re.compile("( |" \
+        self._readingEntityRegex = re.compile(r"( |" \
             + re.escape(self.grSyllableSeparatorApostrophe) \
-            + "|[\.%s]?(?:" % self.optionalNeutralToneMarker \
-            + re.escape(self.grRhotacisedFinalApostrophe) + "|[A-Za-z])+)")
+            + r"|[\.%s]?(?:" % self.optionalNeutralToneMarker \
+            + re.escape(self.grRhotacisedFinalApostrophe) + r"|[A-Za-z])+)")
 
     @classmethod
     def getDefaultOptions(cls):
@@ -3170,7 +3178,7 @@ class GROperator(TonalRomanisationOperator):
 
         return plainEntity, tone
 
-    def isRhotacisedReadingEntity(self, entity):
+    def isRhotacisedReadingEntity(self, entity: str):
         """
         Checks if the given entity is a r-coloured entity (Erlhuah form).
 
@@ -3550,7 +3558,7 @@ class GROperator(TonalRomanisationOperator):
 
         return frozenset(syllableSet)
 
-    def isReadingEntity(self, entity):
+    def isReadingEntity(self, entity: str):
         # overwrite default method, use lookup dictionary, otherwise we would
         #   end up in a recursive call
         return RomanisationOperator.isReadingEntity(self, entity)

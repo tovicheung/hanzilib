@@ -34,6 +34,7 @@ from collections import OrderedDict
 from sqlalchemy import MetaData, Table, engine_from_config, inspect
 from sqlalchemy.sql import text
 from sqlalchemy.engine.url import URL, make_url
+import sqlalchemy.exc
 
 from .util import getConfigSettings, getSearchPaths, LazyDict
 
@@ -154,6 +155,7 @@ class DatabaseConnector(object):
         :type configuration: dict
         :param configuration: database connection options for SQLAlchemy
         """
+        print("DBConnector received config", configuration)
         if not configuration:
             configuration = {}
         elif isinstance(configuration, str):
@@ -187,6 +189,8 @@ class DatabaseConnector(object):
         self.metadata = MetaData()
         """SQLAlchemy metadata object"""
 
+        print("Connected to database at:", configuration["sqlalchemy.url"])
+
         # multi-database table access
         self.tables = LazyDict(self._tableGetter())
         """Dictionary of SQLAlchemy table objects"""
@@ -219,6 +223,7 @@ class DatabaseConnector(object):
         :param searchPaths: if ``True`` default search paths will be checked for
             attachable SQLite databases.
         """
+        print("_findAttachableDatabases", attachList)
         attachable = []
         for name in attachList:
             if '://' in name:
@@ -255,6 +260,7 @@ class DatabaseConnector(object):
                     " Check your 'attach' settings!")
                     % name)
 
+        print("found", attachable)
         return attachable
 
     def _registerUnicode(self):
@@ -294,7 +300,8 @@ class DatabaseConnector(object):
                 viewList = self.execute(
                     text("SELECT table_name FROM Information_schema.views"
                         " WHERE table_schema = :schema"),
-                    schema=schema).fetchall()
+                    {"schema": schema}
+                ).fetchall()
                 views.extend([view for view, in viewList if view not in views])
         elif self.engine.name == 'sqlite':
             views = []
@@ -344,7 +351,10 @@ class DatabaseConnector(object):
             schema = '%s_%d' % (dbName, len(self.attached))
 
             self.execute(text("ATTACH DATABASE :database AS :schema"),
-                database=databaseFile, schema=schema)
+                database=databaseFile,
+                schema=schema
+            )
+            print("DBConnector attached", databaseFile, "as", schema)
         else:
             schema = url.database
 
@@ -367,8 +377,10 @@ class DatabaseConnector(object):
         tables = set(self._getViews())
         tables.update(inspector.get_table_names(schema=self._mainSchema))
         for schema in self.attached.values():
-            tables.update(inspector.get_table_names(schema=schema))
-
+            try: # temporary measure
+                tables.update(inspector.get_table_names(schema=schema))
+            except sqlalchemy.exc.OperationalError:
+                pass
         return tables
 
     def _tableGetter(self):
@@ -379,7 +391,7 @@ class DatabaseConnector(object):
         def getTable(tableName: str) -> Table:
             schema = self._findTable(tableName)
             if schema is not None:
-                return Table(tableName, self.metadata, autoload_with=self.engine, schema=schema)
+                return Table(tableName, self.metadata, autoload_with=self.connection, schema=schema)
 
             raise KeyError("Table '%s' not found in any database" % tableName)
 
@@ -419,7 +431,8 @@ class DatabaseConnector(object):
         #         if hasTable(tableName, schema=schema):
         #             return schema
         # return None
-        inspector = inspect(self.engine)
+        # inspector = inspect(self.engine)
+        inspector = inspect(self.connection)
         
         if inspector.has_table(tableName, schema=self._mainSchema):
             return self._mainSchema
@@ -459,13 +472,17 @@ class DatabaseConnector(object):
 
     # Select commands
 
-    def execute(self, req, *options, **keywords):
+    def execute(self, stmt, *args, **kwargs):
         """
         Executes a request on the given database.
         """
-        if isinstance(req, str):
-            req = text(req)
-        return self.connection.execute(req, *options, **keywords)
+        if isinstance(stmt, str):
+            stmt = text(stmt)
+        if len(args) == 1:
+            return self.connection.execute(stmt, args[0])
+        return self.connection.execute(stmt, kwargs)
+        # return self.connection.execute(stmt, parameters=parameters, execution_options=execution_options)
+        # return self.connection.execute(stmt, *options, parameters=kwargs)
 
     def _decode(self, data):
         """

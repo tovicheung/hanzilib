@@ -50,6 +50,7 @@ from .. import dbconnector
 from . import operator as readingoperator
 from . import ReadingFactory
 from ..util import titlecase, istitlecase
+from .types import Reading
 
 class ReadingConverter(object):
     """
@@ -142,7 +143,7 @@ class ReadingConverter(object):
         """
         return {'sourceOperators': {}, 'targetOperators': {}}
 
-    def convert(self, string, fromReading, toReading):
+    def convert(self, string: str, fromReading: Reading, toReading: Reading):
         """
         Converts a string in the source reading to the given target reading.
 
@@ -410,7 +411,7 @@ class EntityWiseReadingConverter(ReadingConverter):
 
         return toReadingEntities
 
-    def convertBasicEntity(self, entity, fromReading, toReading):
+    def convertBasicEntity(self, entity: str, fromReading: str, toReading: str):
         """
         Converts a basic entity (e.g. a syllable) in the source reading to the
         given target reading.
