@@ -981,7 +981,8 @@ class CharacterRadicalBuilder(UnihanDerivedBuilder):
     """
     class RadicalExtractor:
         """Generates the radical to character mapping from the Unihan table."""
-        RADICAL_REGEX = re.compile(r"(\d+)\.(\d+)")
+        # RADICAL_REGEX = re.compile(r"(\d+)'?\.(\d+)")
+        RADICAL_REGEX = re.compile(r"^(\d+)")
 
         def __init__(self, rsEntries, quiet=False):
             """
@@ -996,6 +997,9 @@ class CharacterRadicalBuilder(UnihanDerivedBuilder):
         def generator(self):
             """Provides one entry per radical and character."""
             for character, radicalStroke in self.rsEntries:
+                # some specific chars have 2 radical categorizations, use the primary one
+                if " " in radicalStroke:
+                    radicalStroke = radicalStroke.split()[0]
                 matchObj = self.RADICAL_REGEX.match(radicalStroke)
                 if matchObj:
                     radical = matchObj.group(1)
