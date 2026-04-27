@@ -4,3 +4,4 @@ test/downloads
 env
 dist/
 /build/
+hanzilib/hanzilib.db

@@ -239,8 +239,6 @@ class ReadingFactory(object):
             for readingConverter in self.getReadingConverterClasses():
                 self.publishReadingConverter(readingConverter)
         
-        print("ReadingFactory created with db", self.db.databaseUrl)
-
     #{ Meta
 
     def clearCache(self):

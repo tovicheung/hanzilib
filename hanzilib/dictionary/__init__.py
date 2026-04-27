@@ -36,7 +36,11 @@ __all__ = [
     "BaseDictionary", "EDICTStyleDictionary",
     "EDICTStyleEnhancedReadingDictionary",
     # dictionaries
-    "EDICT", "CEDICTGR", "CEDICT", "HanDeDict", "CFDICT"
+    "EDICT",
+    # "CEDICTGR",
+    "CEDICT",
+    "HanDeDict",
+    "CFDICT"
     ]
 
 import types
@@ -538,21 +542,21 @@ class EDICTStyleEnhancedReadingDictionary(EDICTStyleDictionary):
         super(EDICTStyleEnhancedReadingDictionary, self).__init__(**options)
 
 
-class CEDICTGR(EDICTStyleEnhancedReadingDictionary):
-    """
-    CEDICT-GR dictionary access.
+# class CEDICTGR(EDICTStyleEnhancedReadingDictionary):
+#     """
+#     CEDICT-GR dictionary access.
 
-    .. seealso:: :class:`~cjklib.build.builder.CEDICTGRBuilder`
-    """
-    PROVIDES = 'CEDICTGR'
-    READING = 'GR'
-    DICTIONARY_TABLE = 'CEDICTGR'
+#     .. seealso:: :class:`~cjklib.build.builder.CEDICTGRBuilder`
+#     """
+#     PROVIDES = 'CEDICTGR'
+#     READING = 'GR'
+#     DICTIONARY_TABLE = 'CEDICTGR'
 
-    def __init__(self, **options):
-        if 'translationSearchStrategy' not in options:
-            options['translationSearchStrategy'] \
-                = searchstrategy.CEDICTWildcardTranslation()
-        super(CEDICTGR, self).__init__(**options)
+#     def __init__(self, **options):
+#         if 'translationSearchStrategy' not in options:
+#             options['translationSearchStrategy'] \
+#                 = searchstrategy.CEDICTWildcardTranslation()
+#         super(CEDICTGR, self).__init__(**options)
 
 
 class CEDICT(EDICTStyleEnhancedReadingDictionary):
@@ -708,12 +712,12 @@ class HanDeDict(CEDICT):
         super(HanDeDict, self).__init__(**options)
 
 
-class CFDICT(HanDeDict):
-    """
-    CFDICT dictionary access.
+# class CFDICT(HanDeDict):
+#     """
+#     CFDICT dictionary access.
 
-    .. seealso:: :class:`~cjklib.build.builder.CFDICTBuilder`
-    """
-    PROVIDES = 'CFDICT'
-    DICTIONARY_TABLE = 'CFDICT'
+#     .. seealso:: :class:`~cjklib.build.builder.CFDICTBuilder`
+#     """
+#     PROVIDES = 'CFDICT'
+#     DICTIONARY_TABLE = 'CFDICT'
 

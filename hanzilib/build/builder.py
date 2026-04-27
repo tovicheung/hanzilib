@@ -67,9 +67,13 @@ __all__ = [
     # Dictionary builder
     "EDICTFormatBuilder", "WordIndexBuilder", "EDICTBuilder",
     "EDICTWordIndexBuilder", "CEDICTFormatBuilder", "CEDICTBuilder",
-    "CEDICTWordIndexBuilder", "CEDICTGRBuilder", "CEDICTGRWordIndexBuilder",
+    "CEDICTWordIndexBuilder",
+    # "CEDICTGRBuilder",
+    # "CEDICTGRWordIndexBuilder",
     "TimestampedCEDICTFormatBuilder", "HanDeDictBuilder",
-    "HanDeDictWordIndexBuilder", "CFDICTBuilder", "CFDICTWordIndexBuilder",
+    "HanDeDictWordIndexBuilder",
+    # "CFDICTBuilder",
+    # "CFDICTWordIndexBuilder",
     "SimpleWenlinFormatBuilder"
     ]
 
@@ -90,12 +94,16 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 
 from .. import characterlookup
 from .. import exception
-from . import warn
 from ..util import UnicodeCSVFileIterator, CollationString, CollationText, deprecated
 
 import typing
 if typing.TYPE_CHECKING:
     from ..dbconnector import DatabaseConnector
+import sys
+# Temporary measure
+
+def warn(string):
+    print(string, file=sys.stderr)
 
 # pylint: disable-msg=E1101
 #  member variables are set by setattr()
@@ -3247,11 +3255,9 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
         def is_gz_file(filepath):
             with open(filepath, 'rb') as f:
                 return f.read(2) == b'\x1f\x8b'
-        print("debug: FILE HANDLE", filePath, self.fileType)
 
         if self.fileType == '.zip' \
             or not self.fileType and zipfile.is_zipfile(filePath):
-            print("TEST TEST 1")
             import io
             z = zipfile.ZipFile(filePath, 'r')
             archiveContent = self.getArchiveContentName(z.namelist(), filePath)
@@ -3259,7 +3265,6 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
                 .decode(self.ENCODING))
         elif self.fileType in ('.tar', '.tar.bz2', '.tar.gz') \
             or not self.fileType and tarfile.is_tarfile(filePath):
-            print("TEST TEST 2")
             import io
             mode = ''
             ending = self.fileType or filePath
@@ -3279,8 +3284,6 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
             # z = gzip.GzipFile(filePath, 'r')
             # return io.StringIO(z.read().decode(self.ENCODING))
         else:
-            
-            print("TEST TEST 4")
             return open(filePath, 'r', encoding=self.ENCODING)
 
     def buildFTS3CreateTableStatement(self, table):
@@ -3643,27 +3646,27 @@ class CEDICTWordIndexBuilder(WordIndexBuilder):
     HEADWORD_SOURCE = 'HeadwordTraditional'
 
 
-class CEDICTGRBuilder(EDICTFormatBuilder):
-    """
-    Builds the CEDICT-GR dictionary.
-    """
-    PROVIDES = 'CEDICTGR'
-    FILE_NAMES = ['cedictgr.zip', 'cedictgr.b5']
-    ENCODING = 'big5hkscs'
-    COLUMNS_WITH_COLLATION = ['Reading', 'Translation']
+# class CEDICTGRBuilder(EDICTFormatBuilder):
+#     """
+#     Builds the CEDICT-GR dictionary.
+#     """
+#     PROVIDES = 'CEDICTGR'
+#     FILE_NAMES = ['cedictgr.zip', 'cedictgr.b5']
+#     ENCODING = 'big5hkscs'
+#     COLUMNS_WITH_COLLATION = ['Reading', 'Translation']
 
-    def getArchiveContentName(self, nameList, filePath):
-        return 'cedictgr.b5'
+#     def getArchiveContentName(self, nameList, filePath):
+#         return 'cedictgr.b5'
 
 
-class CEDICTGRWordIndexBuilder(WordIndexBuilder):
-    """
-    Builds the word index of the CEDICT-GR dictionary.
-    """
-    PROVIDES = 'CEDICTGR_Words'
-    DEPENDS = ['CEDICTGR']
-    TABLE_SOURCE = 'CEDICTGR'
-    HEADWORD_SOURCE = 'Headword'
+# class CEDICTGRWordIndexBuilder(WordIndexBuilder):
+#     """
+#     Builds the word index of the CEDICT-GR dictionary.
+#     """
+#     PROVIDES = 'CEDICTGR_Words'
+#     DEPENDS = ['CEDICTGR']
+#     TABLE_SOURCE = 'CEDICTGR'
+#     HEADWORD_SOURCE = 'Headword'
 
 
 class TimestampedCEDICTFormatBuilder(CEDICTFormatBuilder):
@@ -3763,26 +3766,26 @@ class HanDeDictWordIndexBuilder(WordIndexBuilder):
     HEADWORD_SOURCE = 'HeadwordTraditional'
 
 
-class CFDICTBuilder(CEDICTFormatBuilder):
-    """
-    Builds the CFDICT dictionary.
-    """
-    PROVIDES = 'CFDICT'
-    FILE_NAMES = ['cfdict.zip', 'cfdict.u8']
-    ENCODING = 'utf-8'
+# class CFDICTBuilder(CEDICTFormatBuilder):
+#     """
+#     Builds the CFDICT dictionary.
+#     """
+#     PROVIDES = 'CFDICT'
+#     FILE_NAMES = ['cfdict.zip', 'cfdict.u8']
+#     ENCODING = 'utf-8'
 
-    def getArchiveContentName(self, nameList, filePath):
-        return 'cfdict.u8'
+#     def getArchiveContentName(self, nameList, filePath):
+#         return 'cfdict.u8'
 
 
-class CFDICTWordIndexBuilder(WordIndexBuilder):
-    """
-    Builds the word index of the CFDICT dictionary.
-    """
-    PROVIDES = 'CFDICT_Words'
-    DEPENDS = ['CFDICT']
-    TABLE_SOURCE = 'CFDICT'
-    HEADWORD_SOURCE = 'HeadwordTraditional'
+# class CFDICTWordIndexBuilder(WordIndexBuilder):
+#     """
+#     Builds the word index of the CFDICT dictionary.
+#     """
+#     PROVIDES = 'CFDICT_Words'
+#     DEPENDS = ['CFDICT']
+#     TABLE_SOURCE = 'CFDICT'
+#     HEADWORD_SOURCE = 'HeadwordTraditional'
 
 
 class SimpleWenlinFormatBuilder(EntryGeneratorBuilder):

@@ -1,4 +1,6 @@
 from __future__ import annotations
+import tempfile
+from typing import Optional
 
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
@@ -42,7 +44,9 @@ __all__ = [
     # meta
     'getDownloaderClass', 'getDownloader',
     # downloader
-    'EDICTDownloader', 'CEDICTDownloader', 'CEDICTGR', 'HanDeDict', 'CFDICT',
+    'EDICTDownloader', 'CEDICTDownloader',
+    # 'CEDICTGR',
+    'HanDeDict', 'CFDICT',
     # installer
     'DictionaryInstaller',
     ]
@@ -52,6 +56,7 @@ import re
 import os
 import types
 import locale
+import shutil
 import urllib.request, urllib.parse, urllib.error
 import urllib.parse
 from datetime import datetime, date, time
@@ -62,10 +67,12 @@ from sqlalchemy import select
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import OperationalError
 
+# Temporary: cannot use relative imports due to cli access
 import hanzilib
 from hanzilib import dbconnector
 from hanzilib import build
 from hanzilib.util import cachedmethod, ExtendedOption, getConfigSettings
+from hanzilib import log
 
 def progress(i, chunkSize, total):
     global progressTick
@@ -144,19 +151,12 @@ def getDownloader(dictionaryName, **options) -> DownloaderBase:
     return downloaderCls(**options)
 
 
-class UserAgentURLOpener(urllib.request.FancyURLopener):
-    version="Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)"
-
-#}
-#{ Dictionary classes
-
 class DownloaderBase(object):
     """Abstract class for downloading dictionaries."""
     PROVIDES = None
 
-    def __init__(self, downloadFunc=None, quiet=True):
+    def __init__(self, quiet=True):
         self.quiet = quiet
-        self.downloadFunc = downloadFunc
 
     def getDownloadLink(self):
         """
@@ -173,15 +173,14 @@ class DownloaderBase(object):
         """
         link = self.getDownloadLink()
 
-        if not self.quiet: warn("Sending HEAD request to %s..." % link,
-            endline=False)
-        response = urllib.request.urlopen(link)
-        lastModified = response.info().getheader('Last-Modified')
+        if not self.quiet: warn("Sending HEAD request to %s..." % link, endline=False)
+        with urllib.request.urlopen(link) as response:
+            last_modified = response.headers.get('Last-Modified')
         if not self.quiet: warn("Done")
-        if lastModified:
-            return datetime.strptime(lastModified, '%a, %d %b %Y %H:%M:%S %Z')
+        if last_modified:
+            return datetime.strptime(last_modified, '%a, %d %b %Y %H:%M:%S %Z')
 
-    def download(self, **options):
+    def download(self, targetName: Optional[str] = None, targetPath: Optional[str] = None, temporary: bool = False):
         """
         Downloads the dictionary and returns the path to the local file.
 
@@ -195,57 +194,72 @@ class DownloaderBase(object):
         :rtype: str
         :return: path to local file
         """
-        if self.downloadFunc:
-            return self.downloadFunc(**options)
-        else:
-            return self._download(**options)
+        # if self.downloadFunc:
+        #     return self.downloadFunc(**options)
+        # else:
+        return self._download(targetName, targetPath, temporary)
 
-    def _download(self, targetName=None, targetPath=None, temporary=False):
+    def _download(self, targetName: Optional[str] = None, targetPath: Optional[str] = None, temporary: bool = False):
+        log.task("Downloading " + str(self.PROVIDES))
+        
         link = self.getDownloadLink()
 
         _, _, onlinePath, _, _ = urllib.parse.urlsplit(link)
         originalFileName = os.path.basename(onlinePath)
+        
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        req = urllib.request.Request(link, headers=headers)
 
-        if temporary:
-            fileName = None
-        elif targetName:
-            fileName = targetName
-        elif targetPath:
-            fileName = os.path.join(targetPath, originalFileName)
-        else:
-            fileName = originalFileName
-
-        # Fake browser to cheat bad webservers
-        urllib.request._urlopener = UserAgentURLOpener()
 
         if not self.quiet:
             version = self.getVersion()
-            if version:
-                warn('Found version %s' % version)
-            else:
-                warn('Unable to determine version')
-            warn("Downloading %s..." % link)
-            path, _ = urllib.request.urlretrieve(link, fileName, progress)
-            warn("Saved as %s" % path)
-        else:
-            path, _ = urllib.request.urlretrieve(link, fileName)
+            log.log(f"Found version: {version}" if version else "Unable to determine version")
+            log.log(f"Downloading {link}...")
 
-        return path
+        if temporary:
+            with tempfile.NamedTemporaryFile(delete=False) as tf, \
+                urllib.request.urlopen(req) as response:
+                shutil.copyfileobj(response, tf)
+                fileName = tf.name
+        else:
+            if targetName:
+                fileName = targetName
+            elif targetPath:
+                fileName = os.path.join(targetPath, originalFileName)
+            else:
+                fileName = originalFileName
+            with urllib.request.urlopen(req) as response, open(fileName, 'wb') as out_file:
+                # TODO: progress
+                shutil.copyfileobj(response, out_file)
+        
+        if not self.quiet:
+            log.log(f"Saved as {fileName}")
+
+        return fileName
 
 
 class EDICTDownloader(DownloaderBase):
     """Downloader for the EDICT dictionary."""
     PROVIDES = 'EDICT'
-    DOWNLOAD_LINK = 'http://ftp.monash.edu.au/pub/nihongo/edict.gz'
+    # DOWNLOAD_LINK = 'http://ftp.monash.edu.au/pub/nihongo/edict.gz'
+    DOWNLOAD_LINK = 'http://ftp.edrdg.org/pub/Nihongo/edict.gz'
 
     def getDownloadLink(self):
         return self.DOWNLOAD_LINK
 
 
-class CEDICTGRDownloader(DownloaderBase):
-    """Downloader for the Gwoyeu Romatzyh version of the CEDICT dictionary."""
-    PROVIDES = 'CEDICTGR'
-    DOWNLOAD_LINK = 'http://home.iprimus.com.au/richwarm/gr/cedictgr.zip'
+# class CEDICTGRDownloader(DownloaderBase):
+#     """Downloader for the Gwoyeu Romatzyh version of the CEDICT dictionary."""
+#     PROVIDES = 'CEDICTGR'
+#     DOWNLOAD_LINK = 'http://home.iprimus.com.au/richwarm/gr/cedictgr.zip'
+
+#     def getDownloadLink(self):
+#         return self.DOWNLOAD_LINK
+
+
+class HanDeDictDownloader(DownloaderBase):
+    PROVIDES = "HanDeDict"
+    DOWNLOAD_LINK = "http://www.handedict.de/handedict/handedict-20110528.tar.bz2"
 
     def getDownloadLink(self):
         return self.DOWNLOAD_LINK
@@ -264,12 +278,12 @@ class PageDownloaderBase(DownloaderBase):
     @cachedmethod
     def getDownloadPage(self):
         if not self.quiet:
-            warn(f"Getting download page {self.DEFAULT_DOWNLOAD_PAGE}...", endline=False)
+            log.log(f"Getting download page {self.DEFAULT_DOWNLOAD_PAGE}...")
         with urllib.request.urlopen(self.DEFAULT_DOWNLOAD_PAGE) as response:
             download_page = response.read().decode("utf-8")
 
         if not self.quiet:
-            print("done")
+            log.log("done")
         
         return download_page
 
@@ -299,24 +313,24 @@ class CEDICTDownloader(PageDownloaderBase):
     DATE_FMT = '%Y-%m-%d %H:%M:%S %Z'
 
 
-class HanDeDictDownloader(PageDownloaderBase):
-    """Downloader for the HanDeDict dictionary."""
-    PROVIDES = 'HanDeDict'
-    DEFAULT_DOWNLOAD_PAGE \
-        = 'http://www.handedict.de/chinesisch_deutsch.php?mode=dl'
-    DOWNLOAD_REGEX = re.compile(
-        '<a href="(handedict/handedict-(?:\d+).tar.bz2)">')
-    DATE_REGEX = re.compile('<a href="handedict/handedict-(\d+).tar.bz2">')
-    DATE_FMT = '%Y%m%d'
+# class HanDeDictDownloader(PageDownloaderBase):
+#     """Downloader for the HanDeDict dictionary."""
+#     PROVIDES = 'HanDeDict'
+#     DEFAULT_DOWNLOAD_PAGE \
+#         = 'http://www.handedict.de/chinesisch_deutsch.php?mode=dl'
+#     DOWNLOAD_REGEX = re.compile(
+#         '<a href="(handedict/handedict-(?:\d+).tar.bz2)">')
+#     DATE_REGEX = re.compile('<a href="handedict/handedict-(\d+).tar.bz2">')
+#     DATE_FMT = '%Y%m%d'
 
 
-class CFDICTDownloader(DownloaderBase):
-    """Downloader for the CFDICT dictionary."""
-    PROVIDES = 'CFDICT'
-    DOWNLOAD_LINK = 'http://www.chine-informations.com/chinois/open/CFDICT/cfdict.zip'
+# class CFDICTDownloader(DownloaderBase):
+#     """Downloader for the CFDICT dictionary."""
+#     PROVIDES = 'CFDICT'
+#     DOWNLOAD_LINK = 'http://www.chine-informations.com/chinois/open/CFDICT/cfdict.zip'
 
-    def getDownloadLink(self):
-        return self.DOWNLOAD_LINK
+#     def getDownloadLink(self):
+#         return self.DOWNLOAD_LINK
 
 
 class DictionaryInstaller(object):

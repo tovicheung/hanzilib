@@ -1,3 +1,8 @@
+from hanzilib import dictionary
+
+print(dictionary.getAvailableDictionaries())
+
+
 from hanzilib.reading import ReadingFactory
 f = ReadingFactory()
 # Convert Mandarin Pinyin to IPA

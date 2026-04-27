@@ -114,14 +114,25 @@ format --BuilderName-option or --TableName-option, e.g.
             'CharacterHangul', 'IICoreSet'], # TODO IICoreSet as long as no better source exists
         'fullVietnamese': ['KangxiRadicalData', 'ShapeLookupData', 'IICoreSet'], # TODO IICoreSet as long as no better source exists
         # additional data for cjknife
-        'Dictionaries': ['CEDICT', 'CEDICTGR', 'HanDeDict', 'CFDICT', 'EDICT'],
+        'Dictionaries': [
+            'CEDICT',
+            # 'CEDICTGR',
+            'HanDeDict',
+            # 'CFDICT',
+            'EDICT'
+        ],
         # TODO deprecated
-        'fullDictionaries': ['fullCEDICT', 'fullCEDICTGR', 'fullHanDeDict',
-            'fullCFDICT', 'fullEDICT'],
+        'fullDictionaries': [
+            'fullCEDICT',
+            # 'fullCEDICTGR',
+            'fullHanDeDict',
+            # 'fullCFDICT',
+            'fullEDICT'
+        ],
         'fullCEDICT': ['CEDICT'],
-        'fullCEDICTGR': ['CEDICTGR'],
+        # 'fullCEDICTGR': ['CEDICTGR'],
         'fullHanDeDict': ['HanDeDict'],
-        'fullCFDICT': ['CFDICT'],
+        # 'fullCFDICT': ['CFDICT'],
         'fullEDICT': ['EDICT'],
     }
     """

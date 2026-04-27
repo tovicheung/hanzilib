@@ -1,6 +1,3 @@
-import warnings
-warnings.filterwarnings("always", category=DeprecationWarning)
-
 if 1:
     from hanzilib.build.cli import main
     main()

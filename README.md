@@ -10,6 +10,12 @@ After installing, run `hzbuild` to build the database
 ## Current state of the project
 - Core functionality ported to Python 3
 - Core functionality now uses SqlAlchemy 2.0
+- **There is still a LOT to update/document**
+
+
+### Notes
+- the legacy version `EDICT` is used instead of `EDICT2`, this will be changed shortly
+
 
 ## Changes over the years
 - `kRSKangXi` (data from 康熙字典) was removed from Unihan in favour of `kRSUnicode`, which is now the standard for getting radicals of Chinese characters (See: [Unicode proposal L2/22-195](https://www.unicode.org/L2/L2022/22195-remove-krskangxi.pdf))

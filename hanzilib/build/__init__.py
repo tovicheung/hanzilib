@@ -30,6 +30,7 @@ import os.path
 
 from sqlalchemy.exc import OperationalError
 
+from .. import log
 from .. import dbconnector
 from .. import exception
 
@@ -162,7 +163,7 @@ class DatabaseBuilder:
                         errorMsg = "Unknown option '%s' for builder '%s'" \
                             % (optionName, className)
                         if ignoreUnknown:
-                            warn(errorMsg + ", ignoring")
+                            log.warn(errorMsg + ", ignoring")
                         else:
                             raise ValueError(errorMsg)
 
@@ -211,15 +212,16 @@ class DatabaseBuilder:
         :raise IOError: if a table builder fails to read its data; only if
             :attr:`~cjklib.build.DatabaseBuilder.noFail` is set to ``False``
         """
-        print("Starting building ...", tables)
         if type(tables) != type([]):
             tables = [tables]
         tables: list[str]
-        if not self.quiet:
-            warn("Building database '%s'" % self.db.databaseUrl)
-            if self.db.attached:
-                warn("Reading from additional databases '%s'"
-                    % "', '".join(list(self.db.attached.keys())))
+
+        log.task("Building tables in databse")
+        log.log(f"Database: {self.db.databaseUrl}")
+        if self.db.attached:
+            log.log("Attached databases:")
+            log.list(self.db.attached.keys())
+        log.log(f"Tables: {tables}")
 
         # remove tables that don't need to be rebuilt
         filteredTables = []
@@ -231,27 +233,24 @@ class DatabaseBuilder:
             if self.needsRebuild(table):
                 filteredTables.append(table)
             else:
-                if not self.quiet:
-                    warn("Skipping table '%s' because it already exists" \
-                        % table)
+                log.log(f"Skpping table '{table}' because it already exists")
         tables = filteredTables
 
         # get depending tables that need to be updated when dependencies change
         dependingTables = []
         if self.rebuildDepending:
             # report tables that should be updated but lie outside our scope
-            if not self.quiet:
+            if log.enabled:
                 externalDependingTables \
                     = self.getExternalRebuiltDependingTables(tables)
                 if externalDependingTables:
-                    warn("Ignoring tables with dependencies updated"
+                    log.warn("Ignoring tables with dependencies updated"
                         + " but belonging to attached databases: '" \
                         + "', '".join(externalDependingTables) + "'")
 
             dependingTables = self.getRebuiltDependingTables(tables)
             if dependingTables:
-                if not self.quiet:
-                    warn("Tables rebuilt because of dependencies updated: '" \
+                log.log("These tables will be rebuilt because their dependencies will be updated: '"
                         + "', '".join(dependingTables) + "'")
                 tables.extend(dependingTables)
 
@@ -263,19 +262,13 @@ class DatabaseBuilder:
 
         # build tables
         if not self.quiet and self.rebuildExisting:
-            warn("Rebuilding tables and overwriting old ones...")
+            log.log("Rebuilding tables and overwriting old ones...")
+        
         builderClasses.reverse()
         self._instancesUnrequestedTable: set[TableBuilder] = set()
 
+        self.db.connection.commit()
         while builderClasses:
-            if 1:
-                result = self.db.connection.execute(sqlalchemy.text("SELECT name FROM sqlite_master WHERE type='table';"))
-                self.db.connection.commit()
-                tablesBuilt = [row[0] for row in result]
-                print()
-                print(f"\033[1mBuild progress: {len(tablesBuilt)}/{59}\033[m")
-                # print(*tablesBuilt)
-
             builder = builderClasses.pop()
 
             transaction = self.db.connection.begin()
@@ -293,14 +286,10 @@ class DatabaseBuilder:
 
                 if self.db.mainHasTable(builder.PROVIDES):
                     # will only remove the table if found in the main database
-                    if not self.quiet:
-                        warn("Removing previously built table '%s'"
-                            % builder.PROVIDES)
+                    log.log(f"Removing previously built table '{builder.PROVIDES}'")
                     instance.remove()
 
-                if not self.quiet:
-                    warn("Building table '%s' with builder '%s'..."
-                        % (builder.PROVIDES, builder.__name__))
+                log.log(f"Building table '{builder.PROVIDES}' with builder {builder.__name__}")
 
                 # remove old metadata
                 if builder.PROVIDES in self.db.tables:
@@ -312,9 +301,7 @@ class DatabaseBuilder:
                 transaction.rollback()
                 # data not available, can't build table
                 if self.noFail:
-                    if not self.quiet:
-                        warn("Building table '%s' failed: '%s', skipping" \
-                            % (builder.PROVIDES, str(e)))
+                    log.warn(f"Failed to build table '{builder.PROVIDES}', skipping; Error: {e}")
                     dependingTables = [builder.PROVIDES]
                     remainingBuilderClasses = []
                     for clss in builderClasses:
@@ -323,22 +310,26 @@ class DatabaseBuilder:
                             dependingTables.append(clss.PROVIDES)
                         else:
                             remainingBuilderClasses.append(clss)
-                    if not self.quiet and len(dependingTables) > 1:
-                        warn("Ignoring depending table(s) '%s'" \
+                    if len(dependingTables) > 1:
+                        log.warn("Ignoring depending table(s) '%s'" \
                             % "', '".join(dependingTables[1:]))
                     builderClasses = remainingBuilderClasses
                 else:
-                    if not self.quiet: warn("Error")
                     self.clearTemporary()
-                    # raise
+                    raise
             except sqlalchemy.exc.IntegrityError:
                 transaction.rollback()
                 raise
             except Exception as e:
                 transaction.rollback()
-                if not self.quiet: warn("Error")
                 self.clearTemporary()
                 raise
+            
+            if 1:
+                result = self.db.connection.execute(sqlalchemy.text("SELECT name FROM sqlite_master WHERE type='table';"))
+                self.db.connection.commit()
+                tablesBuilt = [row[0] for row in result]
+                log.success(f"\033[1mTables built: {len(tablesBuilt)}\033[m")
 
         self.clearTemporary()
 
@@ -354,8 +345,7 @@ class DatabaseBuilder:
         # remove tables that where only created as build dependencies
         if hasattr(self, '_instancesUnrequestedTable'):
             for instance in self._instancesUnrequestedTable:
-                if not self.quiet:
-                    warn("Removing table '" + instance.PROVIDES \
+                log.log("Removing table '" + instance.PROVIDES \
                         + "' as it was only created to solve build " \
                         + "dependencies")
                 try:
@@ -390,9 +380,7 @@ class DatabaseBuilder:
         removed = []
         for builder in tableBuilderClasses:
             if self.db.mainHasTable(builder.PROVIDES):
-                if not self.quiet:
-                    warn("Removing previously built table '%s'"
-                        % builder.PROVIDES)
+                log.warn(f"Removing previously built table '{builder.PROVIDES}'")
 
                 # get specific options given to the DatabaseBuilder
                 options = self.getBuilderOptions(builder, ignoreUnknown=True)
@@ -471,8 +459,8 @@ class DatabaseBuilder:
             for depededTable in builderClass.DEPENDS:
                 solveDependencyRecursive(depededTable)
 
-        if not self.quiet and skippedTables:
-            warn("Newly built tables depend on table(s) '" \
+        if skippedTables:
+            log.log("Tables to be built depend on table(s) '" \
                 + "', '".join(skippedTables) \
                 + "' but skipping because they already exist")
         return dependedTablesNames
@@ -608,7 +596,7 @@ class DatabaseBuilder:
                     + "'. Builders with open depends: '" \
                     + "', '".join([builder.PROVIDES \
                         for builder in tableBuilderClasses]) + "'")
-        # print("dep", dependencyOrder)
+        
         return dependencyOrder
 
     @staticmethod
@@ -743,8 +731,8 @@ class DatabaseBuilder:
                 builderClssSet.remove(preferred)
             else:
                 preferred = builderClssSet.pop()
-            if not quiet and builderClssSet:
-                warn("Removing conflicting builder(s) '%s'" \
+            if builderClssSet:
+                log.log("Removing conflicting builder(s) '%s'" \
                         % "', '".join(
                             [clss.__name__ for clss in builderClssSet]) \
                     + " in favour of '%s'" % preferred.__name__)
@@ -821,14 +809,3 @@ class DatabaseBuilder:
             self.db.execute('VACUUM')
         else:
             raise Exception('Database does not seem to support optimization')
-
-#{ Global methods
-
-def warn(message):
-    """
-    Prints the given message to stderr with the system's default encoding.
-
-    :type message: str
-    :param message: message to print
-    """
-    print(str(message), file=sys.stderr)

@@ -89,8 +89,12 @@ class CharacterInfo:
         'zh_MO': "Jyutping", 'ko': 'Hangul', 'ja': 'Kana'}
     """Character locale's default character reading."""
 
-    DICTIONARY_CHAR_LOCALE = {'HanDeDict': 'C', 'CFDICT': 'C', 'CEDICT': 'C',
-        'CEDICTGR': 'T', 'EDICT': 'J'}
+    DICTIONARY_CHAR_LOCALE = {
+        'HanDeDict': 'C',
+        # 'CFDICT': 'C',
+        'CEDICT': 'C',
+        # 'CEDICTGR': 'T',
+        'EDICT': 'J'}
     """Dictionary default locale."""
 
     READING_DEFAULT_DICTIONARY = {'Pinyin': 'CEDICT'}
@@ -1152,7 +1156,19 @@ def main():
     default_encoding = locale.getpreferredencoding()
     output_encoding = sys.stdout.encoding or locale.getpreferredencoding() \
         or 'ascii'
-
+    
+    # Temporary measure
+    if sys.argv[1] == "install-dict":
+        from hanzilib.dictionary.install import main
+        sys.argv.remove("install-dict")
+        main()
+        return
+    
+    if sys.argv[1] == "build":
+        from hanzilib.build.cli import main
+        main()
+        return
+    
     # parse command line parameters
     try:
         opts, _ = getopt.getopt(sys.argv[1:],
@@ -1276,7 +1292,7 @@ def main():
                 dictionaryDatabaseUrl=url)
         except ValueError:
             print((("Error: dictionary '%(dict)s' not available."
-                "\nInstall by running 'installcjkdict %(dict)s'")
+                "\nInstall by running 'hanzi %(dict)s'")
                     % {'dict': dictionaryN}), file=sys.stderr)
             sys.exit(1)
         charLocale = charInfo.locale
@@ -1300,7 +1316,7 @@ def main():
                 print(("Information for character " + infoDict['char'] + " (" \
                     + infoDict['locale name'] + " locale, " \
                     + infoDict['characterDomain'] + ' domain)')\
-                    .encode(output_encoding, "replace"))
+                )
                 print("Unicode codepoint: " + infoDict['codepoint hex'] + " (" \
                     + infoDict['codepoint dec'] + ", "+ infoDict['type'] \
                     + " form)")
@@ -1308,7 +1324,7 @@ def main():
                 if 'equivalent form' in infoDict:
                     print(("Equivalent character form: " \
                         + infoDict['equivalent form'])\
-                        .encode(output_encoding, "replace"))
+                    )
 
                 if infoDict['radical index']:
                     radicalForms = ""
@@ -1320,14 +1336,13 @@ def main():
                             + ", ".join(infoDict['radical variants'])
                     print(("Radical index: " + str(infoDict['radical index']) \
                         + radicalForms)\
-                        .encode(output_encoding, "replace"))
+                    )
 
                 if 'stroke count' in infoDict:
                     strokeCount = str(infoDict['stroke count'])
                 else:
                     strokeCount = 'N/A'
-                print(("Stroke count: " + strokeCount)\
-                    .encode(output_encoding, "replace"))
+                print(("Stroke count: " + strokeCount))
 
                 if infoDict['type'] == 'character':
                     readingList = list(infoDict['readings'].keys())
@@ -1335,14 +1350,14 @@ def main():
                     for readingN in readingList:
                         print(("Phonetic data (" + readingN + "): " \
                             + ", ".join(infoDict['readings'][readingN]))\
-                            .encode(output_encoding, "replace"))
+                        )
 
                     variantList = list(infoDict['variants'].keys())
                     variantList.sort()
                     for variantType in variantList:
                         print((variantType + ': ' \
                             + ', '.join(infoDict['variants'][variantType]))\
-                            .encode(output_encoding, "replace"))
+                        )
 
                 glyphList = list(infoDict['glyphs'].keys())
                 glyphList.sort()
@@ -1361,14 +1376,13 @@ def main():
                     if 'decomposition' in infoDict['glyphs'][glyph]:
                         stringList = getDecompositionForList(
                             infoDict['glyphs'][glyph]['decomposition'])
-                        print(("\n".join(stringList))\
-                            .encode(output_encoding, "replace"))
+                        print(("\n".join(stringList)))
                     if 'stroke order' in infoDict['glyphs'][glyph]:
                         print(("Stroke order: " + ''.join(
                             infoDict['glyphs'][glyph]['stroke order']) + ' (' \
                             + infoDict['glyphs'][glyph]['stroke order abbrev'] \
-                            + ')')\
-                            .encode(output_encoding, "replace"))
+                            + ')')
+                        )
             else:
                 # encoding errors can lead to a string > 1 char
                 print(repr(parameter))
@@ -1490,7 +1504,7 @@ def main():
                         % entry._asdict())
                 else:
                     string = "%(Headword)s %(Translation)s" % entry._asdict()
-                print(string.encode(output_encoding, "replace"))
+                print(string)
 
         # dictionary search
         elif command == "-y":
