@@ -1,5 +1,7 @@
 from __future__ import annotations
 import sqlalchemy.exc
+
+from ..dictionary import getDictionaryClasses
 #!/usr/bin/python
 # -*- coding: utf-8  -*-
 # This file is part of cjklib.
@@ -203,7 +205,7 @@ class DatabaseBuilder:
 
         self.options.update(newOptions)
 
-    def build(self, tables):
+    def build(self, tables: list[str] | str):
         """
         Builds the given tables.
 
@@ -214,14 +216,20 @@ class DatabaseBuilder:
         """
         if type(tables) != type([]):
             tables = [tables]
+        
         tables: list[str]
 
         log.task("Building tables in databse")
-        log.log(f"Database: {self.db.databaseUrl}")
+        log.log(f"\033[1mDatabase:\033[m {self.db.databaseUrl}")
         if self.db.attached:
-            log.log("Attached databases:")
+            log.log("\033[1mAttached databases:\033[m")
             log.list(self.db.attached.keys())
-        log.log(f"Tables: {tables}")
+        log.log("\033[mTables:\033[m " + ", ".join(tables))
+
+        summary_success = []
+        summary_failed = []
+        summary_ignored = []
+        summary_skipped = []
 
         # remove tables that don't need to be rebuilt
         filteredTables = []
@@ -233,6 +241,7 @@ class DatabaseBuilder:
             if self.needsRebuild(table):
                 filteredTables.append(table)
             else:
+                summary_skipped.append(table)
                 log.log(f"Skpping table '{table}' because it already exists")
         tables = filteredTables
 
@@ -261,13 +270,13 @@ class DatabaseBuilder:
         builderClasses = self.getClassesInBuildOrder(buildTables)
 
         # build tables
-        if not self.quiet and self.rebuildExisting:
-            log.log("Rebuilding tables and overwriting old ones...")
+        if self.rebuildExisting:
+            log.log("Existing tables will be rebuilt and overridden (rebuildExisting=True)")
         
         builderClasses.reverse()
         self._instancesUnrequestedTable: set[TableBuilder] = set()
-
         self.db.connection.commit()
+
         while builderClasses:
             builder = builderClasses.pop()
 
@@ -289,7 +298,7 @@ class DatabaseBuilder:
                     log.log(f"Removing previously built table '{builder.PROVIDES}'")
                     instance.remove()
 
-                log.log(f"Building table '{builder.PROVIDES}' with builder {builder.__name__}")
+                log.task(f"Building table '{builder.PROVIDES}'\033[m")
 
                 # remove old metadata
                 if builder.PROVIDES in self.db.tables:
@@ -297,10 +306,12 @@ class DatabaseBuilder:
 
                 instance.build()
                 transaction.commit()
+                summary_success.append(builder.PROVIDES)
             except IOError as e:
                 transaction.rollback()
                 # data not available, can't build table
                 if self.noFail:
+                    summary_failed.append(builder.PROVIDES)
                     log.warn(f"Failed to build table '{builder.PROVIDES}', skipping; Error: {e}")
                     dependingTables = [builder.PROVIDES]
                     remainingBuilderClasses = []
@@ -310,6 +321,7 @@ class DatabaseBuilder:
                             dependingTables.append(clss.PROVIDES)
                         else:
                             remainingBuilderClasses.append(clss)
+                    summary_ignored.extend(x for x in dependingTables if x != builder.PROVIDES)
                     if len(dependingTables) > 1:
                         log.warn("Ignoring depending table(s) '%s'" \
                             % "', '".join(dependingTables[1:]))
@@ -324,14 +336,32 @@ class DatabaseBuilder:
                 transaction.rollback()
                 self.clearTemporary()
                 raise
+
+            log.dedent()
             
-            if 1:
+            if 0:
                 result = self.db.connection.execute(sqlalchemy.text("SELECT name FROM sqlite_master WHERE type='table';"))
                 self.db.connection.commit()
                 tablesBuilt = [row[0] for row in result]
                 log.success(f"\033[1mTables built: {len(tablesBuilt)}\033[m")
 
         self.clearTemporary()
+
+        dicts = [x.__name__ for x in getDictionaryClasses()]
+        log.success("Build summary:")
+        log.indent()
+        log.log(f"{len(summary_success)} new tables were built")
+        if summary_skipped:
+            log.log(f"{len(summary_skipped)} tables already exist and were not rebuilt (set rebuildExisting=True to override)")
+        if summary_failed:
+            log.log(f"{len(summary_failed)} tables were skipped due to no data source (check logs for details) :")
+            log.list([x + "\t\thelp: install dictionary data with: hanzi install-dict " + x if x in dicts else x for x in summary_failed])
+        if summary_ignored:
+            log.log(f"{len(summary_ignored)} tables were skipped due to their dependencies being skipped :")
+            log.list(summary_ignored)
+        log.dedent()
+        
+        log.dedent()
 
     def clearTemporary(self):
         """

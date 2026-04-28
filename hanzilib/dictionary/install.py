@@ -88,16 +88,6 @@ def progress(i, chunkSize, total):
         progressTick += 1
     sys.stdout.flush()
 
-def warn(message, endline=True):
-    """
-    Prints the given message to stderr with the system's default encoding.
-
-    :type message: str
-    :param message: message to print
-    """
-    print(message.encode(locale.getpreferredencoding(), 'replace'), end=' ')
-    if endline: print()
-
 #{ Access methods
 
 def getDownloaderClasses():
@@ -173,10 +163,10 @@ class DownloaderBase(object):
         """
         link = self.getDownloadLink()
 
-        if not self.quiet: warn("Sending HEAD request to %s..." % link, endline=False)
+        log.log("Sending HEAD request to %s..." % link)
         with urllib.request.urlopen(link) as response:
             last_modified = response.headers.get('Last-Modified')
-        if not self.quiet: warn("Done")
+        log.log("Done")
         if last_modified:
             return datetime.strptime(last_modified, '%a, %d %b %Y %H:%M:%S %Z')
 
@@ -235,6 +225,7 @@ class DownloaderBase(object):
         if not self.quiet:
             log.log(f"Saved as {fileName}")
 
+        log.dedent()
         return fileName
 
 
@@ -281,9 +272,6 @@ class PageDownloaderBase(DownloaderBase):
             log.log(f"Getting download page {self.DEFAULT_DOWNLOAD_PAGE}...")
         with urllib.request.urlopen(self.DEFAULT_DOWNLOAD_PAGE) as response:
             download_page = response.read().decode("utf-8")
-
-        if not self.quiet:
-            log.log("done")
         
         return download_page
 
@@ -458,13 +446,12 @@ class DictionaryInstaller(object):
                     newestVersion = datetime.combine(newestVersion, time(0))
 
                 if newestVersion and curVersion and newestVersion <= curVersion:
-                    if not self.quiet: warn("Newest version already installed")
+                    log.log("Newest version already installed (set forceUpdate=True to override)")
                     return configuration['sqlalchemy.url']
 
         filePath = downloader.download(temporary=True)
 
         # create builder instance
-        options['quiet'] = self.quiet
         dbBuilder = build.DatabaseBuilder(dbConnectInst=db, filePath=filePath,
             **options)
 
@@ -530,10 +517,9 @@ Example: \"%prog --local CEDICT\"."""
             try:
                 installer.install(dictionary, **options)
             except OperationalError as e:
-                if not opts.quiet:
-                    warn("Error writing to database: %s" % e)
-                    if not opts.local:
-                        warn("Try choosing --local for installing into HOME")
+                log.error("Error writing to database: %s" % e)
+                if not opts.local:
+                    log.error("Try choosing --local for installing into HOME")
                 return False
 
         return True

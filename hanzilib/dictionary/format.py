@@ -33,7 +33,7 @@ from hanzilib import exception
 
 #{ Formatting strategies
 
-class Base(object):
+class Base:
     """Base formatting strategy, needs to be overridden."""
     def setDictionaryInstance(self, dictInstance):
         self._dictInstance = dictInstance

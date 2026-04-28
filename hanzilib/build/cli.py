@@ -514,8 +514,6 @@ along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
 
         try:
             dbBuilder.build(groups)
-
-            print("finished")
         except exception.UnsupportedError as e:
             print("Error building local tables, some names do not exist: %s" % e, file=sys.stderr)
             return False

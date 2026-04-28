@@ -1157,6 +1157,9 @@ def main():
     output_encoding = sys.stdout.encoding or locale.getpreferredencoding() \
         or 'ascii'
     
+    if len(sys.argv) == 1:
+        sys.argv.append("--help")
+
     # Temporary measure
     if sys.argv[1] == "install-dict":
         from hanzilib.dictionary.install import main

@@ -52,6 +52,7 @@ from . import reading
 from . import exception
 from . import dbconnector
 from . import util
+from . import log
 
 from .dbconnector import DatabaseConnector
 
@@ -455,7 +456,7 @@ class CharacterLookup:
                 "No mapping from characters to reading '%s'" % readingN)
         else:
             raise exception.UnsupportedError(
-                "No mapping from reading '%s' to characterss" % readingN)
+                "No mapping from reading '%s' to characters" % readingN)
 
     #}
 
@@ -1257,8 +1258,7 @@ class CharacterLookup:
                             strokes = [order.replace(' ', '-').split('-')
                                 for order in so]
                             if strokes != [['S', 'HZ', 'H']]:
-                                import warnings
-                                warnings.warn(
+                                log.warn(
                                     "Invalid decomposition entry %r" % subTree)
                                 return None, index
                             strokeOrder.append('S-HZ')

@@ -95,15 +95,11 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from .. import characterlookup
 from .. import exception
 from ..util import UnicodeCSVFileIterator, CollationString, CollationText, deprecated
+from .. import log
 
 import typing
 if typing.TYPE_CHECKING:
     from ..dbconnector import DatabaseConnector
-import sys
-# Temporary measure
-
-def warn(string):
-    print(string, file=sys.stderr)
 
 # pylint: disable-msg=E1101
 #  member variables are set by setattr()
@@ -419,8 +415,7 @@ class UnihanGenerator:
 
                     resultObj = self.ENTRY_REGEX.match(line)
                     if not resultObj:
-                        if not self.quiet:
-                            warn("Can't read line from '%s': '%s'"
+                        log.warn("Can't read line from '%s': '%s'"
                                 % (fileName, line))
                         continue
                     unicodeHexCodePoint, key, value = resultObj.group(1, 2, 3)
@@ -491,8 +486,7 @@ class UnihanGenerator:
         :return: list of column names
         """
         if not self.keySet:
-            if not self.quiet:
-                warn("Looking for all keys in Unihan database...")
+            log.log("Looking for all keys in Unihan database...")
             self.keySet = set()
             handleDict = self.getHandles()
             for handle in list(handleDict.values()):
@@ -507,7 +501,6 @@ class UnihanGenerator:
                     _, key, _ = resultObj.group(1, 2, 3)
                     self.keySet.add(key)
                 handle.close()
-        # print("Unihan keys", list(self.keySet))
         return list(self.keySet)
 
 
@@ -644,8 +637,8 @@ class UnihanBuilder(EntryGeneratorBuilder):
             # executed
             self.unihanGenerator = UnihanGenerator(pathList, useKeys=columns,
                 wideBuild=self.wideBuild, quiet=self.quiet)
-            if not self.quiet:
-                warn("reading file(s) '%s'" % "', '".join(pathList))
+            log.log("Reading files:")
+            log.list(pathList)
         return self.unihanGenerator
 
     def getGenerator(self):
@@ -848,8 +841,7 @@ class Kanjidic2Builder(EntryGeneratorBuilder):
         """
         path = self.findFile(['kanjidic2.xml.gz', 'kanjidic2.xml'],
             "KANJIDIC2 XML file")
-        if not self.quiet:
-            warn("reading file '" + path + "'")
+        log.log("Readin file " + path)
         return Kanjidic2Builder.KanjidicGenerator(path,
             self.KANJIDIC_TAG_MAPPING).generator()
 
@@ -930,7 +922,7 @@ class UnihanDerivedBuilder(EntryGeneratorBuilder):
         elif self.ignoreMissing:
             tableEntries = []
             if not self.quiet:
-                warn("Column '%s' does not exist in source 'Unihan', ignoring"
+                log.warn("Column '%s' does not exist in source 'Unihan', ignoring"
                     % self.COLUMN_SOURCE)
         else:
             raise IOError("Column '%s' does not exist in source 'Unihan'"
@@ -938,9 +930,8 @@ class UnihanDerivedBuilder(EntryGeneratorBuilder):
         return self.GENERATOR_CLASS(tableEntries, self.quiet).generator()
 
     def build(self):
-        if not self.quiet:
-            warn("Reading table content from Unihan column '%s'"
-                % self.COLUMN_SOURCE)
+        log.log("Reading table content from Unihan column '%s'"
+            % self.COLUMN_SOURCE)
         super(UnihanDerivedBuilder, self).build()
 
 
@@ -1004,8 +995,8 @@ class CharacterRadicalBuilder(UnihanDerivedBuilder):
                 if matchObj:
                     radical = matchObj.group(1)
                     yield(character, radical)
-                elif not self.quiet:
-                    warn("unable to read radical information of character '" \
+                else:
+                    log.warn("unable to read radical information of character '" \
                         + character + "': '" + radicalStroke + "'")
 
     COLUMN_TARGETS = ['RadicalIndex']
@@ -1122,9 +1113,9 @@ class CharacterVariantBuilder(EntryGeneratorBuilder):
                                 if self.wideBuild or codePoint < 0x10000:
                                     variant = chr(codePoint)
                                     yield(character, variant, variantType)
-                        elif not self.quiet:
+                        else:
                             # didn't match the regex
-                            warn('unable to read variant information of ' \
+                            log.warn('unable to read variant information of ' \
                                 + "character '" + character + "' for type '" \
                                 + variantType + "': '" + variantInfo + "'")
 
@@ -1190,9 +1181,8 @@ class CharacterVariantBuilder(EntryGeneratorBuilder):
                 .generator()
 
     def build(self):
-        if not self.quiet:
-            warn("Reading table content from Unihan columns '%s'"
-                % "', '".join(list(self.COLUMN_SOURCE_ABBREV.keys())))
+        log.log("Reading table content from Unihan columns '%s'"
+            % "', '".join(list(self.COLUMN_SOURCE_ABBREV.keys())))
         super(CharacterVariantBuilder, self).build()
 
 
@@ -1220,8 +1210,7 @@ class UnihanCharacterSetBuilder(EntryGeneratorBuilder):
         return iter(tableEntries)
 
     def build(self):
-        if not self.quiet:
-            warn("Reading table content from Unihan column '%s'"
+        log.log("Reading table content from Unihan column '%s'"
                 % self.COLUMN_SOURCE)
         super(UnihanCharacterSetBuilder, self).build()
 
@@ -1280,8 +1269,7 @@ class BIG5HKSCSSetBuilder(EntryGeneratorBuilder):
         return itertools.chain(big5, hkscs)
 
     def build(self):
-        if not self.quiet:
-            warn("Reading table content from Unihan columns "
+        log.log("Reading table content from Unihan columns "
                 "'kBigFive' // and 'kHKSCS'") # not supported anymore
         super(BIG5HKSCSSetBuilder, self).build()
 
@@ -1322,8 +1310,7 @@ class JISX0208_0213SetBuilder(EntryGeneratorBuilder):
         return itertools.chain(jis0208, jis0213)
 
     def build(self):
-        if not self.quiet:
-            warn("Reading table content from Unihan columns "
+        log.log("Reading table content from Unihan columns "
                 "'kJis0' and 'kJIS0213'")
         super(JISX0208_0213SetBuilder, self).build()
 
@@ -1409,8 +1396,9 @@ class CharacterReadingBuilder(UnihanDerivedBuilder):
             """Provides one entry per reading entity and character."""
             for character, readings in self.readingEntries:
                 readingList = self.SPLIT_REGEX.findall(readings)
-                if not self.quiet and len(set(readingList)) < len(readingList):
-                    warn('reading information of character ' + character \
+                if len(set(readingList)) < len(readingList):
+                    # todo: warn?
+                    log.log('reading information of character ' + character \
                         + ' is inconsistent: ' + ', '.join(readingList))
                 for reading in set(readingList):
                     yield(character, reading.lower())
@@ -1489,8 +1477,8 @@ class CharacterXHPCReadingBuilder(UnihanDerivedBuilder):
             for character, readings in self.readingEntries:
                 readingList = self.SPLIT_REGEX.findall(readings)
                 readingDict = dict(readingList)
-                if not self.quiet and len(readingDict) < len(readingList):
-                    warn('reading information of character ' + character \
+                if len(readingDict) < len(readingList):
+                    log.log('reading information of character ' + character \
                         + ' is inconsistent: ' + ', '.join(readingList))
                 for reading, frequency in list(readingDict.items()):
                     yield(character, reading.lower(), frequency)
@@ -1563,8 +1551,8 @@ class CharacterDiacriticPinyinBuilder(CharacterReadingBuilder):
             """Provides one entry per reading entity and character."""
             for character, readings in self.readingEntries:
                 readingList = self.SPLIT_REGEX.findall(readings)
-                if not self.quiet and len(set(readingList)) < len(readingList):
-                    warn('reading information of character ' + character \
+                if len(set(readingList)) < len(readingList):
+                    log.log('reading information of character ' + character \
                         + ' is inconsistent: ' + ', '.join(readingList))
                 readings = set()
                 for readingEntry in set(readingList):
@@ -1681,8 +1669,7 @@ class CSVFileLoader(TableBuilder):
         contentFile = self.findFile([self.TABLE_CSV_FILE_MAPPING], "table")
 
         # get create statement
-        if not self.quiet:
-            warn("Reading table definition from file '" + definitionFile + "'")
+        log.log("Reading table definition from file '" + definitionFile + "'")
 
         fileHandle = open(definitionFile, 'r', encoding='utf-8')
         createStatement = ''.join(fileHandle.readlines()).strip("\n")
@@ -1691,8 +1678,7 @@ class CSVFileLoader(TableBuilder):
         table = Table(self.PROVIDES, self.db.metadata, autoload_with=self.db.engine)
 
         # write table content
-        if not self.quiet:
-            warn("Reading table '" + self.PROVIDES + "' from file '" \
+        log.log("Reading table '" + self.PROVIDES + "' from file '" \
                 + contentFile + "'")
         fileHandle = open(contentFile, 'r', encoding='utf-8')
 
@@ -1717,7 +1703,7 @@ class CSVFileLoader(TableBuilder):
 
             try:
                 self.db.execute(table.insert(), entries)
-                print("Entries added:", table, len(entries))
+                log.log(f"{len(entries)} entries are inserted")
             except IntegrityError as e:
                 # if not self.quiet:
                 #     warn(str(e))
@@ -2180,8 +2166,7 @@ class StrokeCountBuilder(EntryGeneratorBuilder):
                 except exception.NoInformationError:
                     pass
                 except IndexError:
-                    if not self.quiet:
-                        warn("malformed IDS for character %r" % char)
+                    log.warn("malformed IDS for character %r" % char)
 
     PROVIDES = 'StrokeCount'
     DEPENDS = ['CharacterDecomposition', 'StrokeOrder', 'Strokes']
@@ -2331,10 +2316,10 @@ class CombinedStrokeCountBuilder(StrokeCountBuilder):
 
             # warn about stroke count in preferred source that differs from
             #   Unihan entry.
-            if not self.quiet:
+            if log.enabled:
                 soMismatch = self.checkAgainstUnihan(strokeCountDict,
                     self.tableEntries)
-                warn("Specific stroke counts do not include stroke count" \
+                log.log("Specific stroke counts do not include stroke count" \
                     " as given by Unihan: " \
                     + ' '.join(['%s ([%s], %d)' \
                         % (c, ' '.join([str(i) for i in s]), u) \
@@ -2372,8 +2357,8 @@ class CombinedStrokeCountBuilder(StrokeCountBuilder):
                 except exception.NoInformationError:
                     pass
 
-            if not self.quiet and warningGlyphs:
-                warn("ambiguous stroke count information (mixed sources) for "
+            if warningGlyphs:
+                log.log("ambiguous stroke count information (mixed sources) for "
                     + ', '.join(["'%s' (%d)" % (char, glyph) for char, glyph \
                         in warningGlyphs]))
 
@@ -2791,8 +2776,7 @@ class CharacterRadicalStrokeCountBuilder(EntryGeneratorBuilder):
                         entryDict['CharacterLayout'],
                         entryDict['RadicalPosition'])
                     if key in entrySet:
-                        if not self.quiet:
-                            warn("Inconsistent stroke count for '%s' (%d)"
+                        log.log("Inconsistent stroke count for '%s' (%d)"
                                 % (char, glyph))
                         # remove entries
                         entriesDict[(char, glyph)] = []
@@ -3090,8 +3074,8 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
                 # parse line
                 matchObj = self.entryRegex.match(line)
                 if not matchObj:
-                    if not self.quiet and line.strip() != '':
-                        warn("error reading line '" + line + "'")
+                    if line.strip() != '':
+                        log.warn("error reading line '" + line + "'")
                     continue
                 # get entries
                 entry = matchObj.groups()
@@ -3216,7 +3200,7 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
 
         handle = self.getFileHandle(filePath)
         if not self.quiet:
-            warn("Reading table from file '" + filePath + "'")
+            log.log("Reading table from file '" + filePath + "'")
 
         # ignore starting lines
         for _ in range(0, self.IGNORE_LINES):
@@ -3445,7 +3429,7 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
                     reason = 'not supported by database engine.'
                 else:
                     reason = 'extension not found.'
-                warn("SQLite FTS3 fulltext search unsupported: %s" % reason)
+                log.warn("SQLite FTS3 fulltext search unsupported: %s" % reason)
             # get create statement
             table = self.buildTableObject(self.PROVIDES, self.COLUMNS,
                 self.COLUMN_TYPES, self.PRIMARY_KEYS)
@@ -3841,8 +3825,7 @@ class SimpleWenlinFormatBuilder(EntryGeneratorBuilder):
 
                 pair = re.split(r'\s+', line.strip(), 1)
                 if len(pair) != 2:
-                    if not self.quiet:
-                        warn("Error reading line: '%s'" % line.strip())
+                    log.warn("Error reading line: '%s'" % line.strip())
                     continue
                 else:
                     key, value = pair
@@ -3865,14 +3848,13 @@ class SimpleWenlinFormatBuilder(EntryGeneratorBuilder):
                         entry[key] = {}
                     elif type(entry[key]) != type({}):
                         entry[key] = {'-1': entry[key]}
-                        if not self.quiet:
-                            warn("Warning: "
+                        log.warn("Warning: "
                                 "index error for key '%s' in entry '%s'" %
                                     (key, entry.get('characters', '')))
                     entry[key][int(idx)] = value
                 else:
                     if key in entry:
-                        warn("Warning: "
+                        log.warn("Warning: "
                             "overwriting pair '%s': '%s' for entry '%s'" %
                                 (key, entry[key], entry.get('characters', '')))
                     entry[key] = value
@@ -3889,8 +3871,7 @@ class SimpleWenlinFormatBuilder(EntryGeneratorBuilder):
         if 'characters' not in entry:
             entry['HeadwordTraditional'] = None
             entry['HeadwordSimplified'] = None
-            if not self.quiet:
-                warn("No characters defined for entry '%s'" % repr(entry))
+            log.warn("No characters defined for entry '%s'" % repr(entry))
             return entry
 
         matchObj = re.match(r'^(.+)\s*\[(.+)\]\s*$', entry['characters'])
@@ -3907,8 +3888,7 @@ class SimpleWenlinFormatBuilder(EntryGeneratorBuilder):
                 tranditional = ''.join(tranditional)
             except IndexError:
                 tranditional = simplified
-                if not self.quiet:
-                    warn("Error deriving traditional form from '%s'"
+                log.warn("Error deriving traditional form from '%s'"
                         % entry['characters'])
 
         del entry['characters']
@@ -3993,16 +3973,14 @@ class SimpleWenlinFormatBuilder(EntryGeneratorBuilder):
             filePath = self.findFile(self.FILE_NAMES)
 
         handle = self.getFileHandle(filePath)
-        if not self.quiet:
-            warn("Reading table from file '" + filePath + "'")
+        log.log("Reading table from file '" + filePath + "'")
 
         # remove header
         line = handle.readline()
         while re.match(r'^\s*$', line):
             line = handle.readline()
         if line.strip() != 'cidian.db':
-            if not self.quiet:
-                warn("Warning: file does not start with string 'cidian.db'")
+            log.warn("Warning: file does not start with string 'cidian.db'")
             if line.startswith('***'):
                 handle = prependLineGenerator(line, handle)
         line = handle.readline()
@@ -4011,8 +3989,8 @@ class SimpleWenlinFormatBuilder(EntryGeneratorBuilder):
         if line.strip() != "New or changed entries:":
             if line.startswith('***'):
                 handle = prependLineGenerator(line, handle)
-            elif not self.quiet:
-                warn("Warning: unrecognized header information '%s'"
+            else:
+                log.warn("Warning: unrecognized header information '%s'"
                     % line)
 
         # create generator
