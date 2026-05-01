@@ -17,3 +17,4 @@ cjk = CharacterLookup("C")
 bear = "熊"
 bear_pinyin = cjk.getReadingForCharacter(bear, "Pinyin")
 print(bear_pinyin)
+print(cjk.getStrokeOrderAbbrev("卩"))

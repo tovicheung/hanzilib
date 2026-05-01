@@ -50,7 +50,7 @@ packages = [
 ]
 
 [tool.setuptools.package-data]
-hanzilib = ["data/*.csv", "data/*.sql", "data/*.txt", "hanzilib.conf"]
+hanzilib = ["data/*.csv", "data/*.sql", "data/*.txt", "data/*.xml", "hanzilib.conf"]
 
 # Replacement for setup.cfg [build_sphinx]
 [tool.sphinx]

@@ -124,7 +124,7 @@ class CharacterInfo:
         :param dictionaryDatabaseUrl: database connection setting in the format
             ``driver://user:pass@host/database``.
         """
-        print(f"CharacterInfo({charLocale=}, {characterDomain=}, {readingN=}, {dictionaryN=}, {dictionaryDatabaseUrl=})")
+        # print(f"CharacterInfo({charLocale=}, {characterDomain=}, {readingN=}, {dictionaryN=}, {dictionaryDatabaseUrl=})")
         if dictionaryN:
             dictObj = dictionary.getDictionaryClass(dictionaryN)
 
@@ -171,7 +171,7 @@ class CharacterInfo:
         else:
             self.locale = self.guessCharacterLocale()
         
-        print(f"CharacterInfo({self.locale=}, {self.reading=}, {self.dictionary=}, {self.db.databaseUrl=})")
+        # print(f"CharacterInfo({self.locale=}, {self.reading=}, {self.dictionary=}, {self.db.databaseUrl=})")
 
         self.characterLookup = characterlookup.CharacterLookup(self.locale,
             characterDomain, dbConnectInst=self.db)
@@ -913,7 +913,7 @@ ALTERNATIVE_READING_NAMES = {'Hangul': ['hg'], 'Pinyin': ['py'],
 
 import argparse
 
-def cmd_information(parameter: str, charInfo: CharacterInfo):
+def cmd_lookup(parameter: str, charInfo: CharacterInfo):
     infoDict = charInfo.getCharacterInformation(parameter)
 
     print(("Information for character " + infoDict['char'] + " (" \
@@ -972,183 +972,334 @@ def cmd_information(parameter: str, charInfo: CharacterInfo):
             strokeCount = 'N/A'
         default = ""
         if glyph == infoDict['default glyph']:
-            default = "(default)"
-        print(f"Glyph {glyph}{default}, stroke count: {strokeCount}")
+            default = "(*)"
+        print("Glyph " + str(glyph) + default + ', stroke count: ' \
+            + strokeCount)
 
-        # if 'decomposition' in infoDict['glyphs'][glyph]:
-        #     stringList = getDecompositionForList(
-        #         infoDict['glyphs'][glyph]['decomposition'])
-        #     print(("\n".join(stringList)))
+        if 'decomposition' in infoDict['glyphs'][glyph]:
+            stringList = getDecompositionForList(
+                infoDict['glyphs'][glyph]['decomposition'])
+            print(("\n".join(stringList)))
         if 'stroke order' in infoDict['glyphs'][glyph]:
             print(("Stroke order: " + ''.join(
                 infoDict['glyphs'][glyph]['stroke order']) + ' (' \
                 + infoDict['glyphs'][glyph]['stroke order abbrev'] \
-                + ')')\
+                + ')')
             )
 
-TEMP_HELP = """\
-hanzi is the cli tool for hanzilib, which is the modern successor of cjklib
+HELP = """\
+Usage: hanzi <COMMAND> [OPTIONS]
 
-Currently supported commands:
-  hanzi build           Build the hanzilib database
-  hanzi info <char>     Get character information
+Database Management:
+  build                     Initialize the database
+
+Character Lookup:
+  lookup <CHAR>             Get detailed information, components, and stroke count
+  find --reading <STR>      Search for characters by phonetic reading
+  find --radical <IDX>      Search for characters by radical index
+  find --comp <CHARS>       Search for characters containing specific components
+
+Text Processing:
+  convert-form <TEXT>       Convert between Simplified and Traditional forms
+  to-reading <TEXT>         Get the phonetic reading for a string of text
+  convert-reading <TEXT>    Convert readings (e.g., Pinyin to Zhuyin)
+
+Dictionary:
+  dict install <NAME>       Download and install a specific dictionary
+  dict list                 List installed and available dictionaries
+  dict use <NAME>           Set the active dictionary
+  dict search <QUERY>       Perform wildcard searches on definitions/headwords
+  
+Global Options:
+  -l, --locale <TCJKV>      Set locale (default: C)
+  -s, --src <TYPE>          Set source reading type (pinyin, jyutping, etc.)
+  -t, --target <TYPE>       Set target reading type
+  --json                    Output results in machine-readable JSON format
+  -v, --version             Show version
+  -h, --help                Show help
 """
 
+from dataclasses import dataclass
+
+# build lookup table for reading input names to reading 
+readingLookup = {}
+for readingN in reading.ReadingFactory().getSupportedReadings():
+    readingLookup[readingN.lower()] = readingN
+for readingN in ALTERNATIVE_READING_NAMES:
+    # add alternative names
+    for name in ALTERNATIVE_READING_NAMES[readingN]:
+        readingLookup[name] = readingN
+
+@dataclass
+class HanziConfig:
+    locale: str | None
+    source_reading: str | None
+    target_reading: str | None
+    domain: str | None
+    dictionary: str | None
+
+    def __post_init__(self):
+        if self.source_reading is not None:
+            if self.source_reading.lower() in readingLookup:
+                self.source_reading = readingLookup[self.source_reading.lower()]
+            else:
+                print(("Error: '%s' is not a valid reading" % self.source_reading
+                    ), file=sys.stderr)
+                sys.exit(1)
+            
+        if self.target_reading is not None:
+            if self.target_reading.lower() in readingLookup:
+                self.target_reading = readingLookup[self.target_reading.lower()]
+            else:
+                print(("Error: '%s' is not a valid reading" % self.target_reading
+                    ), file=sys.stderr)
+                sys.exit(1)
+            
+        if self.locale is not None:
+            if self.locale.upper() in 'TCJKV':
+                self.locale = self.locale.upper()
+            else:
+                print(("Error: '%s' is not a valid locale" % self.locale
+                    ), file=sys.stderr)
+                sys.exit(1)
+        
+        if self.dictionary is not None:
+            dictionaries = dict([(dic.PROVIDES.lower(), dic.PROVIDES) for dic
+                in dictionary.getDictionaryClasses()])
+            if self.dictionary.lower() in dictionaries:
+                self.dictionary = dictionaries[self.dictionary.lower()]
+            else:
+                print(("Error: '%s' is not a valid dictionary" %
+                    self.dictionary), file=sys.stderr)
+                sys.exit(1)
+
+    def apply_args(self, args):
+        d: dict = args.__dict__
+        return type(self)(
+            locale = d.get("locale") or self.locale,
+            source_reading = d.get("src") or self.source_reading,
+            target_reading = d.get("target") or self.target_reading,
+            domain = d.get("domain") or self.domain,
+            dictionary = d.get("dictionary") or self.dictionary
+        )
+
+
 def new_main():
-    if len(sys.argv) == 1:
-        print(TEMP_HELP)
-        sys.exit(0)
-    if sys.argv[1] == "install-dict":
-        from hanzilib.dictionary.install import main
-        sys.argv.remove("install-dict")
-        main()
-        return
-    output_encoding = sys.stdout.encoding or locale.getpreferredencoding() or 'ascii'
+    parent_parser = argparse.ArgumentParser(add_help=False)
+    
     parser = argparse.ArgumentParser(
-        description="Hanzi/CJK Character Information and Dictionary Tool",
-        formatter_class=argparse.RawTextHelpFormatter,
-        usage="hanzilib"
+        prog="hanzi",
+        description="""hanzi provides a set of functions for dealing with Chinese characters and
+their readings. This tool should provide quick access to the major functions of
+the hanzilib library and at the same time demonstrate how the library can be used."""
     )
-    subparsers = parser.add_subparsers(dest='command')
-    subparsers.add_parser('build')
-    subparsers.add_parser('install-dict')
-    subparsers.add_parser('info').add_argument("char")
-    subparsers.add_parser('dict').add_argument("char")
 
-    group_config = parser.add_argument_group('configuration')
-    group_config.add_argument("-s", "--source-reading", help="Source reading type")
-    group_config.add_argument("-t", "--target-reading", help="Target reading type")
-    group_config.add_argument("-l", "--locale", help="Locale (T, C, J, K, or V)")
-    group_config.add_argument("-d", "--domain", help="Character domain (e.g., Unicode)")
-    group_config.add_argument("-w", "--set-dictionary", help="Set the dictionary to use")
-    group_config.add_argument("--database", help="Database URL")
+    # global Options
+    parser.add_argument("-v", "--version", action="version", version="%(prog)s 1.0.0")
+    parent_parser.add_argument("-l", "--locale", choices=["T", "C", "J", "K", "V"], default="C",
+                        help="Set locale (Traditional, Simplified, Japanese, etc.)")
+    parent_parser.add_argument("-s", "--src", help="Set source reading type (e.g., pinyin)")
+    parent_parser.add_argument("-t", "--target", help="Set target reading type (e.g., zhuyin)")
+    parent_parser.add_argument("-d", "--domain", help="Set domain")
+    parent_parser.add_argument("-w", "--dictionary", help="Set dictionary")
+    # parser.add_argument("--json", action="store_true", help="Output results in JSON format")
 
-    # action_group = parser.add_mutually_exclusive_group()
-    # action_group.add_argument("-i", "--information", help="Get character information")
-    # action_group.add_argument("-q", "--get-reading-and-form", help="Get reading and convert forms")
-    # action_group.add_argument("-r", "--get-reading", help="Get reading for characters")
-    # action_group.add_argument("-f", "--convert-form", help="Convert simplified/traditional forms")
-    # action_group.add_argument("-a", "--by-reading", help="Lookup characters by reading")
-    # action_group.add_argument("-k", "--by-radicalidx", type=int, help="Lookup by Kangxi radical index")
-    # action_group.add_argument("-p", "--by-components", help="Lookup by components")
-    # action_group.add_argument("-m", "--convert-reading", help="Convert between readings")
-    # action_group.add_argument("-x", "--search-dict", help="Search dictionary")
-    # action_group.add_argument("-y", "--search-headwords", help="Search headwords")
-    # action_group.add_argument("-L", "--list-options", action="store_true", help="List available settings")
-    # action_group.add_argument("-V", "--version", action="store_true", help="Show version")
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    
+    # hanzi build
+    subparsers.add_parser("build", help="Initialize the database", parents=[parent_parser])
 
-    # Legacy/Deprecated options
-    # parser.add_argument("-c", help=argparse.SUPPRESS)
-    # parser.add_argument("-b", help=argparse.SUPPRESS)
-    # parser.add_argument("-e", help=argparse.SUPPRESS)
+    # hanzi dict
+    dict_parser = subparsers.add_parser("dict", help="Dictionary management", parents=[parent_parser])
+    dict_sub = dict_parser.add_subparsers(dest="dict_action")
 
+    # hanzi dict install
+    install_p = dict_sub.add_parser("install", help="Install a dictionary")
+    install_p.add_argument("name", help="Name of the dictionary to install")
+    
+    # hanzi dict list
+    dict_sub.add_parser("list", help="List installed dictionaries")
+
+    # hanzi dict search
+    search_p = dict_sub.add_parser("search", help="Search dictionary definitions/headwords")
+    search_p.add_argument("query", help="Search string (supports % and _ wildcards)")
+
+    # hanzi lookup
+    lookup_p = subparsers.add_parser("lookup", help="Detailed character information", parents=[parent_parser])
+    lookup_p.add_argument("char", help="The character to look up")
+
+    # hanzi find
+    find_p = subparsers.add_parser("find", help="Search for characters using filters", parents=[parent_parser])
+    find_p.add_argument("--reading", help="Filter by phonetic reading")
+    find_p.add_argument("--radical", type=int, help="Filter by radical index")
+    find_p.add_argument("--comp", help="Filter by components (e.g., '日月')")
+    find_p.add_argument("--strokes", type=int, help="Filter by total stroke count")
+
+    # hanzi convert-script
+    conv_script_p = subparsers.add_parser("convert-script", help="Convert between Simplified/Traditional", parents=[parent_parser])
+    conv_script_p.add_argument("text", help="The text string to convert")
+
+    # hanzi to-reading
+    to_reading_p = subparsers.add_parser("to-reading", help="Get phonetic reading for a string", parents=[parent_parser])
+    to_reading_p.add_argument("text", help="The text string to read")
+
+    # hanzi convert-reading
+    phon_p = subparsers.add_parser("convert-reading", help="Convert between reading systems", parents=[parent_parser])
+    phon_p.add_argument("text", help="The reading string to convert")
+
+    # hanzi search-
+    search_p = subparsers.add_parser("search", help="Wildcard dictionary search", parents=[parent_parser])
+    search_p.add_argument("query", help="Search query (use _ or % for wildcards)")
+    
     args = parser.parse_args()
 
-    # if args.version:
-    #     version()
-    #     return
+
+
+    configSettings = getConfigSettings("hanzi")
+    # url = configSettings.get("url")
+    config = HanziConfig(
+        locale = configSettings.get("locale"),
+        source_reading = configSettings.get("reading"),
+        target_reading = configSettings.get("reading"),
+        domain = configSettings.get("domain", "Unicode"),
+        dictionary = configSettings.get("dictionary"),
+    )
+
+    config = config.apply_args(args)
+
+    try:
+        char_info = CharacterInfo(
+            charLocale = config.locale,
+            readingN = config.target_reading,
+            dictionaryN = config.dictionary,
+            # dictionaryDatabaseUrl = 
+        )
+    except ValueError:
+        print((("Error: dictionary '%(dict)s' not available."
+            "\nInstall by running 'hanzi install-dict %(dict)s'")
+                % {'dict': config.dictionary}), file=sys.stderr)
+        sys.exit(1)
     
+    # Resolved (TODO: remove excess processing)
+    config.locale = char_info.locale
+    config.dictionary = char_info.dictionary
+    
+    if not char_info.setCharacterDomain(config.domain):
+        print("Warning: Unknown character domain '%s'" \
+            % config.domain, file=sys.stderr)
+    
+    if config.source_reading is None:
+        config.source_reading = char_info.reading
+    if config.target_reading is None:
+        config.target_reading = char_info.reading
+
+
     if args.command == "build":
         from hanzilib.build.cli import main
         main()
         return
+        
+    elif args.command == "dict":
+        if args.dict_action == "install":
+            from hanzilib.dictionary.install import main
+            sys.argv.remove("install-dict")
+            main()
+        elif args.dict_action == "list":
+            print("Not implemented yet")
+    elif args.command == "lookup":
+        cmd_lookup(args.char, char_info)
+    elif args.command == "find":
+        # filters = {
+        #     "reading": args.reading,
+        #     "radical": args.radical,
+        #     "comp": args.comp,
+        #     "strokes": args.strokes
+        # }
+        # active_filters = {k: v for k, v in filters.items() if v is not None}
+        # print(f"Searching with filters: {active_filters}")
+        # print("Not implemented yet")
+        if args.reading:
+            
+            try:
+                characterList = char_info.getCharactersForReading(args.reading,
+                    config.source_reading)
+                print("".join(characterList))
+            except exception.UnsupportedError:
+                print("Error: no character mapping for this reading." \
+                    + " Maybe the mapping in question has not been installed.")
+                sys.exit(1)
+            except exception.ConversionError:
+                print("Error: unable to convert to internal reading")
+                sys.exit(1)
+        elif args.radical:
+            try:
+                strokeCountDict = char_info.getCharactersForKangxiRadicalIndex(args.radical)
+                for residualStrokeCount in sorted(strokeCountDict.keys()):
+                    print('+' + str(residualStrokeCount) + ': ' \
+                        + ''.join(strokeCountDict[residualStrokeCount]))
+            except ValueError:
+                print("Error: bad parameter")
+                sys.exit(1)
+        elif args.comp:
+            componentList = list(args.comp)
+            charList = char_info.getCharactersForComponents(componentList)
+            print(''.join(charList))
     
-    # if args.command == "install-dict":
-    #     from hanzilib.dictionary.install import main
-    #     sys.argv.remove("install-dict")
-    #     main()
-    #     return
+    elif args.command == "convert-script":
+        char_list = list(args.text)
+        simplified = getPrintableList(char_info.getSimplified(char_list))
+        traditional = getPrintableList(char_info.getTraditional(char_list))
+        if not args.text in (simplified, traditional):
+            print("Warning: input string has mixed simplified and " \
+                + "traditional forms")
+        if simplified == traditional:
+            print(f"Chinese simplified/Traditional: {simplified}")
+        else:
+            print(f"Simplified: {simplified}")
+            print(f"Traditional: {traditional}")
 
-    reading_factory = reading.ReadingFactory()
-    supported_readings = reading_factory.getSupportedReadings()
-    
-    # Build lookup table
-    readingLookup = {r.lower(): r for r in supported_readings}
-    for readingN, alts in ALTERNATIVE_READING_NAMES.items():
-        for alt in alts:
-            readingLookup[alt.lower()] = readingN
+    elif args.command == "to-reading":
+        char_list = list(args.text)
+        try:
+            readingList = char_info.getReadingForCharacters(char_list)
+            print(getPrintableList(readingList, " "))
+        except exception.UnsupportedError:
+            print("Error: no character mapping for this reading." \
+                + " Maybe the mapping in question has not been " \
+                + "installed.")
+            sys.exit(1)
+        except exception.ConversionError:
+            print("Error: unable to convert to internal reading")
+            sys.exit(1)
 
 
-    
-    config = getConfigSettings('hanzi')
-    import os
-    url = None
-    # url = "sqlite:///" + os.getenv("APPDATA") + "\\hanzilib\\cedict.db"
-    # url = args.database or config.get('url')
-    dict_name = "CEDICT" # args.set_dictionary or config.get('dictionary')
-    source_reading = args.source_reading or config.get('reading')
-    target_reading = args.target_reading or config.get('reading')
-    char_locale = args.locale or config.get('locale')
-    char_domain = args.domain or config.get('domain', 'Unicode')
-
-
-    # validate Locale
-    if char_locale and char_locale.upper() not in 'TCJKV':
-        print(f"Error: '{char_locale}' is not a valid locale", file=sys.stderr)
-        sys.exit(1)
-    char_locale = char_locale.upper() if char_locale else None
-
-    # validate Readings
-    for r in [source_reading, target_reading]:
-        if r and r.lower() not in readingLookup:
-            print(f"Error: '{r}' is not a valid reading", file=sys.stderr)
+    elif args.command == "convert-reading":
+        try:
+            print(char_info.convertReading(args.text, config.source_reading, config.target_reading))
+        except exception.DecompositionError as m:
+            print("Error: invalid input string:", \
+                str(m))
+            sys.exit(1)
+        except exception.CompositionError as m:
+            print("Error: can't compose target entities:", \
+                str(m))
+            sys.exit(1)
+        except exception.AmbiguousConversionError as m:
+            print("Error: input reading is ambiguous, can't convert:", \
+                str(m))
+            sys.exit(1)
+        except exception.ConversionError as m:
+            print("Error: can't convert input string:", \
+                str(m))
+            sys.exit(1)
+        except exception.UnsupportedError:
+            print("Error: conversion for given readings not supported")
             sys.exit(1)
     
-    source_reading = readingLookup.get(source_reading.lower()) if source_reading else None
-    target_reading = readingLookup.get(target_reading.lower()) if target_reading else None
 
-    try:
-        charInfo = CharacterInfo(
-            charLocale=char_locale,
-            readingN=target_reading,
-            dictionaryN=dict_name,
-            dictionaryDatabaseUrl=url
-        )
-        
-        char_locale = charInfo.locale
-        dict_name = charInfo.dictionary
-        if not charInfo.setCharacterDomain(char_domain):
-            print(f"Warning: Unknown domain '{char_domain}'", file=sys.stderr)
-        
-        if not source_reading:
-            source_reading = charInfo.reading
-        if not target_reading:
-            target_reading = charInfo.reading
-
-        # if args.list_options:
-        #     # (Insert your existing list-options print logic here)
-        #     print(f"Current locale: {char_locale}")
-        #     pass
-
-        if args.command == "info":
-            param = args.char
-            if len(param) == 1:
-                cmd_information(param, charInfo) # output_encoding
-            else:
-                print(repr(param))
-                print("Error: bad parameter or encoding error", file=sys.stderr)
-                sys.exit(1)
-        
-        elif args.command == "dict":
-            
-            if not charInfo.hasDictionary():
-                print(("Error: no dictionary available"
-                    "\nInstall one by running 'installcjkdict DICTIONARY_NAME'"), file=sys.stderr)
-                sys.exit(1)
-
-            print("source_reading", source_reading)
-            results = charInfo.searchDictionary(args.char, source_reading)
-            for entry in results:
-                if entry.Reading:
-                    string = ("%(Headword)s %(Reading)s %(Translation)s"
-                        % entry._asdict())
-                else:
-                    string = "%(Headword)s %(Translation)s" % entry._asdict()
-                print(string.encode(output_encoding, "replace"))
-
-    except KeyboardInterrupt:
-        print("\nKeyboard interrupt.", file=sys.stderr)
-        sys.exit(1)
+    elif args.command is None:
+        parser.print_help()
+    
 
 from functools import wraps
 
@@ -1164,6 +1315,10 @@ def _handle_interrupt(f):
 
 @_handle_interrupt
 def main():
+    if "--old" not in sys.argv:
+        return new_main()
+    sys.argv.remove("--old")
+
     output_encoding = sys.stdout.encoding or locale.getpreferredencoding() or 'ascii'
     
     if len(sys.argv) == 1:

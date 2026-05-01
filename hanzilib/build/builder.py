@@ -752,6 +752,22 @@ class Kanjidic2Builder(EntryGeneratorBuilder):
             for entry in entryList:
                 if self.wideBuild or 'ChineseCharacter' not in entry \
                     or entry['ChineseCharacter'] < '\U00010000':
+                    if "NelsonCRadical" not in entry:
+                        entry["NelsonCRadical"] = 0 # TODO: Temporary
+                    if "Meaning_en" not in entry:
+                        entry["Meaning_en"] = "Null" # TODO: Temporary
+                    if "Meaning_fr" not in entry:
+                        entry["Meaning_fr"] = "Null" # TODO: Temporary
+                    if "Meaning_es" not in entry:
+                        entry["Meaning_es"] = "Null" # TODO: Temporary
+                    if "Meaning_pt" not in entry:
+                        entry["Meaning_pt"] = "Null" # TODO: Temporary
+                    if "CharacterJapaneseKun" not in entry:
+                        entry["CharacterJapaneseKun"] = "Null" # TODO: Temporary
+                    if "CharacterJapaneseOn" not in entry:
+                        entry["CharacterJapaneseOn"] = "Null" # TODO: Temporary
+                    if "ChineseCharacter" not in entry:
+                        entry["ChineseCharacter"] = "Null" # TODO: Temporary
                     yield(entry)
 
     PROVIDES = 'Kanjidic'
@@ -841,7 +857,7 @@ class Kanjidic2Builder(EntryGeneratorBuilder):
         """
         path = self.findFile(['kanjidic2.xml.gz', 'kanjidic2.xml'],
             "KANJIDIC2 XML file")
-        log.log("Readin file " + path)
+        log.log("Reading file " + path)
         return Kanjidic2Builder.KanjidicGenerator(path,
             self.KANJIDIC_TAG_MAPPING).generator()
 
@@ -1269,8 +1285,7 @@ class BIG5HKSCSSetBuilder(EntryGeneratorBuilder):
         return itertools.chain(big5, hkscs)
 
     def build(self):
-        log.log("Reading table content from Unihan columns "
-                "'kBigFive' // and 'kHKSCS'") # not supported anymore
+        log.log("Reading table content from Unihan column 'kBigFive'")
         super(BIG5HKSCSSetBuilder, self).build()
 
 
@@ -2316,7 +2331,8 @@ class CombinedStrokeCountBuilder(StrokeCountBuilder):
 
             # warn about stroke count in preferred source that differs from
             #   Unihan entry.
-            if log.enabled:
+            # no need warn, the preferred one is almost always more accurate
+            if log.enabled and False:
                 soMismatch = self.checkAgainstUnihan(strokeCountDict,
                     self.tableEntries)
                 log.log("Specific stroke counts do not include stroke count" \

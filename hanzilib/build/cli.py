@@ -564,7 +564,7 @@ along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
 def main():
     # temporary measure
     sys.argv = [sys.argv[0], "build", "allAvail"]
-    print("(Temporary) building using args:", sys.argv)
+    print("(Temporary) building using args:", sys.argv[1:])
     if not CommandLineBuilder(deprecated=['fullDictionaries']).run():
         sys.exit(1)
 

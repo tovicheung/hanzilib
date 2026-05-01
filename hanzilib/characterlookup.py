@@ -1252,20 +1252,28 @@ class CharacterLookup:
                         if character in ['⿻']:
                             return None, index
                         # ⿴ should only occur for 囗
+                        # also  丼 = 井丶  and  卪 = 卩丶  and  叉 = 又丶
                         elif character == '⿴':
                             so, newindex = getFromEntry(subTree, index+1)
                             if not so: return None, index
                             strokes = [order.replace(' ', '-').split('-')
                                 for order in so]
-                            if strokes != [['S', 'HZ', 'H']]:
-                                log.warn(
-                                    "Invalid decomposition entry %r" % subTree)
-                                return None, index
-                            strokeOrder.append('S-HZ')
-                            so, index = getFromEntry(subTree, newindex+1)
-                            if not so: return None, index
-                            strokeOrder.extend(so)
-                            strokeOrder.append('H')
+                            if strokes == [['S', 'HZ', 'H']]: # 囗
+                                strokeOrder.append('S-HZ')
+                                so, index = getFromEntry(subTree, newindex+1)
+                                if not so: return None, index
+                                strokeOrder.extend(so)
+                                strokeOrder.append('H')
+                            else:
+                                if strokes == [['H', 'H', 'SP', 'S']]: # 丼 = 井丶
+                                    strokeOrder.append("H-H-SP-S-D")
+                                elif strokes == [['HZG', 'S']]: # 卪 = 卩丶
+                                    strokeOrder.append("HZG-S-D")
+                                elif strokes == [["HP", "N"]]: # 叉 = 又丶
+                                    strokeOrder.append("HP-N-D")
+                                else:
+                                    log.warn(f"Invalid decomposition entry {subTree}; strokes are {strokes}")
+                                    return None, index
                         # ⿷ should only occur for ⼕ and ⼖
                         elif character == '⿷':
                             so, newindex = getFromEntry(subTree, index+1)
