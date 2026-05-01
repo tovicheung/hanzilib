@@ -52,8 +52,57 @@ from .. import dbconnector
 from ..util import titlecase, istitlecase, cachedmethod
 
 from .types import *
+import abc
 
-class ReadingOperator(object):
+# Entity  (str)
+# An entity refers to a basic unit of a language's writing or pronunciation
+# system. Entities can include tonal information (like pitch or stress) or
+# can be plain without tone.
+
+# Tone
+# Tone refers to the pitch or intonation used when pronouncing a syllable.
+# In tonal languages like Mandarin, the tone can change the meaning of a
+# word even if the syllables are the same.
+
+# Romanisation
+# Romanisation is the process of converting a language's writing system
+# into the Roman (Latin) alphabet. The output is usually a-z, sometimes with
+# diacritics (ā, á, ǎ, à) to show tone and digraphs (zh, ch, sh) that uses two
+# letters to represent a single sound.
+
+# Dialect
+# A dialect is a (regional) variation of a language.
+# It is represented as parameters
+
+
+# Reading entities  represent valid syllables
+# Examples:
+#   romanised syllables ("zhong", "guo")
+#   IPA syllables ("ɛw˥˧")
+
+# Formatting entities  are non-linguistic units that structure or format the text
+# Examples: punctuation and spaces
+
+# Reading entities can be further categorized:
+
+# PLain entities  are reading entities without tonal information
+# Examples:
+#   Pinyin without tone ("zhong")
+#   IPA without tone ("ɛw")
+
+# Tonal entities  are reading entities with tonal information
+# Examples:
+#   Pinyin with diacritic tone mark ("zhōng")
+#   Pinyin with numeric tone mark ("zhong4")
+#   IPA with tone bar ("ɛw˥˧")
+
+# Abbreviated entities  are shortened forms of reading entities, used in GR romanisation
+# Examples: "-g" as an abbreviation for 個, eg "liang g" for 兩個
+
+# Rhotacised entities  are reading entities that include erhua / retroflex "r" suffix
+
+
+class ReadingOperator(abc.ABC):
     """
     Defines an abstract operator on text written in a *character reading*.
     """
@@ -93,7 +142,8 @@ class ReadingOperator(object):
         """
         return {}
 
-    def decompose(self, readingString: str):
+    @abc.abstractmethod
+    def decompose(self, readingString: str) -> list[Entity]:
         """
         Decomposes the given string into basic entities that can be mapped to
         one Chinese character each (exceptions possible).
@@ -112,9 +162,10 @@ class ReadingOperator(object):
         :return: a list of basic entities of the input string
         :raise DecompositionError: if the string can not be decomposed.
         """
-        raise NotImplementedError
+        pass
 
-    def compose(self, readingEntities: list[Entity]):
+    @abc.abstractmethod
+    def compose(self, readingEntities: list[Entity]) -> str:
         """
         Composes the given list of basic entities to a string.
 
@@ -130,8 +181,9 @@ class ReadingOperator(object):
         :return: composed entities
         :raise CompositionError: if the given entities can not be composed.
         """
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def isReadingEntity(self, entity: Entity) -> bool:
         """
         Returns ``True`` if the given entity is a valid *reading entity*
@@ -146,9 +198,9 @@ class ReadingOperator(object):
         :return: ``True`` if string is an entity of the reading, false
             otherwise.
         """
-        raise NotImplementedError
+        pass
 
-    def isFormattingEntity(self, entity: Entity):
+    def isFormattingEntity(self, entity: Entity) -> bool:
         """
         Returns ``True`` if the given entity is a valid *formatting entity*
         recognised by the reading operator.
@@ -168,6 +220,10 @@ class RomanisationOperator(ReadingOperator):
     Defines an abstract :class:`~cjklib.reading.operator.ReadingOperator` on
     text written in a *romanisation*, i.e. text written in the Latin alphabet
     or written in the Cyrillic alphabet.
+
+    Romanisation systems often involve ambiguities in how a string can be
+    segmented into valid entities. `.getDecompositionTree()` generates all
+    possible decompositions
 
     .. todo::
         * Impl: Optimise decompose() as to incorporate segment() and prune the
@@ -241,6 +297,9 @@ class RomanisationOperator(ReadingOperator):
         of basic reading entities and other characters e.g. spaces and
         punctuation marks.
 
+        A strict decomposition is a decomposition that follows the rules exactly and
+        produces an unambiguous result.
+
         :type readingString: str
         :param readingString: reading string
         :rtype: list of str
@@ -285,6 +344,16 @@ class RomanisationOperator(ReadingOperator):
         Decomposes the given string into basic entities that can be mapped to
         one Chinese character each for all possible decompositions and returns
         the possible decompositions as a lattice.
+
+        Example (Pinyin): `.getDecompositionTree("Hěn gāoxìng.")`
+        Returns:
+        ```py
+        [
+            [['Hě', 'n'], ['Hěn']], [[' ']],
+            [['gā', 'o', 'xì', 'ng'], ['gā', 'o', 'xìng'], ['gāo', 'xì', 'ng'], ['gāo', 'xìng']],
+            [['.']]
+        ]
+        ```
 
         :type readingString: str
         :param readingString: reading string
@@ -587,6 +656,7 @@ class TonalFixedEntityOperator(ReadingOperator):
         super(TonalFixedEntityOperator, self).__init__(**options)
 
     @cachedmethod
+    @abc.abstractmethod
     def getTones(self):
         """
         Returns a set of tones supported by the reading. These tones don't
@@ -598,8 +668,9 @@ class TonalFixedEntityOperator(ReadingOperator):
         :rtype: list
         :return: list of supported tone marks.
         """
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def getTonalEntity(self, plainEntity: str, tone: int) -> str:
         """
         Gets the entity with tone mark for the given plain entity and tone. The
@@ -617,9 +688,10 @@ class TonalFixedEntityOperator(ReadingOperator):
         :raise UnsupportedError: if the operation is not supported for the given
             form.
         """
-        raise NotImplementedError
+        pass
 
-    def splitEntityTone(self, entity):
+    @abc.abstractmethod
+    def splitEntityTone(self, entity: str) -> tuple[str, int]:
         """
         Splits the entity into an entity without tone mark (plain entity) and
         the entity's tone. The letter case of the given entity might not be
@@ -635,7 +707,7 @@ class TonalFixedEntityOperator(ReadingOperator):
         :raise UnsupportedError: if the operation is not supported for the given
             form.
         """
-        raise NotImplementedError
+        pass
 
     @cachedmethod
     def getReadingEntities(self):
@@ -659,6 +731,7 @@ class TonalFixedEntityOperator(ReadingOperator):
         return frozenset(syllables)
 
     @cachedmethod
+    @abc.abstractmethod
     def getPlainReadingEntities(self):
         """
         Gets the list of plain entities supported by this reading. Different to
@@ -670,7 +743,7 @@ class TonalFixedEntityOperator(ReadingOperator):
         :rtype: set of str
         :return: set of supported syllables
         """
-        raise NotImplementedError
+        pass
 
     def isPlainReadingEntity(self, entity):
         """

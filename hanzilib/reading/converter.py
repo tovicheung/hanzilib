@@ -40,6 +40,7 @@ import copy
 import types
 import functools
 from functools import cmp_to_key
+import abc
 
 from sqlalchemy import select
 from sqlalchemy.sql import and_
@@ -52,10 +53,17 @@ from . import ReadingFactory
 from ..util import titlecase, istitlecase
 from .types import Reading
 
-class ReadingConverter(object):
+class ReadingConverter(abc.ABC):
     """
     Defines an abstract converter between two or more *character readings*.
+    
+    Provides:
+    * `.convert(string, fromReading, toReading)`
+
+    Subclasses should implement:
+    * `.convertEntities(readingEntities, fromReading, toReading)`
     """
+
     CONVERSION_DIRECTIONS = []
     """
     List of tuples for specifying supported conversion directions from reading A
@@ -179,7 +187,8 @@ class ReadingConverter(object):
         # compose
         return self._getToOperator(toReading).compose(toReadingEntities)
 
-    def convertEntities(self, readingEntities, fromReading, toReading):
+    @abc.abstractmethod
+    def convertEntities(self, readingEntities: list[str], fromReading: str, toReading: str):
         """
         Converts a list of entities in the source reading to the given target
         reading.
@@ -200,7 +209,7 @@ class ReadingConverter(object):
             for conversion.
         :raise InvalidEntityError: if an invalid entity is given.
         """
-        raise NotImplementedError
+        pass
 
     def _getFromOperator(self, readingN):
         """
@@ -242,7 +251,14 @@ class DialectSupportReadingConverter(ReadingConverter):
     Input will be converted to a standard representation of the input reading
     before the actual conversion step is done. If needed the converted reading
     will be converted to a defined dialect.
+
+    Provides:
+    * `.convertEntities(readingEntities, fromReading, toReading)`
+
+    Subclasses should implement:
+    * `.convertEntitySequence(entitySequence, fromReading, toReading)`
     """
+
     DEFAULT_READING_OPTIONS = {}
     """
     Defines the default reading options for the reading dialect used as a bridge
@@ -361,6 +377,7 @@ class DialectSupportReadingConverter(ReadingConverter):
 
         return toReadingEntities
 
+    @abc.abstractmethod
     def convertEntitySequence(self, entitySequence, fromReading, toReading):
         """
         Convert a list of reading entities in standard representatinon given by
@@ -381,7 +398,7 @@ class DialectSupportReadingConverter(ReadingConverter):
         :return: list of converted reading entities given as list and
             non-reading entities as single str objects
         """
-        raise NotImplementedError
+        pass
 
 
 class EntityWiseReadingConverter(ReadingConverter):
@@ -411,6 +428,7 @@ class EntityWiseReadingConverter(ReadingConverter):
 
         return toReadingEntities
 
+    @abc.abstractmethod
     def convertBasicEntity(self, entity: str, fromReading: str, toReading: str):
         """
         Converts a basic entity (e.g. a syllable) in the source reading to the
@@ -2029,6 +2047,7 @@ class BridgeConverter(ReadingConverter):
     Provides a :class:`~_reading.converter.ReadingConverter`
     that converts between readings over a third reading called bridge reading.
     """
+    
     def _getConversionDirections(bridge):
         """
         Extracts all conversion directions implicitly stored in the bridge
@@ -2082,7 +2101,7 @@ class BridgeConverter(ReadingConverter):
         """
         super(BridgeConverter, self).__init__(*args, **options)
 
-        self.bridgeLookup = {}
+        self.bridgeLookup: dict[tuple[str, str], str] = {}
         for fromReading, bridgeReading, toReading in self.CONVERSION_BRIDGE:
             self.bridgeLookup[(fromReading, toReading)] = bridgeReading
 
@@ -2097,7 +2116,7 @@ class BridgeConverter(ReadingConverter):
                     or defaultOptions[option] == value)
                 defaultOptions[option] = value
 
-        converterClassLookup = {}
+        converterClassLookup: dict[tuple[str, str], type[ReadingConverter]] = {}
         for clss in ReadingFactory.getReadingConverterClasses():
             for fromReading, targetReading in clss.CONVERSION_DIRECTIONS:
                 converterClassLookup[(fromReading, targetReading)] = clss
@@ -2116,7 +2135,7 @@ class BridgeConverter(ReadingConverter):
 
         return defaultOptions
 
-    def convertEntities(self, readingEntities, fromReading, toReading):
+    def convertEntities(self, readingEntities: list[str], fromReading: str, toReading: str):
         if (fromReading, toReading) not in self.CONVERSION_DIRECTIONS:
             raise UnsupportedError("conversion direction from '" \
                 + fromReading + "' to '" + toReading + "' not supported")

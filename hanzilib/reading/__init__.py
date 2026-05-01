@@ -77,11 +77,11 @@ class ReadingFactory(object):
             :class:`~cjklib.reading.operator.ReadingOperator`
         """
         # get all non-abstract classes that inherit from ReadingOperator
-        readingOperatorClasses = [clss for clss \
-            in list(readingoperator.__dict__.values()) \
-            if type(clss) == type \
-                and issubclass(clss, readingoperator.ReadingOperator) \
-                and clss.READING_NAME]
+        readingOperatorClasses = [
+            clss for name in readingoperator.__all__
+            if (clss := getattr(readingoperator, name))
+            if issubclass(clss, readingoperator.ReadingOperator) and clss.READING_NAME
+        ]
 
         return readingOperatorClasses
 
@@ -99,11 +99,11 @@ class ReadingFactory(object):
         # get all non-abstract classes that inherit from ReadingConverter
         
         from . import converter as readingconverter
-        readingConverterClasses = [clss \
-            for clss in list(readingconverter.__dict__.values()) \
-            if type(clss) == type \
-            and issubclass(clss, readingconverter.ReadingConverter) \
-            and clss.CONVERSION_DIRECTIONS]
+        readingConverterClasses = [
+            clss for name in readingconverter.__all__
+            if (clss := getattr(readingconverter, name))
+            if issubclass(clss, readingconverter.ReadingConverter) and clss.CONVERSION_DIRECTIONS
+        ]
 
         return readingConverterClasses
 
