@@ -138,9 +138,6 @@ class DatabaseConnector(object):
     Database connection object.
     """
 
-    def log(self, *args):
-        print("\033[m\033[34m\033[1mDB:\033[m\033[34m", *args, end="\033[m\n")
-
     def __init__(self, configuration):
         """
         Constructs the DatabaseConnector object and connects to the database
@@ -191,8 +188,6 @@ class DatabaseConnector(object):
         """SQLAlchemy database connection object"""
         self.metadata = MetaData()
         """SQLAlchemy metadata object"""
-
-        self.log("Connected to", self.databaseUrl)
 
         # multi-database table access
         self.tables = LazyDict(self._tableGetter())
@@ -355,7 +350,6 @@ class DatabaseConnector(object):
                 database=databaseFile,
                 schema=schema
             )
-            self.log("Attached to", databaseFile, "as", schema)
         else:
             schema = url.database
 

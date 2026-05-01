@@ -2810,7 +2810,7 @@ class CharacterRadicalStrokeCountBuilder(EntryGeneratorBuilder):
     PROVIDES = 'CharacterRadicalResidualStrokeCount'
     DEPENDS = ['CharacterDecomposition', 'StrokeCount', 'KangxiRadical',
         'KangxiRadicalIsolatedCharacter', 'RadicalEquivalentCharacter',
-        # 'CharacterKangxiRadical',
+        'CharacterChineseRadical',
         'Strokes']
 
     COLUMNS = ['ChineseCharacter', 'Glyph', 'RadicalIndex', 'RadicalForm',

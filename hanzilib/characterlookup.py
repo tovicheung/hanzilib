@@ -1382,7 +1382,8 @@ class CharacterLookup:
         :raise NoInformationError: if no Kangxi radical index information for
             given character
         """
-        table = self.db.tables['CharacterKangxiRadical']
+        # table = self.db.tables['CharacterKangxiRadical']
+        table = self.db.tables['CharacterChineseRadical']
         result = self.db.selectScalar(
             select(table.c.RadicalIndex)
             .where(table.c.ChineseCharacter == char)
@@ -1691,7 +1692,8 @@ class CharacterLookup:
               for these (SELECT COUNT(*) FROM Unihan
               WHERE kRSUnicode IS NOT NULL AND kRSKangxi IS NULL;).
         """
-        table = self.db.tables['CharacterKangxiRadical']
+        # table = self.db.tables['CharacterKangxiRadical']
+        table = self.db.tables['CharacterChineseRadical']
 
         stmt = select(table.c.ChineseCharacter).where(
             table.c.RadicalIndex == radicalIndex
@@ -1752,7 +1754,8 @@ class CharacterLookup:
         :rtype: list of tuple
         :return: list of matching Chinese characters with residual stroke count
         """
-        kangxiTable = self.db.tables['CharacterKangxiRadical']
+        # kangxiTable = self.db.tables['CharacterKangxiRadical']
+        kangxiTable = self.db.tables['CharacterChineseRadical']
         residualTable = self.db.tables['CharacterResidualStrokeCount']
 
         stmt = select(
