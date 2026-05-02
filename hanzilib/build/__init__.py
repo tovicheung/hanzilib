@@ -220,11 +220,11 @@ class DatabaseBuilder:
         tables: list[str]
 
         log.task("Building tables in databse")
-        log.log(f"\033[1mDatabase:\033[m {self.db.databaseUrl}")
+        log.log(f"\033[1mMain database:\033[m [0] {self.db.databaseUrl}")
         if self.db.attached:
             log.log("\033[1mAttached databases:\033[m")
-            log.list(self.db.attached.keys())
-        log.log("\033[mTables:\033[m " + ", ".join(tables))
+            log.list(f"[{i+1}] {x}" for i, x in enumerate(self.db.attached.keys()))
+        log.log("\033[1mTables to build:\033[m " + ", ".join(tables))
 
         summary_success = []
         summary_failed = []
@@ -242,7 +242,7 @@ class DatabaseBuilder:
                 filteredTables.append(table)
             else:
                 summary_skipped.append(table)
-                log.log(f"Skpping table '{table}' because it already exists")
+                log.log(f"Skpping table '{table}' because it already exists in [{self.db.getDatabaseIdFromTable(table)}]")
         tables = filteredTables
 
         # get depending tables that need to be updated when dependencies change
@@ -298,7 +298,7 @@ class DatabaseBuilder:
                     log.log(f"Removing previously built table '{builder.PROVIDES}'")
                     instance.remove()
 
-                log.task(f"Building table '{builder.PROVIDES}'\033[m")
+                log.task(f"Building table '{builder.PROVIDES}' in [{self.db.getDatabaseIdFromTable(builder.PROVIDES)}]\033[m")
 
                 # remove old metadata
                 if builder.PROVIDES in self.db.tables:
@@ -350,15 +350,19 @@ class DatabaseBuilder:
         dicts = [x.__name__ for x in getDictionaryClasses()]
         log.success("Build summary:")
         log.indent()
-        log.log(f"{len(summary_success)} new tables were built")
+        log.log(f"{len(summary_success):>3} new tables were built")
         if summary_skipped:
-            log.log(f"{len(summary_skipped)} tables already exist and were not rebuilt (set rebuildExisting=True to override)")
+            log.log(f"{len(summary_skipped):>3} tables already exist and were not rebuilt (set rebuildExisting=True to override)")
         if summary_failed:
-            log.log(f"{len(summary_failed)} tables were skipped due to no data source (check logs for details) :")
-            log.list([x + "\t\thelp: install dictionary data with: hanzi install-dict " + x if x in dicts else x for x in summary_failed])
+            log.log(f"{len(summary_failed):>3} tables were skipped due to no data source (check logs for details):")
+            log.indent()
+            log.list([x + "\t(help) install dictionary data with: \033[1mhanzi dict install " + x if x in dicts else x for x in summary_failed])
+            log.dedent()
         if summary_ignored:
-            log.log(f"{len(summary_ignored)} tables were skipped due to their dependencies being skipped :")
+            log.log(f"{len(summary_ignored):>3} tables were skipped due to their dependencies being skipped:")
+            log.indent()
             log.list(summary_ignored)
+            log.dedent()
         log.dedent()
         
         log.dedent()
@@ -489,10 +493,10 @@ class DatabaseBuilder:
             for depededTable in builderClass.DEPENDS:
                 solveDependencyRecursive(depededTable)
 
-        if skippedTables:
-            log.log("Tables to be built depend on table(s) '" \
-                + "', '".join(skippedTables) \
-                + "' but skipping because they already exist")
+        # if skippedTables:
+        #     log.log("Tables to be built depend on table(s) '" \
+        #         + "', '".join(skippedTables) \
+        #         + "' but skipping because they already exist")
         return dependedTablesNames
 
     def getDependingTables(self, tableNames: list[str]) -> set[str]:

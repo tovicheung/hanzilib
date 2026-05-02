@@ -1129,9 +1129,9 @@ the hanzilib library and at the same time demonstrate how the library can be use
     lookup_p.add_argument("char", help="The character to look up")
 
     # hanzi find
-    find_p = subparsers.add_parser("find", help="Search for characters using filters", parents=[parent_parser])
+    find_p = subparsers.add_parser("find", help="Search for characters using filters", add_help=False, parents=[parent_parser])
     find_p.add_argument("--reading", help="Filter by phonetic reading")
-    find_p.add_argument("--radical", type=int, help="Filter by radical index")
+    find_p.add_argument("--radical", help="Filter by radical index")
     find_p.add_argument("--comp", help="Filter by components (e.g., '日月')")
     find_p.add_argument("--strokes", type=int, help="Filter by total stroke count")
 
@@ -1202,48 +1202,69 @@ the hanzilib library and at the same time demonstrate how the library can be use
     elif args.command == "dict":
         if args.dict_action == "install":
             from hanzilib.dictionary.install import main
-            sys.argv.remove("install-dict")
+            sys.argv.remove("dict")
+            sys.argv.remove("install") # Temporary
             main()
         elif args.dict_action == "list":
             print("Not implemented yet")
     elif args.command == "lookup":
         cmd_lookup(args.char, char_info)
     elif args.command == "find":
-        # filters = {
-        #     "reading": args.reading,
-        #     "radical": args.radical,
-        #     "comp": args.comp,
-        #     "strokes": args.strokes
-        # }
-        # active_filters = {k: v for k, v in filters.items() if v is not None}
-        # print(f"Searching with filters: {active_filters}")
-        # print("Not implemented yet")
-        if args.reading:
-            
+        sets: list[set[str]] = []
+
+        try:
+            idx = int(args.radical)
+        except ValueError:
+            print("Radicals can only be specified by KangXi index for now")
+            sys.exit(1)
+
+        args.radical = idx
+
+        # special handling if only --radical is specified
+        if args.radical is not None and args.reading is None and args.comp is None and args.strokes is None:
             try:
-                characterList = char_info.getCharactersForReading(args.reading,
-                    config.source_reading)
-                print("".join(characterList))
-            except exception.UnsupportedError:
-                print("Error: no character mapping for this reading." \
-                    + " Maybe the mapping in question has not been installed.")
-                sys.exit(1)
-            except exception.ConversionError:
-                print("Error: unable to convert to internal reading")
-                sys.exit(1)
-        elif args.radical:
-            try:
-                strokeCountDict = char_info.getCharactersForKangxiRadicalIndex(args.radical)
-                for residualStrokeCount in sorted(strokeCountDict.keys()):
-                    print('+' + str(residualStrokeCount) + ': ' \
-                        + ''.join(strokeCountDict[residualStrokeCount]))
+                stroke_counts = char_info.getCharactersForKangxiRadicalIndex(args.radical)
             except ValueError:
                 print("Error: bad parameter")
                 sys.exit(1)
-        elif args.comp:
+            for residaul_stroke_count in sorted(stroke_counts.keys()):
+                print('+' + str(residaul_stroke_count) + ': ' \
+                    + ''.join(stroke_counts[residaul_stroke_count]))
+            sys.exit(0)
+
+        if args.radical is not None:
+            try:
+                stroke_counts = char_info.getCharactersForKangxiRadicalIndex(args.radical)
+                sets.append(set(ch for x in stroke_counts.values() for ch in x))
+            except ValueError:
+                print("Error: --radical: bad parameter")
+                sys.exit(1)
+        if args.reading is not None:
+            try:
+                character_list = char_info.getCharactersForReading(args.reading,
+                    config.source_reading)
+                sets.append(set(character_list))
+            except exception.UnsupportedError:
+                print("Error: --reading: no character mapping for this reading." \
+                    + " Maybe the mapping in question has not been installed.")
+                sys.exit(1)
+            except exception.ConversionError:
+                print("Error: --reading: unable to convert to internal reading")
+                sys.exit(1)
+        if args.comp is not None:
             componentList = list(args.comp)
-            charList = char_info.getCharactersForComponents(componentList)
-            print(''.join(charList))
+            char_list = char_info.getCharactersForComponents(componentList)
+            # print(''.join(char_list))
+            sets.append(set(char_list))
+        
+        if len(sets) == 0:
+            print(FIND_HELP)
+            sys.exit(0)
+
+        result = sets.pop(0)
+        for x in sets:
+            result.intersection_update(x)
+        print(*result, sep="")
     
     elif args.command == "convert-script":
         char_list = list(args.text)
@@ -1300,6 +1321,22 @@ the hanzilib library and at the same time demonstrate how the library can be use
     elif args.command is None:
         parser.print_help()
     
+FIND_HELP = """\
+usage: hanzi find <FILTERS> [OPTIONS]
+
+FILTERS can be used in combination:
+  --reading READING         Filter by phonetic reading
+  --radical RADICAL         Filter by radical index (e.g. 30), no support for radical (e.g. '口') for now
+  --comp COMP               Filter by components (e.g. '日月')
+  --strokes STROKES         Filter by total stroke count
+
+OPTIONS:
+  -l {T,C,J,K,V}, --locale {T,C,J,K,V}
+                        Set locale (Traditional, Simplified, Japanese, etc.)
+  -s SRC, --src SRC     Set source reading type (e.g., pinyin)
+  -t TARGET, --target TARGET
+                        Set target reading type (e.g., zhuyin)
+"""
 
 from functools import wraps
 

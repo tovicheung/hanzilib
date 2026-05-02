@@ -391,6 +391,20 @@ class DatabaseConnector(object):
             raise KeyError("Table '%s' not found in any database" % tableName)
 
         return getTable
+    
+    def getDatabaseIdFromTable(self, tableName: str) -> int | None:
+        inspector = inspect(self.connection)
+        
+        if inspector.has_table(tableName, schema=self._mainSchema):
+            return 0
+
+        # self.attached.values() should contain the schema names/aliases
+        for i, schema in enumerate(self.attached.values()):
+            if inspector.has_table(tableName, schema=schema):
+                return i+1
+
+        return None
+
 
     def _findTable(self, tableName):
         """
