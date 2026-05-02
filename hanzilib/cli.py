@@ -1087,12 +1087,7 @@ class HanziConfig:
 def new_main():
     parent_parser = argparse.ArgumentParser(add_help=False)
     
-    parser = argparse.ArgumentParser(
-        prog="hanzi",
-        description="""hanzi provides a set of functions for dealing with Chinese characters and
-their readings. This tool should provide quick access to the major functions of
-the hanzilib library and at the same time demonstrate how the library can be used."""
-    )
+    parser = argparse.ArgumentParser(prog="hanzi")
 
     # global Options
     parser.add_argument("-v", "--version", action="version", version="%(prog)s 1.0.0")
@@ -1135,8 +1130,8 @@ the hanzilib library and at the same time demonstrate how the library can be use
     find_p.add_argument("--comp", help="Filter by components (e.g., '日月')")
     find_p.add_argument("--strokes", type=int, help="Filter by total stroke count")
 
-    # hanzi convert-script
-    conv_script_p = subparsers.add_parser("convert-script", help="Convert between Simplified/Traditional", parents=[parent_parser])
+    # hanzi zhscript
+    conv_script_p = subparsers.add_parser("zhscript", help="Convert between Simplified/Traditional", parents=[parent_parser])
     conv_script_p.add_argument("text", help="The text string to convert")
 
     # hanzi to-reading
@@ -1266,7 +1261,7 @@ the hanzilib library and at the same time demonstrate how the library can be use
             result.intersection_update(x)
         print(*result, sep="")
     
-    elif args.command == "convert-script":
+    elif args.command == "zhscript":
         char_list = list(args.text)
         simplified = getPrintableList(char_info.getSimplified(char_list))
         traditional = getPrintableList(char_info.getTraditional(char_list))

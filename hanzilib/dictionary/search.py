@@ -46,13 +46,6 @@ from sqlalchemy.sql.expression import func
 from hanzilib.reading import ReadingFactory
 from hanzilib import exception
 
-# Python 2.4 support
-if not hasattr(__builtins__, 'any'):
-    def any(iterable):
-        for element in iterable:
-            if element:
-                return True
-        return False
 
 _wildcardRegexCache = {}
 def _escapeWildcards(string, escape='\\'):
@@ -91,7 +84,7 @@ def setDefaultWildcards(singleCharacter='_', multipleCharacters='%'):
 
 #{ Common search classes
 
-class _CaseInsensitiveBase(object):
+class _CaseInsensitiveBase:
     """Base class providing methods for case insensitive searches."""
     def __init__(self, caseInsensitive=False, sqlCollation=None, escape='\\',
         **options):

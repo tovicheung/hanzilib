@@ -1,3 +1,6 @@
+from __future__ import annotations
+from typing import Callable
+
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 # This file is part of cjklib.
@@ -41,10 +44,10 @@ __all__ = [
     "CEDICT",
     "HanDeDict",
     "CFDICT"
-    ]
+]
 
 import types
-
+import abc
 import functools
 
 from sqlalchemy import select, Table
@@ -60,6 +63,8 @@ from hanzilib.dictionary import search as searchstrategy
 
 #{ Access methods
 
+_dict_clss: set[type[BaseDictionary]] = set()
+
 def getDictionaryClasses():
     """
     Gets all classes in module that implement
@@ -69,13 +74,7 @@ def getDictionaryClasses():
     :return: list of all classes inheriting form
         :class:`~cjklib.dictionary.BaseDictionary`
     """
-    dictionaryModule = __import__("hanzilib.dictionary")
-    # get all classes that inherit from BaseDictionary
-    return set([clss \
-        for clss in list(dictionaryModule.dictionary.__dict__.values()) \
-        if type(clss) == type \
-        and issubclass(clss, dictionaryModule.dictionary.BaseDictionary) \
-        and clss.PROVIDES])
+    return set(_dict_clss)
 
 def getAvailableDictionaries(dbConnectInst=None):
     """
@@ -127,10 +126,9 @@ def getDictionary(dictionaryName, **options):
     dictCls = getDictionaryClass(dictionaryName)
     return dictCls(**options)
 
-#}
-#{ Dictionary classes
+# Dictionary classes
 
-class BaseDictionary(object):
+class BaseDictionary(abc.ABC):
     """
     Base dictionary access class. Needs to be implemented by child classes.
     """
@@ -206,6 +204,11 @@ class BaseDictionary(object):
             """Strategy for searching translations."""
         if hasattr(self.translationSearchStrategy, 'setDictionaryInstance'):
             self.translationSearchStrategy.setDictionaryInstance(self)
+    
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls.PROVIDES:
+            _dict_clss.add(cls)
 
     def getSolumnFormatStrategies(self):
         """Strategies for formatting columns."""
@@ -237,6 +240,7 @@ class BaseDictionary(object):
         setColumnFormatStrategies)
 
     @classmethod
+    @abc.abstractmethod
     def available(cls, dbConnectInst):
         """
         Returns ``True`` if the dictionary is available for the given database
@@ -248,7 +252,7 @@ class BaseDictionary(object):
         :rtype: bool
         :return: ``True`` if the database exists, ``False`` otherwise.
         """
-        raise NotImplementedError()
+        pass
 
 
 class EDICTStyleDictionary(BaseDictionary):
@@ -302,7 +306,7 @@ class EDICTStyleDictionary(BaseDictionary):
         result set given a list of filters. The results are then formatted
         given the instance's rules.
         """
-        def _getFilterFunction(filterList):
+        def _getFilterFunction(filterList: list[tuple[str, Callable]]):
             """Creates a function for filtering search results."""
             def anyFunc(row):
                 for itemsIdx, function in functionList:
@@ -310,7 +314,7 @@ class EDICTStyleDictionary(BaseDictionary):
                         return True
                 return False
 
-            functionList = []
+            functionList: list[tuple[list[int], Callable]] = []
             for columns, function in filterList:
                 columnsIdx = [self.COLUMNS.index(column) for column in columns]
                 functionList.append((columnsIdx, function))

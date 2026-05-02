@@ -1,7 +1,7 @@
 from hanzilib import dictionary
 from pprint import pprint
-print(dictionary.getAvailableDictionaries())
-
+print(dictionary.getDictionaryClasses())
+exit()
 from hanzilib.reading import ReadingFactory
 f = ReadingFactory()
 pprint(f._sharedState["readingConverterClasses"])
