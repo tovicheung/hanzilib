@@ -260,8 +260,7 @@ class _WildcardBase(object):
             arbitrary characters
         """
         self.singleCharacter = singleCharacter or defaultSingleCharacter
-        self.multipleCharacters = (multipleCharacters
-            or defaultMultipleCharacters)
+        self.multipleCharacters = multipleCharacters or defaultMultipleCharacters
         self.escape = escape
         if len(self.escape) != 1:
             raise ValueError("Escape character %s needs to have length 1"

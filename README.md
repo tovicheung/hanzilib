@@ -29,9 +29,9 @@ After installing, run `hanzi build` to build the database
 
 ## CLI examples
 
-Get character information: `-i` / `--information`
+Get character information:
 ```console
-$ hanzi -i 個
+$ hanzi lookup 個
 Information for character 個 (Chinese simplified locale, Unicode domain)
 Unicode codepoint: U+500B (20491, character form)
 In character domains: Unicode, BIG5, IICore, JISX0208_0213, GlyphInformation, JISX0208, BIG5HKSCS
@@ -42,44 +42,57 @@ Phonetic data (GR): gee, geh
 ...
 ```
 
-List characters with KangXi radical index: `-k` / `--by-radicalidx`
+Get reading from string:
 ```console
-$ hanzi -k 30 # 30 corresponds to 口
+$ hanzi to-reading 凍檸茶 # defaults to Pinyin
+dòng níng chá
+
+$ hanzi to-reading 凍檸茶 --target Jyutping
+dung3 ning4 caa4
+```
+
+Find characters with KangXi radical index:
+```console
+$ hanzi find --radical 30 # 30 corresponds to 口
 +2: 台叽叶叼召叭叾叵叨只史可叺叱叻叫号叧叹句叴另叮叩古
 +3: 各吇吏吓吂吖叿吉同吋吐名吆吀叫吗吁吸吊吃吕吒吔合吅
 +4: 呗君吩吶呚含呜呃呈呙呅听吲吠呐呖吼呒吙吝呀吣呌吹 ...
 ...
 ```
 
-Get reading from string: `-r` / `--get-reading`
+Find characters from reading:
 ```console
-$ hanzi -r 凍檸茶 # defaults to Pinyin
-dòng níng chá
-
-$ hanzi -r 凍檸茶 --target-reading Jyutping
-dung3 ning4 caa4
-```
-
-Get character from reading: `-a` / `--by-reading`
-```console
-$ hanzi -a dòng # defaults to Pinyin
+$ hanzi find --reading dòng # defaults to Pinyin
 㓊㗢㢥㣚㣫㼯䆚䞒侗倲働冻凍动動勭垌姛娻峒崠恫戙挏栋桐棟洞湩烔狪甬硐筒筩絧胨胴腖衕詷迵酮霘駧騆𠄉𢳾𥫎𧡍𧼩𧽿𩐤𩐵𩭩𪔦
 
-$ hanzi -a dung3 --source-reading Jyutping
+$ hanzi find --reading dung3 -s Jyutping
 冻凍崠胨腖𰎏
 ```
 
-Conversion between simplified and traditional Chinese: `-f` / `-convert-form`
+Find characters with components:
 ```console
-$ hanzi -f 龍馬精神
+$ hanzi find --comp 日月
+明﨟嬮腽靨朝胆腌輤醐酭擫檿曨猒晴盟輎瀭醑曌琞胉腖厭潮廟膫壓懨膻奣臈腪黶脂腊腺謿曡酳腹焽輸勗腤膜橗膾輣朚厴嚈擪萌腥懕冐焨胂臆皘擝腸 奛嘲
+```
+
+Filters can be combined!
+```console
+$ hanzi find --radical 30 --comp 月
+嚈嗋啃哨喐唨唷咀嚨喻喩哊啨喟嘲嗍嘣嗗
+```
+
+
+Simplified and traditional Chinese: `zhscript`
+```console
+$ hanzi zhscript 龍馬精神
 Simplified: 龙马精神
 Traditional: 龍馬精神
 
-$ hanzi -f 飛機
+$ hanzi zhscript 飛機
 Simplified: 飞[机機]     # two or more variants
 Traditional: 飛機
 
-$ hanzi -f 龙馬精神
+$ hanzi zhscript 龙馬精神
 Warning: input string has mixed simplified and traditional forms
 Simplified: 龙马精神
 Traditional: 龍馬精神

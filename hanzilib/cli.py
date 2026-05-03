@@ -1207,13 +1207,14 @@ def new_main():
     elif args.command == "find":
         sets: list[set[str]] = []
 
-        try:
-            idx = int(args.radical)
-        except ValueError:
-            print("Radicals can only be specified by KangXi index for now")
-            sys.exit(1)
+        if args.radical is not None:
+            try:
+                idx = int(args.radical)
+            except ValueError:
+                print("Radicals can only be specified by KangXi index for now")
+                sys.exit(1)
 
-        args.radical = idx
+            args.radical = idx
 
         # special handling if only --radical is specified
         if args.radical is not None and args.reading is None and args.comp is None and args.strokes is None:
