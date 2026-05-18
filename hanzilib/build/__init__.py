@@ -1,23 +1,22 @@
-from __future__ import annotations
-import sqlalchemy.exc
-
-from ..dictionary import getDictionaryClasses
-#!/usr/bin/python
-# -*- coding: utf-8  -*-
-# This file is part of cjklib.
+# This file is part of hanzilib, a fork of cjklib.
 #
-# cjklib is free software: you can redistribute it and/or modify
+# hanzilib is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# cjklib is distributed in the hope that it will be useful,
+# hanzilib is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public License
-# along with cjklib.  If not, see <http://www.gnu.org/licenses/>.
+# along with hanzilib.  If not, see <http://www.gnu.org/licenses/>.
+
+from __future__ import annotations
+import sqlalchemy.exc
+
+from ..dictionary import getDictionaryClasses
 
 """
 Builds the library's database.
@@ -43,21 +42,21 @@ if typing.TYPE_CHECKING:
 class DatabaseBuilder:
     """
     DatabaseBuilder provides the main class for building up a database for the
-    cjklib package.
+    hanzilib package.
 
-    It contains all :class:`~cjklib.build.builder.TableBuilder` classes and a
+    It contains all :class:`~hanzilib.build.builder.TableBuilder` classes and a
     dependency graph to handle build requests.
     """
     def __init__(self, **options):
         """
-        To modify the behaviour of :class:`~cjklib.build.builder.TableBuilder`
+        To modify the behaviour of :class:`~hanzilib.build.builder.TableBuilder`
         instances, global or local options can be specified, see
-        :meth:`~cjklib.build.builder.TableBuilder.getBuilderOptions`.
+        :meth:`~hanzilib.build.builder.TableBuilder.getBuilderOptions`.
 
         :keyword databaseUrl: database connection setting in the format
             ``driver://user:pass@host/database``.
         :keyword dbConnectInst: instance of a
-            :class:`~cjklib.dbconnector.DatabaseConnector`
+            :class:`~hanzilib.dbconnector.DatabaseConnector`
         :keyword dataPath: optional list of paths to the data file(s)
         :keyword quiet: if ``True`` no status information will be printed to
             stderr
@@ -67,7 +66,7 @@ class DatabaseBuilder:
             dropped and built from scratch
         :keyword noFail: if ``True`` build process won't terminate even if one
             table fails to build
-        :keyword prefer: list of :class:`~cjklib.build.builder.TableBuilder`
+        :keyword prefer: list of :class:`~hanzilib.build.builder.TableBuilder`
             names to prefer in conflicting cases
         :keyword additionalBuilders: list of externally provided TableBuilders
         :raise ValueError: if two different options from two different builder
@@ -98,8 +97,7 @@ class DatabaseBuilder:
         else:
             self.db = dbconnector.getDBConnector(
                 {'sqlalchemy.url': databaseUrl})
-            """:class:`~cjklib.dbconnector.DatabaseConnector` instance"""
-
+        
         # get TableBuilder classes
         tableBuilderClasses = DatabaseBuilder.getTableBuilderClasses(
             set(options.pop('prefer', [])), quiet=self.quiet,
@@ -131,7 +129,7 @@ class DatabaseBuilder:
         ``'--TableName-option'``.
 
         :type builderClass: classobj
-        :param builderClass: :class:`~cjklib.build.builder.TableBuilder` class
+        :param builderClass: :class:`~hanzilib.build.builder.TableBuilder` class
         :type ignoreUnknown: bool
         :param ignoreUnknown: if set to ``True`` unknown options will be
             ignored, otherwise a ValueError is raised.
@@ -179,7 +177,7 @@ class DatabaseBuilder:
         Sets the options for the given builder that were specified.
 
         :type builderClass: classobj
-        :param builderClass: :class:`~cjklib.build.builder.TableBuilder` class
+        :param builderClass: :class:`~hanzilib.build.builder.TableBuilder` class
         :type options: dict
         :param options: dictionary of options for the given table builder.
         :type exclusive: bool
@@ -212,7 +210,7 @@ class DatabaseBuilder:
         :type tables: list
         :param tables: list of tables to build
         :raise IOError: if a table builder fails to read its data; only if
-            :attr:`~cjklib.build.DatabaseBuilder.noFail` is set to ``False``
+            :attr:`~hanzilib.build.DatabaseBuilder.noFail` is set to ``False``
         """
         if type(tables) != type([]):
             tables = [tables]
@@ -371,7 +369,7 @@ class DatabaseBuilder:
         """
         Removes all tables only built temporarily as to satisfy build
         dependencies. This method is called before
-        :meth:`~cjklib.build.DatabaseBuilder.build` terminates. If the
+        :meth:`~hanzilib.build.DatabaseBuilder.build` terminates. If the
         build process is interruptes (e.g. by the user pressing Ctrl+C), this
         method should be called as to make sure that these temporary tables are
         removed and not included in later builds.
@@ -551,7 +549,7 @@ class DatabaseBuilder:
         """
         Gets the name of the tables that depend on the given tables to be built
         and already exist similar to
-        :meth:`~cjklib.build.DatabaseBuilder.getRebuiltDependingTables`
+        :meth:`~hanzilib.build.DatabaseBuilder.getRebuiltDependingTables`
         but only for tables of attached databases.
 
         :type tableNames: list of str
@@ -576,7 +574,7 @@ class DatabaseBuilder:
         :type tableNames: list of str
         :param tableNames: list of names of tables to build
         :rtype: list of classobj
-        :return: :class:`~cjklib.build.builder.TableBuilder` classes in build
+        :return: :class:`~hanzilib.build.builder.TableBuilder` classes in build
             order
         :raise UnsupportedError: if an unsupported table is given.
         """
@@ -600,7 +598,7 @@ class DatabaseBuilder:
 
         :type tableBuilderClasses: list of classobj
         :param tableBuilderClasses: list of
-            :class:`~cjklib.build.builder.TableBuilder` classes
+            :class:`~hanzilib.build.builder.TableBuilder` classes
         :rtype: list of classobj
         :return: the given classes ordered in build dependency order
         """
@@ -670,11 +668,11 @@ class DatabaseBuilder:
         quiet=True, additionalBuilders=None) -> set[type[TableBuilder]]:
         """
         Gets all classes in module that implement
-        :class:`~cjklib.build.builder.TableBuilder`.
+        :class:`~hanzilib.build.builder.TableBuilder`.
 
         :type preferClassNameSet: list of str
         :param preferClassNameSet: list of
-            :class:`~cjklib.build.builder.TableBuilder` class names that will
+            :class:`~hanzilib.build.builder.TableBuilder` class names that will
             be preferred in conflicting cases, resolveConflicting must be
             ``True`` to take effect (default)
         :type resolveConflicts: bool
@@ -687,7 +685,7 @@ class DatabaseBuilder:
         :param additionalBuilders: list of externally provided TableBuilders
         :rtype: set
         :return: list of all classes inheriting form
-            :class:`~cjklib.build.builder.TableBuilder` that
+            :class:`~hanzilib.build.builder.TableBuilder` that
             provide a table (i.d. non abstract implementations), with its name
             as key
         :raise ValueError: if two builders are preferred that provide the same
@@ -717,7 +715,7 @@ class DatabaseBuilder:
     @staticmethod
     def resolveBuilderConflicts(classList: list[type[TableBuilder]], preferClassNames=None, quiet=True):
         """
-        Returns a subset of :class:`~cjklib.build.builder.TableBuilder`
+        Returns a subset of :class:`~hanzilib.build.builder.TableBuilder`
         classes so that every buildable table is only represented by
         exactly one builder.
 
@@ -725,7 +723,7 @@ class DatabaseBuilder:
         :param classList: list of TableBuilders
         :type preferClassNames: list of classobj
         :param preferClassNames: list of
-            :class:`~cjklib.build.builder.TableBuilder` class names that will
+            :class:`~hanzilib.build.builder.TableBuilder` class names that will
             be preferred in conflicting cases
         :type quiet: bool
         :param quiet: if ``True`` no status information will be printed to
@@ -793,7 +791,7 @@ class DatabaseBuilder:
         Gets names of tables supported by this instance of the database builder.
 
         This list can have more entries then
-        :meth:`~cjklib.build.DatabaseBuilder.getSupportedTables` as
+        :meth:`~hanzilib.build.DatabaseBuilder.getSupportedTables` as
         additional external builders can be supplied on instantiation.
 
         :rtype: list of str
@@ -803,13 +801,13 @@ class DatabaseBuilder:
 
     def getTableBuilder(self, tableName):
         """
-        Gets the :class:`~cjklib.build.builder.TableBuilder` used by
+        Gets the :class:`~hanzilib.build.builder.TableBuilder` used by
         this instance of the database builder to build the given table.
 
         :type tableName: str
         :param tableName: name of table
         :rtype: classobj
-        :return: :class:`~cjklib.build.builder.TableBuilder` used to
+        :return: :class:`~hanzilib.build.builder.TableBuilder` used to
             build the given table by this build instance.
         :raise UnsupportedError: if an unsupported table is given.
         """

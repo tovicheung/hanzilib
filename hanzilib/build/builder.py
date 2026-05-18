@@ -1,21 +1,19 @@
-from __future__ import annotations
-
-#!/usr/bin/python
-# -*- coding: utf-8  -*-
-# This file is part of cjklib.
+# This file is part of hanzilib, a fork of cjklib.
 #
-# cjklib is free software: you can redistribute it and/or modify
+# hanzilib is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# cjklib is distributed in the hope that it will be useful,
+# hanzilib is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public License
-# along with cjklib.  If not, see <http://www.gnu.org/licenses/>.
+# along with hanzilib.  If not, see <http://www.gnu.org/licenses/>.
+
+from __future__ import annotations
 
 """
 Methods for building the library's database.
@@ -120,7 +118,7 @@ class TableBuilder(ABC):
         """
         :param options: extra options
         :keyword dbConnectInst: instance of a
-            :class:`~cjklib.dbconnector.DatabaseConnector`
+            :class:`~hanzilib.dbconnector.DatabaseConnector`
         :keyword dataPath: optional list of paths to the data file(s)
         :keyword quiet: if ``True`` no status information will be printed to
             stderr
@@ -175,7 +173,7 @@ class TableBuilder(ABC):
         Build the table provided by the TableBuilder.
 
         Methods should raise an IOError if reading a data source fails. The
-        :class:`~cjklib.build.DatabaseBuilder` knows how to handle this
+        :class:`~hanzilib.build.DatabaseBuilder` knows how to handle this
         case and is able to proceed.
         """
         pass
@@ -574,7 +572,7 @@ class UnihanBuilder(EntryGeneratorBuilder):
     def __init__(self, **options):
         """
         :param options: extra options
-        :keyword dbConnectInst: instance of a :class:`~cjklib.dbconnector.DatabaseConnector`
+        :keyword dbConnectInst: instance of a :class:`~hanzilib.dbconnector.DatabaseConnector`
         :keyword dataPath: optional list of paths to the data file(s)
         :keyword quiet: if ``True`` no status information will be printed to
             stderr
@@ -817,7 +815,7 @@ class Kanjidic2Builder(EntryGeneratorBuilder):
         """
         :param options: extra options
         :keyword dbConnectInst: instance of a
-            :class:`~cjklib.dbconnector.DatabaseConnector`
+            :class:`~hanzilib.dbconnector.DatabaseConnector`
         :keyword dataPath: optional list of paths to the data file(s)
         :keyword quiet: if ``True`` no status information will be printed to
             stderr
@@ -892,7 +890,7 @@ class UnihanDerivedBuilder(EntryGeneratorBuilder):
         """
         :param options: extra options
         :keyword dbConnectInst: instance of a
-            :class:`~cjklib.dbconnector.DatabaseConnector`
+            :class:`~hanzilib.dbconnector.DatabaseConnector`
         :keyword dataPath: optional list of paths to the data file(s)
         :keyword quiet: if ``True`` no status information will be printed to
             stderr
@@ -1155,7 +1153,7 @@ class CharacterVariantBuilder(EntryGeneratorBuilder):
     def __init__(self, **options):
         """
         :param options: extra options
-        :keyword dbConnectInst: instance of a :class:`~cjklib.dbconnector.DatabaseConnector`
+        :keyword dbConnectInst: instance of a :class:`~hanzilib.dbconnector.DatabaseConnector`
         :keyword dataPath: optional list of paths to the data file(s)
         :keyword quiet: if ``True`` no status information will be printed to
             stderr
@@ -2156,7 +2154,7 @@ class StrokeCountBuilder(EntryGeneratorBuilder):
             """
             :type dbConnectInst: instance
             :param dbConnectInst: instance of a
-                :class:`~cjklib.dbconnector.DatabaseConnector`.
+                :class:`~hanzilib.dbconnector.DatabaseConnector`.
             :type quiet: bool
             :param quiet: if true no status information will be printed to
                 stderr
@@ -2170,7 +2168,7 @@ class StrokeCountBuilder(EntryGeneratorBuilder):
 
         def generator(self):
             """Provides one entry per character, *glyph* and locale subset."""
-            # Cjklib's stroke count method uses the stroke order information as
+            # hanzilib's stroke count method uses the stroke order information as
             #   long as this table doesn't exist.
             strokeCountDict = self.cjk.getStrokeCountDict()
             for char, glyph in list(strokeCountDict.keys()):
@@ -2209,7 +2207,7 @@ class CombinedStrokeCountBuilder(StrokeCountBuilder):
             """
             :type dbConnectInst: instance
             :param dbConnectInst: instance of a
-                :class:`~cjklib.dbconnector.DatabaseConnector`.
+                :class:`~hanzilib.dbconnector.DatabaseConnector`.
             :type characterSet: set
             :param characterSet: set of characters to generate the table for
             :type tableEntries: list of list
@@ -2459,7 +2457,7 @@ class CharacterComponentLookupBuilder(EntryGeneratorBuilder):
         def __init__(self, dbConnectInst, characterSet):
             """
             :type dbConnectInst: instance
-            :param dbConnectInst: instance of a :class:`~cjklib.dbconnector.DatabaseConnector`
+            :param dbConnectInst: instance of a :class:`~hanzilib.dbconnector.DatabaseConnector`
             :type characterSet: set
             :param characterSet: set of characters to generate the table for
             """
@@ -2552,7 +2550,7 @@ class CharacterRadicalStrokeCountBuilder(EntryGeneratorBuilder):
             """
             :type dbConnectInst: instance
             :param dbConnectInst: instance of a
-                :class:`~cjklib.dbconnector.DatabaseConnector`
+                :class:`~hanzilib.dbconnector.DatabaseConnector`
             :type characterSet: set
             :param characterSet: set of characters to generate the table for
             :type quiet: bool
@@ -2869,7 +2867,7 @@ class CharacterResidualStrokeCountBuilder(EntryGeneratorBuilder):
             """
             :type dbConnectInst: instance
             :param dbConnectInst: instance of a
-                :class:`~cjklib.dbconnector.DatabaseConnector`
+                :class:`~hanzilib.dbconnector.DatabaseConnector`
             :type characterSet: set
             :param characterSet: set of characters to generate the table for
             """
@@ -2895,7 +2893,7 @@ class CharacterResidualStrokeCountBuilder(EntryGeneratorBuilder):
                * Lang: Implement, find a good algorithm to turn down unwanted
                  forms, don't just choose random one. See the following list::
 
-                    >>> from cjklib import characterlookup
+                    >>> from hanzilib import characterlookup
                     >>> cjk = characterlookup.CharacterLookup('T')
                     >>> for char in cjk.db.selectSoleValue('CharacterRadicalResidualStrokeCount',
                     ...     'ChineseCharacter', distinctValues=True):
@@ -3131,7 +3129,7 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
         """
         :param options: extra options
         :keyword dbConnectInst: instance of a
-            :class:`~cjklib.dbconnector.DatabaseConnector`
+            :class:`~hanzilib.dbconnector.DatabaseConnector`
         :keyword dataPath: optional list of paths to the data file(s)
         :keyword quiet: if ``True`` no status information will be printed to
             stderr
@@ -3939,7 +3937,7 @@ class SimpleWenlinFormatBuilder(EntryGeneratorBuilder):
     def __init__(self, **options):
         """
         :param options: extra options
-        :keyword dbConnectInst: instance of a :class:`~cjklib.dbconnector.DatabaseConnector`
+        :keyword dbConnectInst: instance of a :class:`~hanzilib.dbconnector.DatabaseConnector`
         :keyword dataPath: optional list of paths to the data file(s)
         :keyword quiet: if ``True`` no status information will be printed to
             stderr

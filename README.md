@@ -77,7 +77,6 @@ $ hanzi find --radical 30 --comp 月
 嚈嗋啃哨喐唨唷咀嚨喻喩哊啨喟嘲嗍嘣嗗
 ```
 
-
 Simplified and traditional Chinese: `zhscript`
 ```console
 $ hanzi zhscript 龍馬精神
@@ -96,21 +95,28 @@ Traditional: 龍馬精神
 
 ## Python examples
 
-Character operations
+Character operations:
 
 ```py
-from hanzilib.characterlookup import CharacterLookup
-cjk = CharacterLookup("C")
+>>> from hanzilib.characterlookup import CharacterLookup
+>>> cjk = CharacterLookup("C")
 
 # Many methods; to be documented
 ```
 
-Reading conversions
+* Get stroke order of characters:
+```py
+>>> cjk.getStrokeOrder('說')
+['㇔', '㇐', '㇐', '㇐', '㇑', '㇕', '㇐', '㇒', '㇏', '㇑', '㇕', '㇐', '㇓', '㇟']```
+```
+
+Reading conversions:
 
 ```py
-from hanzilib.reading import ReadingFactory
-f = ReadingFactory()
-f.convert('lǎoshī', 'Pinyin', 'MandarinIPA') # lau˨˩.ʂʅ˥˥
+>>> from hanzilib.reading import ReadingFactory
+>>> f = ReadingFactory()
+>>> f.convert('lǎoshī', 'Pinyin', 'MandarinIPA')
+lau˨˩.ʂʅ˥˥
 ```
 
 ## Details of hanzilib

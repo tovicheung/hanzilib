@@ -1,18 +1,17 @@
-# -*- coding: utf-8 -*-
-# This file is part of cjklib.
+# This file is part of hanzilib, a fork of cjklib.
 #
-# cjklib is free software: you can redistribute it and/or modify
+# hanzilib is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# cjklib is distributed in the hope that it will be useful,
+# hanzilib is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public License
-# along with cjklib.  If not, see <http://www.gnu.org/licenses/>.
+# along with hanzilib.  If not, see <http://www.gnu.org/licenses/>.
 
 u"""
 Han character library. Cjklib provides language routines related to Han
@@ -93,14 +92,12 @@ The library and all parts are distributed under the terms of the LGPL
 Version 3, 29 June 2007 (http://www.gnu.org/licenses/lgpl.html) if not
 otherwise noted.
 """
-__version__ = '0.3.2'
-"""The version of cjklib"""
+__version__ = '0.0.7'
+"""The version of hanzilib"""
 
-__author__ = 'Christoph Burgmer <cburgmer@ira.uka.de>'
+__author__ = "Tovi Cheung"
+__credits__ = 'Christoph Burgmer <cburgmer@ira.uka.de>'
 """The primary author of cjklib"""
-
-__url__ = 'http://cjklib.org'
-"""The URL for cjklib's homepage"""
 
 __license__ = 'LGPL'
 """The license governing the use and distribution of cjklib"""

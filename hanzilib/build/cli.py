@@ -1,19 +1,17 @@
-#!/usr/bin/python
-# -*- coding: utf-8  -*-
-# This file is part of cjklib.
+# This file is part of hanzilib, a fork of cjklib.
 #
-# cjklib is free software: you can redistribute it and/or modify
+# hanzilib is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# cjklib is distributed in the hope that it will be useful,
+# hanzilib is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public License
-# along with cjklib.  If not, see <http://www.gnu.org/licenses/>.
+# along with hanzilib.  If not, see <http://www.gnu.org/licenses/>.
 
 """
 Command line interface (*CLI*) to the library's build functionality.
@@ -36,10 +34,10 @@ from ..util import getConfigSettings, getDataPath, ExtendedOption
 
 class CommandLineBuilder(object):
     """
-    *Command line interface* (CLI) to the build functionality of cjklib.
+    *Command line interface* (CLI) to the build functionality of hanzilib.
     """
-    DESCRIPTION = """Builds the database for the cjklib library.
-The database is accessed according to the settings of cjklib in cjklib.conf.
+    DESCRIPTION = """Builds the database for the hanzilib library.
+The database is accessed according to the settings of hanzilib in hanzilib.conf.
 Example: \"%prog build allAvail\". Builders can be given specific options with
 format --BuilderName-option or --TableName-option, e.g.
 \"--Unihan-wideBuild=yes\""""
@@ -192,7 +190,7 @@ format --BuilderName-option or --TableName-option, e.g.
     def getBuilderConfigSettings(cls):
         """
         Gets the builder settings from the section ``Builder`` from
-        ```cjklib.conf```.
+        ```hanzilib.conf```.
 
         :rtype: dict
         :return: dictionary of builder options
@@ -238,7 +236,7 @@ format --BuilderName-option or --TableName-option, e.g.
     @classmethod
     def getConnectionConfigSettings(cls):
         """
-        Gets the connections settings from cjklib.conf.
+        Gets the connections settings from hanzilib.conf.
 
         :rtype: dict
         :return: dictionary of connection options
@@ -257,7 +255,7 @@ format --BuilderName-option or --TableName-option, e.g.
     def getDefaultOptions(cls, includeConfig=True):
         """
         Gets default options that always overwrite those specified in the build
-        module. Boolean options of the :class:`~cjklib.build.DatabaseBuilder`
+        module. Boolean options of the :class:`~hanzilib.build.DatabaseBuilder`
         can not be changed here as they are hardcoded in the given command line
         options.
         """
@@ -324,7 +322,7 @@ along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
                 " [default: %s]" % defaults.get("registerUnicode", False)))
         parser.add_option("--ignoreConfig", action="store_true",
             dest="ignoreConfig", default=False,
-            help="ignore settings from cjklib.conf")
+            help="ignore settings from hanzilib.conf")
 
         optionSet = set(['rebuildExisting', 'rebuildDepending', 'quiet',
             'databaseUrl', 'attach', 'prefer'])
