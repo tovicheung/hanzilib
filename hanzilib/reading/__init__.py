@@ -259,7 +259,7 @@ class ReadingFactory(object):
         self._sharedState['readingOperatorClasses']\
             [readingOperator.READING_NAME] = readingOperator
 
-    def getSupportedReadings(self):
+    def getSupportedReadings(self) -> list[str]:
         """
         Gets a list of all supported readings.
 

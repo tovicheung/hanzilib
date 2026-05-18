@@ -1,14 +1,16 @@
 # Hanzilib
 
-Hanzilib is designed for working with Han characters (Hanzi, Kanji, Hanja, and chu Han) used in Chinese, Japanese, Korean, and Vietnamese (CJKV) languages. It provides a comprehensive set of tools to manage, analyze, and query information about characters based on their visual structure (radicals, glyphs, strokes), pronunciation (readings), and dictionary definitions.
+Hanzilib works with Han characters (Hanzi, Kanji, Hanja, and chu Han) used in Chinese, Japanese, Korean, and Vietnamese (CJKV) languages. It provides a comprehensive set of tools to manage, analyze, and query information about characters based on their visual structure (radicals, glyphs, strokes), pronunciation (readings), and dictionary definitions.
 
-Hanzilib is the successor of **cjklib**, which has remained dormant for more than a decade and was difficult to install for modern versions of Python. Hence, this fork was created as an attempt to port the entirety of (or most of) cjklib to modern Python.
+Hanzilib is a modern fork of **cjklib**, which has been unmaintained since 2012. Cjklib was difficult to install for modern versions of Python; some of its data sources are also no longer available. Hence, this fork was created as an attempt to port the entirety of (or most of) cjklib to modern Python.
 
-Hanzilib also provides the cli tool `hanzi` for convenience.
+Apart from a Python interface, hanzilib provides the `hanzi` cli tool for convenience (resembling the original `cjknife` command)
 
-**Important:** the interface (both Python and CLI) are not final
+**Important ⚠️**
+* hanzilib is a work in progress; the interface (both Python and CLI) are not final
+* hanzilib is not backwards-compatible with cjklib. The API has been modernized for clarity and maintainability.
 
-#### Useful sections
+#### Jump to useful sections
 * [CLI examples](#cli-examples)
 * [Python examples](#python-examples)
 * [Details](#details-of-hanzilib)
@@ -20,12 +22,6 @@ pip install hanzilib
 ```
 
 After installing, run `hanzi build` to build the database
-
-## Current state of the project
-- Core ported to Python 3
-- Core now uses SqlAlchemy 2.0
-- **There is still a LOT to update/document**
-- the legacy `EDICT` is used instead of `EDICT2`, this will be changed shortly
 
 ## CLI examples
 
@@ -156,7 +152,7 @@ Cantonese
 - Inter-conversions within Jyutping and Cantonese Yale
 - No conversion support for Cantonese IPA
 
-## Changes since cjklib
+## Changes since cjklib, and other details
 
 - `kRSKangXi` (data from 康熙字典) was removed from Unihan in favour of `kRSUnicode`, which is now the standard for getting radicals of Chinese characters (See: [Unicode proposal L2/22-195](https://www.unicode.org/L2/L2022/22195-remove-krskangxi.pdf))
 
@@ -164,3 +160,9 @@ Cantonese
 
 
 Therefore, in this project, `CharacterKangxiRadical` and `CharacterKanwaRadical` are combined to `CharacterChineseRadical`
+
+(to document, some may be temporary)
+Other removed tables: `CharacterJapaneseRadical`, `CharacterKoreanRadical`, `HKSCSSet`, `CEDICTGR`, `CEDICTGR_Words`, `CFDICT`, `CFDICT_Words`
+
+- the legacy `EDICT` is used instead of `EDICT2`, this will be changed shortly
+

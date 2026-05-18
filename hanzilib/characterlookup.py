@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 # This file is part of cjklib.
@@ -47,6 +49,11 @@ have been unified if not to maintain round trip convertibility)
 character simplification process of the PR China.
 - T, *traditional character* forms for a *simplified Chinese character*.
 """
+
+# Recursive
+type DecompositionTree = list[str | tuple[str, int, list[DecompositionTree]]]
+# str is IDSoperator
+# other is (char, glyph, list of subtrees)
 
 from . import reading
 from . import exception
@@ -1085,7 +1092,7 @@ class CharacterLookup:
         """
         strokeOrderAbbrev = self.getStrokeOrderAbbrev(char, glyph,
             includePartial=includePartial)
-        strokeOrder = []
+        strokeOrder: list[str | None] = []
         for stroke in strokeOrderAbbrev.replace(' ', '-').split('-'):
             if stroke != '?':
                 strokeOrder.append(self.getStrokeForAbbrev(stroke))
@@ -1129,7 +1136,7 @@ class CharacterLookup:
             includePartial=includePartial)
         if not strokeOrder:
             raise exception.NoInformationError(
-                "Character has no stroke order information")
+                "Character has no stroke order information (most likely due to no complete decompositions)")
         else:
             return strokeOrder
 
@@ -1230,7 +1237,7 @@ class CharacterLookup:
             :return: string of stroke abbreviations separated by spaces and
                 hyphens.
             """
-            def getFromEntry(subTree, index=0):
+            def getFromEntry(subTree: list[str | tuple[str, int]], index=0) -> tuple[list[str] | None, int]:
                 """
                 Goes through a single layer of a tree recursively.
 
@@ -2059,7 +2066,7 @@ class CharacterLookup:
         # U+2fd5
         return char >= '⺀' and char <= '⿕'
 
-    def getRadicalFormEquivalentCharacter(self, radicalForm):
+    def getRadicalFormEquivalentCharacter(self, radicalForm: str) -> str:
         """
         Gets the *equivalent character* of the given *Unicode radical form* or
         *Unicode radical variant*.
@@ -2355,7 +2362,7 @@ class CharacterLookup:
 
         return result
 
-    def getDecompositionEntries(self, char, glyph=None):
+    def getDecompositionEntries(self, char: str, glyph: Optional[int] = None) -> list[list[str | tuple[str, int]]]:
         """
         Gets the decomposition of the given character into components from the
         database. The resulting decomposition is only the first layer in a tree
@@ -2378,7 +2385,7 @@ class CharacterLookup:
         :rtype: list
         :return: list of first layer decompositions
         """
-        if glyph == None:
+        if glyph is None:
             try:
                 glyph = self.getDefaultGlyph(char)
             except exception.NoInformationError:
@@ -2397,7 +2404,7 @@ class CharacterLookup:
             )
             .order_by(table.c.SubIndex)
         )
-        # print("PPPPPE", result)
+        
         for x in range(len(result)):
             result[x] = "".join(result[x])
 
@@ -2442,7 +2449,7 @@ class CharacterLookup:
         return decompDict
 
     @staticmethod
-    def decompositionFromString(decomposition):
+    def decompositionFromString(decomposition: str) -> list[str | tuple[str, int]]:
         """
         Gets a tuple representation with character/*glyph* of the given
         character's decomposition into components.
@@ -2519,7 +2526,7 @@ class CharacterLookup:
 
         return ''.join(entities)
 
-    def getDecompositionTreeList(self, char, glyph=None):
+    def getDecompositionTreeList(self, char: str, glyph=None) -> list[DecompositionTree]:
         """
         Gets the decomposition of the given character into components as a list
         of decomposition trees.
@@ -2550,16 +2557,17 @@ class CharacterLookup:
                 # no decomposition available
                 return []
 
-        decompositionTreeList = []
+        decompositionTreeList: list[DecompositionTree] = []
         # get tree for each decomposition
         for componentsList in self.getDecompositionEntries(char, glyph=glyph):
-            decompositionTree = []
+            decompositionTree: list[str | tuple[str]] = []
             for component in componentsList:
-                if type(component) != type(()):
+                if not isinstance(component, tuple):
                     # IDS operator
                     decompositionTree.append(component)
                 else:
                     # Chinese character with glyph info
+                    # eg ('山', 0)
                     character, characterGlyph = component
                     # get partition of component recursively
                     componentTree = self.getDecompositionTreeList(character,

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 # This file is part of cjklib.
@@ -34,7 +36,9 @@ import getopt
 import locale
 import warnings
 
+from dataclasses import dataclass, field, KW_ONLY
 import typing
+from typing import Literal
 
 if typing.TYPE_CHECKING:
     from . import dbconnector, characterlookup, reading, dictionary, exception, __version__
@@ -70,6 +74,47 @@ class ExactMultiple(search.Exact):
         searchStrings = self._getSubstrings(headwordStr)
         return lambda cell: cell in searchStrings
 
+@dataclass
+class GlyphData:
+    # All fields are optional because there may be no info
+    decomposition: list[characterlookup.DecompositionTree] | None = None
+    stroke_count: int | None = None
+    stroke_order: list[str] | None = None # unknown stroke (None) is replaced with '？'
+    stroke_order_abbrev: str | None = None
+
+
+@dataclass
+class BaseCharacterData:
+    char: str
+    locale: str
+    locale_name: str
+    domain: str
+    codepoint_hex: str
+    codepoint_dec: str
+    type: Literal["radical", "chracter"]
+
+    radical_index: int | None = None # maybe be unavailable
+    radical_form: str | None = None # maybe be unavailable
+    radical_variants: list[str] | None = None # maybe be unavailable
+    stroke_count: int | None = None # maybe be unavailable
+
+    default_glyph: int | None = None # maybe be unavailable
+    glyphs: dict[int, GlyphData] = field(default_factory=lambda: dict())
+    
+    domains: list[str] = field(default_factory=lambda: [])
+   
+@dataclass
+class RadicalData(BaseCharacterData):
+    _: KW_ONLY # non-default args cannot follow default args (in parent)
+    type: Literal["radical"] = "radical"
+    equivalent_form: str
+
+@dataclass
+class CharacterData(BaseCharacterData):
+    _: KW_ONLY # non-default args cannot follow default args (in parent)
+    type: Literal["character"] = "character"
+    readings: dict[str, list[str]] = field(default_factory=lambda: dict()) # reading_name: reading_list
+    variants: dict[str, list[str]] = field(default_factory=lambda: dict()) # variant_name: variant_list
 
 class CharacterInfo:
     """
@@ -596,145 +641,113 @@ class CharacterInfo:
                 equivCharTable)
         return [char for char, _ in componentLookupResult]
 
-    def getCharacterInformation(self, char):
+    def getCharacterInformation(self, char: str) -> CharacterData | RadicalData:
         """
-        Get the basic information for the given character.
+        Get information for the given character.
 
-        The following data is collected and returned in a dict:
-            - char
-            - locale
-            - locale name
-            - character domain
-            - code point hex
-            - code point dec
-            - type
-            - equivalent form (if type is ``'radical'``)
-            - radical index
-            - radical form (if available)
-            - radical variants (if available)
-            - stroke count (if available)
-            - readings (if type is ``'character'``)
-            - variants (if type is ``'character'``)
-            - default glyph
-            - glyphs
+        Returns either a CharacterData object or a RadicalData object depending on type of character
 
-        :type char: str
-        :param char: Chinese character
-        :rtype: dict
-        :return: character information as keyword value pairs
+        Refer to the definition of BaseCharacterData, CharacterData and RadicalData for more info
+        
         """
-        infoDict = {}
-
-        # general information
-        infoDict['char'] = char
-        infoDict['locale'] = self.locale
-        infoDict['locale name'] = self.CHAR_LOCALE_NAME[self.locale]
-        infoDict['characterDomain'] = self.characterLookup.characterDomain
-        infoDict['codepoint hex'] = 'U+%04X' % ord(char)
-        infoDict['codepoint dec'] = str(ord(char))
-
-        # radical
-        if self.characterLookup.isRadicalChar(char):
-            infoDict['type'] = 'radical'
-
+        data_type = "radical" if self.characterLookup.isRadicalChar(char) else "character"
+        # finicky typing but works
+        data = (RadicalData if data_type == "radical" else CharacterData)(
+            char = char,
+            locale = self.locale,
+            locale_name = self.CHAR_LOCALE_NAME[self.locale],
+            domain = self.characterLookup.characterDomain,
+            codepoint_hex = "U+%04X" % ord(char),
+            codepoint_dec = str(ord(char)),
+            type = data_type,
+            domains = ['Unicode'],
+        )
+        
+        if data.type == "radical":
             if self.characterLookup.isKangxiRadicalFormOrEquivalent(char):
-                infoDict['radical index'] \
-                    = self.characterLookup.getKangxiRadicalIndex(char)
-            elif self.characterLookupTraditional\
-                .isKangxiRadicalFormOrEquivalent(char):
-                infoDict['radical index'] = self.characterLookupTraditional\
+                data.radical_index = self.characterLookup.getKangxiRadicalIndex(char)
+            elif self.characterLookupTraditional.isKangxiRadicalFormOrEquivalent(char):
+                data.radical_index = self.characterLookupTraditional\
                     .getKangxiRadicalIndex(char)
-            else:
-                infoDict['radical index'] = None
 
             try:
-                infoDict['equivalent form'] \
-                    = self.characterLookup.getRadicalFormEquivalentCharacter(
-                        char)
+                data.equivalent_form \
+                    = self.characterLookup.getRadicalFormEquivalentCharacter(char)
             except exception.UnsupportedError:
                 pass
 
         else:
-            infoDict['type'] = 'character'
             try:
-                infoDict['radical index'] = self.characterLookup.getCharacterChineseRadicalIndex(char)
-            except exception.NoInformationError:
-                infoDict['radical index'] = None
-
-        # regardless of type (radical/radical equivalent/other character) show
-        #   radical forms
-        if infoDict['radical index']:
-            try:
-                infoDict['radical form'] \
-                    = self.characterLookupTraditional.getKangxiRadicalForm(
-                        infoDict['radical index'])
-                localeVariantForm \
-                    = self.characterLookup.getKangxiRadicalForm(
-                        infoDict['radical index'])
-                variantList = []
-                if localeVariantForm != infoDict['radical form']:
-                    variantList.append(localeVariantForm)
-                variantList.extend(
-                    self.characterLookup.getKangxiRadicalVariantForms(
-                        infoDict['radical index']))
-                infoDict['radical variants'] = variantList
+                data.radical_index = self.characterLookup.getCharacterChineseRadicalIndex(char)
             except exception.NoInformationError:
                 pass
-
+        
+        # regardless of type (radical/radical equivalent/other character) show
+        #   radical forms
+        if data.radical_index:
+            try:
+                data.radical_form \
+                    = self.characterLookupTraditional.getKangxiRadicalForm(
+                        data.radical_index)
+                localeVariantForm \
+                    = self.characterLookup.getKangxiRadicalForm(
+                        data.radical_index)
+                variantList = []
+                if localeVariantForm != data.radical_form:
+                    variantList.append(localeVariantForm)
+                variantList.extend(
+                    self.characterLookup.getKangxiRadicalVariantForms(data.radical_index))
+                data.radical_variants = variantList
+            except exception.NoInformationError:
+                pass
+        
         # stroke count
         try:
-            infoDict['stroke count'] = self.characterLookup.getStrokeCount(char)
+            data.stroke_count = self.characterLookup.getStrokeCount(char)
         except exception.NoInformationError:
             pass
 
-        if not self.characterLookup.isRadicalChar(char):
+        if data.type == "character":
             # reading information
-            infoDict['readings'] = {}
-
             for readingN in self.readingFactory.getSupportedReadings():
                 try:
                     readingList = self.characterLookup.getReadingForCharacter(
                         char, readingN)
                     if readingList:
-                        infoDict['readings'][readingN] = readingList
+                        data.readings[readingN] = readingList
                 except exception.UnsupportedError:
                     pass
                 except exception.ConversionError:
                     pass
 
             # character variants
-            infoDict['variants'] = {}
-
             for variantType in self.VARIANT_TYPE_NAMES:
                 variants = self.characterLookup.getCharacterVariants(char,
                     variantType)
                 if variants:
-                    infoDict['variants'][self.VARIANT_TYPE_NAMES[variantType]] \
+                    data.variants[self.VARIANT_TYPE_NAMES[variantType]] \
                         = variants
 
         try:
             # character decomposition and stroke order
-            infoDict['default glyph'] = self.characterLookup.getDefaultGlyph(
+            data.default_glyph = self.characterLookup.getDefaultGlyph(
                 char)
         except exception.NoInformationError:
             pass
-
+        
         try:
-            infoDict['glyphs'] = {}
-
             for glyph in self.characterLookup.getCharacterGlyphs(char):
-                infoDict['glyphs'][glyph] = {}
+                data.glyphs[glyph] = GlyphData() # all fields default to None
                 # character decomposition
                 decomposition = self.characterLookup.getDecompositionTreeList(
                     char, glyph=glyph)
 
                 if decomposition:
-                    infoDict['glyphs'][glyph]['decomposition'] \
-                        = decomposition
+                    data.glyphs[glyph].decomposition = decomposition
 
                 # stroke order
                 try:
-                    infoDict['glyphs'][glyph]['stroke count'] \
+                    data.glyphs[glyph].stroke_count \
                         = self.characterLookup.getStrokeCount(char,
                             glyph=glyph)
 
@@ -743,19 +756,18 @@ class CharacterInfo:
                     if set(strokes) != set([None]):
                         for i in range(len(strokes)):
                             if strokes[i] is None: strokes[i] = '？'
-                        infoDict['glyphs'][glyph]['stroke order'] = strokes
+                        data.glyphs[glyph].stroke_order = strokes
 
-                        infoDict['glyphs'][glyph]['stroke order abbrev'] \
+                        data.glyphs[glyph].stroke_order_abbrev \
                             = self.characterLookup.getStrokeOrderAbbrev(char,
                                 glyph=glyph, includePartial=True)
                 except exception.NoInformationError:
                     pass
         except exception.NoInformationError:
             pass
-
+        
         # character domains
         domains = self.characterLookup.getAvailableCharacterDomains()
-        infoDict['domains'] = ['Unicode']
         for characterDomain in domains:
             if characterDomain == 'Unicode':
                 continue
@@ -763,14 +775,17 @@ class CharacterInfo:
             charLookup = characterlookup.CharacterLookup('T', characterDomain,
                 dbConnectInst=self.db)
             if charLookup.isCharacterInDomain(char):
-                infoDict['domains'].append(characterDomain)
+                data.domains.append(characterDomain)
 
-        return infoDict
+        return data
 
-
-def getPrintableList(stringList, joinString = ""):
+def getPrintableList(stringList: list[list[str]], joinString = ""):
     """
-    Gets a printable representation for the given list.
+    Gets a printable representation for the given list of possible values of strings.
+
+    Example:
+    >>> getPrintableList([['a'], ['b', 'c'], ['d', 'e', 'f']])
+    a[bc][def]
 
     :type stringList: list of list of str
     :param stringList: strings that need to be concatenated for output
@@ -787,7 +802,7 @@ def getPrintableList(stringList, joinString = ""):
             joinedStringList.append("[" + joinString.join(elem) + "]")
     return joinString.join(joinedStringList)
 
-def getDecompositionForList(decompositionList):
+def getDecompositionForList(decompositionList: list[characterlookup.DecompositionTree]) -> list[str]:
     """
     Gets a fixed width string representation of the given decompositions.
 
@@ -802,7 +817,7 @@ def getDecompositionForList(decompositionList):
         stringList.extend(getDecompositionForEntry(decomposition))
     return stringList
 
-def getDecompositionForEntry(decomposition):
+def getDecompositionForEntry(decomposition: characterlookup.DecompositionTree) -> list[str]:
     """
     Gets a fixed width string representation of the given decomposition.
 
@@ -813,11 +828,12 @@ def getDecompositionForEntry(decomposition):
     """
     # process one character of a decompositions
     stringList = [""]
-    if type(decomposition[0]) != type(()):
+    first = decomposition[0]
+    if not isinstance(first, tuple):
         # IDS element
         stringList[0] = decomposition[0]
     else:
-        char, _, decompList = decomposition[0]
+        char, _, decompList = first
         stringList[0] = char
         maxLineLen = 0
         for line in getDecompositionForList(decompList):
@@ -914,78 +930,64 @@ ALTERNATIVE_READING_NAMES = {'Hangul': ['hg'], 'Pinyin': ['py'],
 import argparse
 
 def cmd_lookup(parameter: str, charInfo: CharacterInfo):
-    infoDict = charInfo.getCharacterInformation(parameter)
+    data = charInfo.getCharacterInformation(parameter)
 
-    print(("Information for character " + infoDict['char'] + " (" \
-        + infoDict['locale name'] + " locale, " \
-        + infoDict['characterDomain'] + ' domain)')\
-    )
-    print("Unicode codepoint: " + infoDict['codepoint hex'] + " (" \
-        + infoDict['codepoint dec'] + ", "+ infoDict['type'] \
-        + " form)")
-    print("In character domains: " + ', '.join(infoDict['domains']))
-    if 'equivalent form' in infoDict:
-        print(("Equivalent character form: " \
-            + infoDict['equivalent form'])\
-        )
+    print(f"Information for character {data.char} ({data.locale_name} locale, {data.domain} domain)")
+    print(f"Character type: {data.type}")
+    print(f"Unicode codepoint: {data.codepoint_hex} ({data.codepoint_dec})")
+    print("In character domains: " + ', '.join(data.domains))
 
-    if infoDict['radical index']:
-        radicalForms = ""
-        if infoDict['radical form']:
-            radicalForms = ", radical form: " \
-                + infoDict['radical form']
-        if infoDict['radical variants']:
-            radicalForms = radicalForms + ", variants: " \
-                + ", ".join(infoDict['radical variants'])
-        print(("Radical index: " + str(infoDict['radical index']) \
-            + radicalForms)\
-        )
+    if data.type == "radical":
+        print("Radical equivalent form: " + data.equivalent_form)
 
-    if 'stroke count' in infoDict:
-        strokeCount = str(infoDict['stroke count'])
-    else:
-        strokeCount = 'N/A'
-    print(("Stroke count: " + strokeCount))
+    if data.radical_index is not None:
+        extra_data = ""
+        if data.radical_form is not None:
+            extra_data += ", radical form: " + data.radical_form
+        if data.radical_variants is not None:
+            extra_data += ", variants: " \
+                + ", ".join(data.radical_variants)
+        print(f"Radical index: {data.radical_index} {extra_data}")
 
-    if infoDict['type'] == 'character':
-        readingList = list(infoDict['readings'].keys())
+    print(f"Stroke count: {data.stroke_count if data.stroke_count is not None else 'N/A'}")
+
+    if data.type == "character":
+        readingList = list(data.readings.keys())
         readingList.sort()
+        if readingList:
+            print()
         for readingN in readingList:
-            print(("Phonetic data (" + readingN + "): " \
-                + ", ".join(infoDict['readings'][readingN]))\
+            print(("Reading (" + readingN + "): " \
+                + ", ".join(data.readings[readingN]))\
             )
-
-        variantList = list(infoDict['variants'].keys())
+        
+        variantList = list(data.variants.keys())
         variantList.sort()
+        if variantList:
+            print()
         for variantType in variantList:
             print((variantType + ': ' \
-                + ', '.join(infoDict['variants'][variantType]))\
+                + ', '.join(data.variants[variantType]))\
             )
 
-    glyphList = list(infoDict['glyphs'].keys())
+    glyphList = list(data.glyphs.keys())
     glyphList.sort()
     for glyph in glyphList:
-        if 'stroke count' in infoDict['glyphs'][glyph]:
-            strokeCount \
-                = str(infoDict['glyphs'][glyph]['stroke count'])
-        else:
-            strokeCount = 'N/A'
+        print()
+        glyph_data = data.glyphs[glyph]
         default = ""
-        if glyph == infoDict['default glyph']:
-            default = "(*)"
-        print("Glyph " + str(glyph) + default + ', stroke count: ' \
-            + strokeCount)
-
-        if 'decomposition' in infoDict['glyphs'][glyph]:
-            stringList = getDecompositionForList(
-                infoDict['glyphs'][glyph]['decomposition'])
+        if glyph == data.default_glyph:
+            default = " (default)"
+        print(f"Glyph {glyph}{default}")
+        print(f"Stroke count: {glyph_data.stroke_count if glyph_data.stroke_count is not None else 'N/A'}")
+        
+        if glyph_data.stroke_order:
+            print(f"Stroke order: {''.join(glyph_data.stroke_order)} ({glyph_data.stroke_order_abbrev})")
+        
+        if glyph_data.decomposition:
+            print("Decomposition:")
+            stringList = getDecompositionForList(glyph_data.decomposition)
             print(("\n".join(stringList)))
-        if 'stroke order' in infoDict['glyphs'][glyph]:
-            print(("Stroke order: " + ''.join(
-                infoDict['glyphs'][glyph]['stroke order']) + ' (' \
-                + infoDict['glyphs'][glyph]['stroke order abbrev'] \
-                + ')')
-            )
 
 HELP = """\
 Usage: hanzi <COMMAND> [OPTIONS]
@@ -1000,15 +1002,13 @@ Character Lookup:
   find --comp <CHARS>       Search for characters containing specific components
 
 Text Processing:
-  convert-form <TEXT>       Convert between Simplified and Traditional forms
+  zhscript <TEXT>           Get Simplified and Traditional Chinese
   to-reading <TEXT>         Get the phonetic reading for a string of text
   convert-reading <TEXT>    Convert readings (e.g., Pinyin to Zhuyin)
 
 Dictionary:
   dict install <NAME>       Download and install a specific dictionary
   dict list                 List installed and available dictionaries
-  dict use <NAME>           Set the active dictionary
-  dict search <QUERY>       Perform wildcard searches on definitions/headwords
   
 Global Options:
   -l, --locale <TCJKV>      Set locale (default: C)
@@ -1019,10 +1019,9 @@ Global Options:
   -h, --help                Show help
 """
 
-from dataclasses import dataclass
 
 # build lookup table for reading input names to reading 
-readingLookup = {}
+readingLookup: dict[str, str] = {}
 for readingN in reading.ReadingFactory().getSupportedReadings():
     readingLookup[readingN.lower()] = readingN
 for readingN in ALTERNATIVE_READING_NAMES:
@@ -1102,7 +1101,8 @@ def new_main():
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
     
     # hanzi build
-    subparsers.add_parser("build", help="Initialize the database", parents=[parent_parser])
+    build_p = subparsers.add_parser("build", help="Initialize the database", parents=[parent_parser])
+    build_p.add_argument("--rebuild", action="store_tru", help="Rebuild existing databases")
 
     # hanzi dict
     dict_parser = subparsers.add_parser("dict", help="Dictionary management", parents=[parent_parser])
@@ -1147,8 +1147,6 @@ def new_main():
     search_p.add_argument("query", help="Search query (use _ or % for wildcards)")
     
     args = parser.parse_args()
-
-
 
     configSettings = getConfigSettings("hanzi")
     # url = configSettings.get("url")
@@ -1201,7 +1199,10 @@ def new_main():
             sys.argv.remove("install") # Temporary
             main()
         elif args.dict_action == "list":
-            print("Not implemented yet")
+            db = char_info.db
+            attached = list(db.attached.keys())
+            for x in dictionary.getAvailableDictionaries():
+                print(x.PROVIDES, "from", attached[db.getDatabaseIdFromTable(x.PROVIDES) - 1])
     elif args.command == "lookup":
         cmd_lookup(args.char, char_info)
     elif args.command == "find":

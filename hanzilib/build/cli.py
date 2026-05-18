@@ -62,12 +62,13 @@ format --BuilderName-option or --TableName-option, e.g.
             'LocaleCharacterGlyph', 'StrokeCount', 'ComponentLookup',
             'CharacterRadicalResidualStrokeCount'],
         'UnihanCharacterSets': ['IICoreSet', 'GB2312Set', 'BIG5Set',
-            'HKSCSSet', 'BIG5HKSCSSet', 'JISX0208Set', 'JISX0208_0213Set'],
+            # 'HKSCSSet',
+            'BIG5HKSCSSet', 'JISX0208Set', 'JISX0208_0213Set'],
         'UnihanData': ['UnihanCharacterSets', 'CharacterKangxiRadical',
             'CharacterPinyin', 'CharacterJyutping', 'CharacterHangul',
             'CharacterVietnamese', 'CharacterJapaneseKun',
             'CharacterJapaneseOn', 'CharacterKanWaRadical',
-            'CharacterJapaneseRadical', 'CharacterKoreanRadical',
+            # 'CharacterJapaneseRadical', 'CharacterKoreanRadical',
             'CharacterVariant', 'Glyphs'],
         # library based
         'Readings': ['PinyinSyllables', 'WadeGilesSyllables',
@@ -82,7 +83,10 @@ format --BuilderName-option or --TableName-option, e.g.
             'CharacterShanghaineseIPA', 'ShanghaineseIPASyllables'],
         'SupportedCharacterReadings': ['CharacterPinyin', 'CharacterJyutping',
             'CharacterHangul', 'CharacterShanghaineseIPA'],
-        'KangxiRadicalData': ['CharacterKangxiRadical', 'KangxiRadical',
+        'KangxiRadicalData': [
+            # 'CharacterKangxiRadical',
+            'CharacterChineseRadical',
+            'KangxiRadical',
             'KangxiRadicalIsolatedCharacter', 'RadicalEquivalentCharacter',
             'CharacterRadicalResidualStrokeCount',
             'CharacterResidualStrokeCount'],
@@ -113,7 +117,6 @@ format --BuilderName-option or --TableName-option, e.g.
         'fullKorean': ['KangxiRadicalData', 'ShapeLookupData',
             'CharacterHangul', 'IICoreSet'], # TODO IICoreSet as long as no better source exists
         'fullVietnamese': ['KangxiRadicalData', 'ShapeLookupData', 'IICoreSet'], # TODO IICoreSet as long as no better source exists
-        # additional data for cjknife
         'Dictionaries': [
             'CEDICT',
             # 'CEDICTGR',
@@ -121,19 +124,6 @@ format --BuilderName-option or --TableName-option, e.g.
             # 'CFDICT',
             'EDICT'
         ],
-        # TODO deprecated
-        'fullDictionaries': [
-            'fullCEDICT',
-            # 'fullCEDICTGR',
-            'fullHanDeDict',
-            # 'fullCFDICT',
-            'fullEDICT'
-        ],
-        'fullCEDICT': ['CEDICT'],
-        # 'fullCEDICTGR': ['CEDICTGR'],
-        'fullHanDeDict': ['HanDeDict'],
-        # 'fullCFDICT': ['CFDICT'],
-        'fullEDICT': ['EDICT'],
     }
     """
     Definition of build groups available to the user. Recursive definitions are
@@ -148,8 +138,8 @@ format --BuilderName-option or --TableName-option, e.g.
         = (hasattr(sys.stdout, 'encoding') and sys.stdout.encoding) \
             or locale.getpreferredencoding() or 'ascii'
 
-    def __init__(self, deprecated=None):
-        self.deprecated = deprecated or []
+    # def __init__(self, deprecated=None):
+    #     self.deprecated = deprecated or []
 
     @classmethod
     def printFormattedLine(cls, outputString, lineLength=None,
@@ -207,6 +197,7 @@ format --BuilderName-option or --TableName-option, e.g.
         :rtype: dict
         :return: dictionary of builder options
         """
+        return {} # temp
         configOptions = getConfigSettings('Builder')
         # don't convert to lowercase
         configparser.RawConfigParser.optionxform = lambda self, x: x
@@ -420,20 +411,20 @@ along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
         self.printFormattedLine("\nBoth group names and table names can be "
             "given to the build process.")
 
-    def _getDeprecated(self):
-        deprecated = set()
-        for entry in self.deprecated:
-            if entry in self.BUILD_GROUPS:
-                # group
-                deprecated.add(entry)
-                deprecated.update(self.BUILD_GROUPS[entry])
-            else:
-                # single table
-                for groupEntries in list(self.BUILD_GROUPS.values()):
-                    if entry in groupEntries:
-                        deprecated.add(entry)
+    # def _getDeprecated(self):
+    #     deprecated = set()
+    #     for entry in self.deprecated:
+    #         if entry in self.BUILD_GROUPS:
+    #             # group
+    #             deprecated.add(entry)
+    #             deprecated.update(self.BUILD_GROUPS[entry])
+    #         else:
+    #             # single table
+    #             for groupEntries in list(self.BUILD_GROUPS.values()):
+    #                 if entry in groupEntries:
+    #                     deprecated.add(entry)
 
-        return deprecated
+    #     return deprecated
 
     def _combinePreferred(self, preferred, otherPreferred):
         """
@@ -565,7 +556,7 @@ def main():
     # temporary measure
     sys.argv = [sys.argv[0], "build", "allAvail"]
     print("(Temporary) building using args:", sys.argv[1:])
-    if not CommandLineBuilder(deprecated=['fullDictionaries']).run():
+    if not CommandLineBuilder().run():
         sys.exit(1)
 
 if __name__ == "__main__":
