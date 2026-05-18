@@ -29,13 +29,32 @@ Get character information:
 ```console
 $ hanzi lookup 個
 Information for character 個 (Chinese simplified locale, Unicode domain)
-Unicode codepoint: U+500B (20491, character form)
-In character domains: Unicode, BIG5, IICore, JISX0208_0213, GlyphInformation, JISX0208, BIG5HKSCS
-Radical index: 9, radical form: ⼈, variants: ⺅
+Character type: character
+Unicode codepoint: U+500B (20491)
+In character domains: Unicode, JISX0208, GlyphInformation, JISX0208_0213, BIG5, BIG5HKSCS, IICore
+Radical index: 9 , radical form: ⼈, variants: ⺅
 Stroke count: 10
-Phonetic data (CantoneseYale): go
-Phonetic data (GR): gee, geh
-...
+
+Reading (CantoneseYale): go
+Reading (GR): gee, geh
+Reading (Hangul): 개:0e
+Reading (Jyutping): go3
+Reading (MandarinBraille): ⠛⠢⠄, ⠛⠢⠆
+Reading (MandarinIPA): kɤ˨˩˦, kɤ˥˩
+Reading (Pinyin): gě, gè
+
+Semantic variants: 个, 箇
+Simplified variants: 个
+Specialised semantic variants: 个, 箇
+
+Glyph 0 (default)
+Stroke count: 10
+Stroke order: ㇒㇑㇑㇕㇐㇑㇑㇕㇐㇐ (P-S S-HZ H-S S-HZ-H H)
+Decomposition:
+⿰亻固　　　　　　　　　　
+　　⿴囗　　　　古　　　　
+　　　⿱冂　　一⿱十　　口
+　　　　⿻丨？　⿻一丨
 ```
 
 Get reading from string:
@@ -101,13 +120,15 @@ Character operations:
 >>> from hanzilib.characterlookup import CharacterLookup
 >>> cjk = CharacterLookup("C")
 
-# Many methods; to be documented
-```
-
-* Get stroke order of characters:
-```py
+# Get stroke order
 >>> cjk.getStrokeOrder('說')
-['㇔', '㇐', '㇐', '㇐', '㇑', '㇕', '㇐', '㇒', '㇏', '㇑', '㇕', '㇐', '㇓', '㇟']```
+['㇔', '㇐', '㇐', '㇐', '㇑', '㇕', '㇐', '㇒', '㇏', '㇑', '㇕', '㇐', '㇓', '㇟']
+
+# Get characters from components
+>>> cjk.getCharactersForComponents([u'门', u'⼉'])
+[('阅', 0), ('阋', 0)]
+
+# Many other methods; to be documented
 ```
 
 Reading conversions:
@@ -158,17 +179,29 @@ Cantonese
 - Inter-conversions within Jyutping and Cantonese Yale
 - No conversion support for Cantonese IPA
 
-## Changes since cjklib, and other details
+## Changes since cjklib
 
-- `kRSKangXi` (data from 康熙字典) was removed from Unihan in favour of `kRSUnicode`, which is now the standard for getting radicals of Chinese characters (See: [Unicode proposal L2/22-195](https://www.unicode.org/L2/L2022/22195-remove-krskangxi.pdf))
+#### Removed Unihan properties
 
-- `kRSKanwa` (data from 大漢和辭典), `kRSJapanese`, `kRSKorean` were removed from Unihan (See: [Unicode proposal L2/19-209](https://www.unicode.org/L2/L2019/19209-deprecate-fields.pdf))
+For details regarding Unihan properties, see [Unicode Standard Annex #38](https://www.unicode.org/reports/tr38/)
 
+- `kRSKangXi` (data from 康熙字典) was removed in version 15.1.0 in favour of `kRSUnicode`, which is now the standard for getting radicals of Chinese characters (See: [UTC Decision 173-C12](https://www.unicode.org/L2/L2022/22241.htm#173-C12))
 
-Therefore, in this project, `CharacterKangxiRadical` and `CharacterKanwaRadical` are combined to `CharacterChineseRadical`
+- `kRSKanwa` (data from 大漢和辭典), `kRSJapanese`, `kRSKorean` were removed in version 13.0.0 (See: [Unicode proposal L2/19-209](https://www.unicode.org/L2/L2019/19209-deprecate-fields.pdf))
 
-(to document, some may be temporary)
-Other removed tables: `CharacterJapaneseRadical`, `CharacterKoreanRadical`, `HKSCSSet`, `CEDICTGR`, `CEDICTGR_Words`, `CFDICT`, `CFDICT_Words`
+- `kHKSCS` was removed in version 15.1.0 (See: [UTC Decision 174-C10](https://www.unicode.org/L2/L2023/23005.htm#174-C10))
 
-- the legacy `EDICT` is used instead of `EDICT2`, this will be changed shortly
+Therefore, in hanzilib:
+- the tables `CharacterKangxiRadical` and `CharacterKanwaRadical` are combined to `CharacterChineseRadical`
+- the following tables are removed (temporarily? maybe another data source can be found?)
+    - `CharacterJapaneseRadical`
+    - `CharacterKoreanRadical`
+    - `HKSCSSet`
 
+#### Missing dictionaries
+
+Finding new data sources for:
+- `CEDICTGR` ([Original data source (broken)](http://home.iprimus.com.au/richwarm/gr/cedictgr.zip))
+- `CFDICT` ([Original data source(broken)](https://chine.in/chinois/open/CFDICT/cfdict.zip))
+
+Also, the legacy `EDICT` is used instead of `EDICT2`, this will be changed shortly

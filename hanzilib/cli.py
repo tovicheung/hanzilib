@@ -998,7 +998,8 @@ Character Lookup:
   find --reading <STR>      Search for characters by phonetic reading
   find --radical <IDX>      Search for characters by radical index
   find --comp <CHARS>       Search for characters containing specific components
-
+    (filters for 'find' can be combined)
+  
 Text Processing:
   zhscript <TEXT>           Get Simplified and Traditional Chinese
   to-reading <TEXT>         Get the phonetic reading for a string of text
@@ -1008,11 +1009,10 @@ Dictionary:
   dict install <NAME>       Download and install a specific dictionary
   dict list                 List installed and available dictionaries
   
-Global Options:
+Global Options (ignored if not applicable):
   -l, --locale <TCJKV>      Set locale (default: C)
-  -s, --src <TYPE>          Set source reading type (pinyin, jyutping, etc.)
-  -t, --target <TYPE>       Set target reading type
-  --json                    Output results in machine-readable JSON format
+  -s, --source <READING>    Set source reading (pinyin, jyutping, etc.)
+  -t, --target <READING>    Set target reading
   -v, --version             Show version
   -h, --help                Show help
 """
@@ -1082,15 +1082,25 @@ class HanziConfig:
 
 
 def new_main():
-    parent_parser = argparse.ArgumentParser(add_help=False)
+    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
+        print(HELP)
+        return
     
-    parser = argparse.ArgumentParser(prog="hanzi")
+    parent_parser = argparse.ArgumentParser(add_help=False, description="", usage="")
+    
+    parser = argparse.ArgumentParser(
+        prog="hanzi",
+        parents=[parent_parser],
+        # description=HELP,
+        add_help=False,
+        # formatter_class=argparse.RawTextHelpFormatter,
+    )
 
     # global Options
     parser.add_argument("-v", "--version", action="version", version="%(prog)s 1.0.0")
     parent_parser.add_argument("-l", "--locale", choices=["T", "C", "J", "K", "V"], default="C",
                         help="Set locale (Traditional, Simplified, Japanese, etc.)")
-    parent_parser.add_argument("-s", "--src", help="Set source reading type (e.g., pinyin)")
+    parent_parser.add_argument("-s", "--src", "--source", help="Set source reading type (e.g., pinyin)")
     parent_parser.add_argument("-t", "--target", help="Set target reading type (e.g., zhuyin)")
     parent_parser.add_argument("-d", "--domain", help="Set domain")
     parent_parser.add_argument("-w", "--dictionary", help="Set dictionary")
@@ -1100,7 +1110,7 @@ def new_main():
     
     # hanzi build
     build_p = subparsers.add_parser("build", help="Initialize the database", parents=[parent_parser])
-    build_p.add_argument("--rebuild", action="store_tru", help="Rebuild existing databases")
+    build_p.add_argument("--rebuild", action="store_true", help="Rebuild existing databases")
 
     # hanzi dict
     dict_parser = subparsers.add_parser("dict", help="Dictionary management", parents=[parent_parser])
@@ -1314,7 +1324,7 @@ def new_main():
     
 
     elif args.command is None:
-        parser.print_help()
+        print(HELP)
     
 FIND_HELP = """\
 usage: hanzi find <FILTERS> [OPTIONS]

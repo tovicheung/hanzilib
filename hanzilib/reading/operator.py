@@ -2620,7 +2620,7 @@ class WadeGilesOperator(TonalRomanisationOperator):
         an ambiguous case.
 
         Examples:
-        While form *\*erh* can be clearly traced to *êrh*, form *kuei* has
+        While form **erh* can be clearly traced to *êrh*, form *kuei* has
         no equivalent part with diacritcs. The former is a case of a ``'lost'``
         vowel, the second of a ``'strict'`` form. Syllable *ch’u* though is an
         ``'ambiguous'`` case as both *ch’u* and *ch’ü* are valid.

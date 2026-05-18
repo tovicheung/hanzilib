@@ -141,7 +141,7 @@ def getSearchPaths(projectName='hanzilib'):
         searchPath += [os.path.join(os.environ['APPDATA'], projectName)]
         import sys
         major, minor = sys.version_info[0:2]
-        searchPath.append("C:\Python%d%d\share\%s" % (major, minor, projectName))
+        searchPath.append("C:\\Python%d%d\\share\\%s" % (major, minor, projectName))
 
     # OSX
     if platform.system() == 'Darwin':

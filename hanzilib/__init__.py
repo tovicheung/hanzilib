@@ -14,55 +14,20 @@
 # along with hanzilib.  If not, see <http://www.gnu.org/licenses/>.
 
 u"""
-Han character library. Cjklib provides language routines related to Han
+Hanzilib is a modern fork of cjklib, a Han character library.
+
+Hanzilib provides language routines related to Han
 characters (characters based on Chinese characters named Hanzi, Kanji, Hanja and
 chu Han respectively) used in writing of the Chinese, the Japanese, infrequently
 the Korean and formerly the Vietnamese language(s). Functionality is included
 for character pronunciations, radicals, glyph components, stroke decomposition,
 variant information and dictionary access.
 
-Examples
-========
-    - Get characters by pronunciation (here: "국" in Korean):
-
-        >>> from cjklib import characterlookup
-        >>> cjk = characterlookup.CharacterLookup('T')
-        >>> cjk.getCharactersForReading(u'국', 'Hangul')
-        [u'匊', u'國', u'局', u'掬', u'菊', u'跼', u'鞠', u'鞫', u'麯', u'麴']
-
-    - Get characters by components (yielding glyphs):
-
-        >>> cjk.getCharactersForComponents([u'门', u'⼉'])
-        [(u'\u9605', 0), (u'\u960b', 0)]
-
-    - Get stroke order of characters:
-
-        >>> cjk.getStrokeOrder(u'说')
-        [u'\u31d4', u'\u31ca', u'\u31d4', u'\u31d2', u'\u31d1', u'\u31d5', \
-u'\u31d0', u'\u31d3', u'\u31df']
-
-    - Convert pronunciation data (here from *Pinyin* to *IPA*):
-
-        >>> from cjklib.reading import ReadingFactory
-        >>> f = ReadingFactory()
-        >>> f.convert(u'l\u01ceosh\u012b', 'Pinyin', 'MandarinIPA')
-        u'lau\u02e8\u02e9.\u0282\u0285\u02e5\u02e5'
-
-    - Access a dictionary (here using Jim Breen's EDICT):
-
-        >>> from cjklib.dictionary import EDICT
-        >>> d = EDICT()
-        >>> d.getForTranslation('Tokyo')
-        [EntryTuple(Headword=u'\u6771\u4eac',\
- Reading=u'\u3068\u3046\u304d\u3087\u3046', Translation=u'/(n) Tokyo (current\
- capital of Japan)/(P)/')]
-
-Copyright
-=========
 
 Copyright (C) 2006-2012 cjklib developers
+Copyright (C) 2026 Tovi Cheung
 
-cjklib comes with absolutely no warranty; for details see B{License}.
+hanzilib comes with absolutely no warranty; for details see B{License}.
 
 Parts of the data used by this library have their own copyright:
 
@@ -92,6 +57,7 @@ The library and all parts are distributed under the terms of the LGPL
 Version 3, 29 June 2007 (http://www.gnu.org/licenses/lgpl.html) if not
 otherwise noted.
 """
+
 __version__ = '0.0.7'
 """The version of hanzilib"""
 
@@ -100,4 +66,4 @@ __credits__ = 'Christoph Burgmer <cburgmer@ira.uka.de>'
 """The primary author of cjklib"""
 
 __license__ = 'LGPL'
-"""The license governing the use and distribution of cjklib"""
+"""The license governing the use and distribution of hanzilib"""

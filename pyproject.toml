@@ -18,7 +18,7 @@ classifiers = [
     "Topic :: Text Processing :: Linguistic",
     "Intended Audience :: Developers",
     "Intended Audience :: Education",
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
