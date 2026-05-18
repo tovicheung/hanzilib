@@ -389,17 +389,10 @@ along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
         self.printFormattedLine("Standard groups:")
         groupList = list(self.BUILD_GROUPS.keys())
         groupList.sort()
-        deprecated = self._getDeprecated()
         for groupName in groupList:
-            if groupName in deprecated:
-                continue
-
             content = []
             # get group content, add apostrophes for "sub"groups
             for member in self.BUILD_GROUPS[groupName]:
-                if member in deprecated:
-                    continue
-
                 if member in self.BUILD_GROUPS:
                     content.append("'" + member + "'")
                 else:
@@ -460,13 +453,6 @@ along with cjklib.  If not, see <http://www.gnu.org/licenses/>.""" \
                         + "together with other groups.")
             # if generic group given get list
             buildGroupList = DatabaseBuilder.getSupportedTables()
-
-        deprecatedGroups = self._getDeprecated() & set(buildGroupList)
-        if deprecatedGroups:
-            warnings.warn("Group(s) '%s' is (are) deprecated"
-                    % "', '".join(deprecatedGroups)
-                + " and will disappear from future versions.",
-                category=DeprecationWarning)
 
         # unpack groups
         groups = []

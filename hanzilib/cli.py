@@ -1097,7 +1097,7 @@ def new_main():
     )
 
     # global Options
-    parser.add_argument("-v", "--version", action="version", version="%(prog)s 1.0.0")
+    parser.add_argument("-v", "--version", action="version", version="%(prog)s 0.0.9") # temp hardcode
     parent_parser.add_argument("-l", "--locale", choices=["T", "C", "J", "K", "V"], default="C",
                         help="Set locale (Traditional, Simplified, Japanese, etc.)")
     parent_parser.add_argument("-s", "--src", "--source", help="Set source reading type (e.g., pinyin)")

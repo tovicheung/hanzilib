@@ -296,6 +296,7 @@ class DatabaseBuilder:
                     log.log(f"Removing previously built table '{builder.PROVIDES}'")
                     instance.remove()
 
+                # TODO: id is None when table does not exist yet
                 log.task(f"Building table '{builder.PROVIDES}' in [{self.db.getDatabaseIdFromTable(builder.PROVIDES)}]\033[m")
 
                 # remove old metadata

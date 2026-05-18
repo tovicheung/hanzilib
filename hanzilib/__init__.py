@@ -58,7 +58,7 @@ Version 3, 29 June 2007 (http://www.gnu.org/licenses/lgpl.html) if not
 otherwise noted.
 """
 
-__version__ = '0.0.7'
+__version__ = '0.0.9'
 """The version of hanzilib"""
 
 __author__ = "Tovi Cheung"
