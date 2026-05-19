@@ -447,7 +447,8 @@ class DictionaryInstaller(object):
                     log.log("Newest version already installed (set forceUpdate=True to override)")
                     return configuration['sqlalchemy.url']
 
-        filePath = downloader.download(temporary=True)
+        projectDataPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../data')
+        filePath = downloader.download(targetPath=projectDataPath)
 
         # create builder instance
         dbBuilder = build.DatabaseBuilder(dbConnectInst=db, filePath=filePath,

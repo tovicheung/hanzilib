@@ -82,6 +82,7 @@ class DatabaseBuilder:
             # wrap as list
             options['dataPath'] = [options['dataPath']]
 
+        print(options["dataPath"])
         self.quiet = options.get('quiet', False)
         """Controls status information printed to stderr"""
         self.rebuildDepending = options.pop('rebuildDepending', True)
@@ -218,11 +219,12 @@ class DatabaseBuilder:
         tables: list[str]
 
         log.task("Building tables in databse")
-        log.log(f"\033[1mMain database:\033[m [0] {self.db.databaseUrl}")
+        log.log(f"\033[1mMain database:")
+        log.list([f"[0] {self.db.databaseUrl}"])
         if self.db.attached:
             log.log("\033[1mAttached databases:\033[m")
             log.list(f"[{i+1}] {x}" for i, x in enumerate(self.db.attached.keys()))
-        log.log("\033[1mTables to build:\033[m " + ", ".join(tables))
+        # log.log("\033[1mTables to build:\033[m " + ", ".join(tables))
 
         summary_success = []
         summary_failed = []
@@ -240,7 +242,7 @@ class DatabaseBuilder:
                 filteredTables.append(table)
             else:
                 summary_skipped.append(table)
-                log.log(f"Skpping table '{table}' because it already exists in [{self.db.getDatabaseIdFromTable(table)}]")
+                log.logv(f"Skpping table '{table}' because it already exists in [{self.db.getDatabaseIdFromTable(table)}]")
         tables = filteredTables
 
         # get depending tables that need to be updated when dependencies change
@@ -269,7 +271,7 @@ class DatabaseBuilder:
 
         # build tables
         if self.rebuildExisting:
-            log.log("Existing tables will be rebuilt and overridden (rebuildExisting=True)")
+            log.log("Existing tables will be rebuilt and overridden (--rebuild is set)")
         
         builderClasses.reverse()
         self._instancesUnrequestedTable: set[TableBuilder] = set()
@@ -296,8 +298,11 @@ class DatabaseBuilder:
                     log.log(f"Removing previously built table '{builder.PROVIDES}'")
                     instance.remove()
 
-                # TODO: id is None when table does not exist yet
-                log.task(f"Building table '{builder.PROVIDES}' in [{self.db.getDatabaseIdFromTable(builder.PROVIDES)}]\033[m")
+                x = self.db.getDatabaseIdFromTable(builder.PROVIDES)
+                location = ""
+                if x is not None and x > 0:
+                    location = f" in [{x}]"
+                log.task(f"Building table '{builder.PROVIDES}'{location}\033[m")
 
                 # remove old metadata
                 if builder.PROVIDES in self.db.tables:
@@ -322,7 +327,7 @@ class DatabaseBuilder:
                             remainingBuilderClasses.append(clss)
                     summary_ignored.extend(x for x in dependingTables if x != builder.PROVIDES)
                     if len(dependingTables) > 1:
-                        log.warn("Ignoring depending table(s) '%s'" \
+                        log.warn("Ignoring depending table(s): '%s'" \
                             % "', '".join(dependingTables[1:]))
                     builderClasses = remainingBuilderClasses
                 else:
@@ -346,16 +351,17 @@ class DatabaseBuilder:
 
         self.clearTemporary()
 
-        dicts = [x.__name__ for x in getDictionaryClasses()]
+        dicts = [x.__name__ for x in getDictionaryClasses() if x.__name__ in summary_failed]
         log.success("Build summary:")
         log.indent()
         log.log(f"{len(summary_success):>3} new tables were built")
         if summary_skipped:
-            log.log(f"{len(summary_skipped):>3} tables already exist and were not rebuilt (set rebuildExisting=True to override)")
+            log.log(f"{len(summary_skipped):>3} tables already exist and were not rebuilt (set --verbose for details; set --rebuild to override)")
         if summary_failed:
-            log.log(f"{len(summary_failed):>3} tables were skipped due to no data source (check logs for details):")
+            log.log(f"{len(summary_failed):>3} tables were skipped due to missing data source (check logs for details):")
             log.indent()
-            log.list([x + "\t(help) install dictionary data with: \033[1mhanzi dict install " + x if x in dicts else x for x in summary_failed])
+            # log.list([x.ljust(12) + "help: install dictionary data with: \033[1mhanzi dict install " + x if x in dicts else x for x in summary_failed])
+            log.list([x for x in summary_failed])
             log.dedent()
         if summary_ignored:
             log.log(f"{len(summary_ignored):>3} tables were skipped due to their dependencies being skipped:")
@@ -363,6 +369,11 @@ class DatabaseBuilder:
             log.list(summary_ignored)
             log.dedent()
         log.dedent()
+
+        if dicts:
+            log.warn("Recommended actions:")
+            log.log("Run the following command to install the missing dictionaries and to build their tables")
+            log.log("hanzi dict install " + " ".join(dicts))
         
         log.dedent()
 
@@ -693,7 +704,6 @@ class DatabaseBuilder:
             table, if two different options with the same name collide
         """
         additionalBuilders = additionalBuilders or []
-        # buildModule = __import__("hanzilib.build.builder")
         from . import builder
         # get all classes that inherit from TableBuilder
         tableBuilderClasses = set([clss \
@@ -706,7 +716,7 @@ class DatabaseBuilder:
 
         if resolveConflicts:
             tableBuilderClasses = DatabaseBuilder.resolveBuilderConflicts(
-                list(tableBuilderClasses), preferClassNameSet, quiet=quiet)
+                list(tableBuilderClasses), preferClassNameSet)
 
         # check if all options are unique
         DatabaseBuilder._checkOptionUniqueness(tableBuilderClasses)
@@ -714,7 +724,7 @@ class DatabaseBuilder:
         return tableBuilderClasses
 
     @staticmethod
-    def resolveBuilderConflicts(classList: list[type[TableBuilder]], preferClassNames=None, quiet=True):
+    def resolveBuilderConflicts(classList: list[type[TableBuilder]], preferClassNames: list[str] | None = None):
         """
         Returns a subset of :class:`~hanzilib.build.builder.TableBuilder`
         classes so that every buildable table is only represented by
@@ -726,54 +736,52 @@ class DatabaseBuilder:
         :param preferClassNames: list of
             :class:`~hanzilib.build.builder.TableBuilder` class names that will
             be preferred in conflicting cases
-        :type quiet: bool
-        :param quiet: if ``True`` no status information will be printed to
-            stderr
         :rtype: list of classobj
         :return: mapping of table names to builder classes that provide the
             given table
         :raise ValueError: if two builders are preferred that provide the same
             table
         """
-        tableBuilderClasses = set(classList)
+        builders = set(classList)
 
         preferClassNames = preferClassNames or []
-        preferClassSet = set([clss for clss in tableBuilderClasses \
+        preferClassSet = set([clss for clss in builders \
             if clss.__name__ in preferClassNames])
 
         # group table builders by provided tables
-        tableToBuilderMapping = {}
-        for clss in tableBuilderClasses:
-            if clss.PROVIDES not in tableToBuilderMapping:
-                tableToBuilderMapping[clss.PROVIDES] = set()
+        table_to_builders: dict[str, set[type[TableBuilder]]] = {}
+        for clss in builders:
+            if clss.PROVIDES not in table_to_builders:
+                table_to_builders[clss.PROVIDES] = set()
 
-            tableToBuilderMapping[clss.PROVIDES].add(clss)
+            table_to_builders[clss.PROVIDES].add(clss)
 
         # now check conflicting and choose preferred if given
-        for tableName, builderClssSet in list(tableToBuilderMapping.items()):
-            preferredBuilders = builderClssSet & preferClassSet
-            if preferredBuilders:
-                if len(preferredBuilders) > 1:
+        for table_name, builders_set in table_to_builders.items():
+            prefer_builders = builders_set & preferClassSet
+            if prefer_builders:
+                if len(prefer_builders) > 1:
                     # the user specified more than one preferred table that
                     # both provided one same table
                     raise ValueError("More than one TableBuilder preferred"
-                        " for conflicting table '%s': '%s'"
-                            % (tableName,
-                                [b.__name__ for b in preferredBuilders]))
-                preferred = preferredBuilders.pop()
-                builderClssSet.remove(preferred)
+                        f" for conflicting table '{table_name}': {[b.__name__ for b in prefer_builders]}"
+                    )
+                selected = prefer_builders.pop()
+                builders_set.remove(selected)
             else:
-                preferred = builderClssSet.pop()
-            if builderClssSet:
-                log.log("Removing conflicting builder(s) '%s'" \
+                selected = builders_set.pop()
+            
+            if builders_set:
+                # the unselected builder(s) is left in builders_set
+                log.logv("Removing conflicting builder(s) '%s'" \
                         % "', '".join(
-                            [clss.__name__ for clss in builderClssSet]) \
-                    + " in favour of '%s'" % preferred.__name__)
-            # remove other conflicting
-            for clss in builderClssSet:
-                tableBuilderClasses.remove(clss)
-
-        return tableBuilderClasses
+                            [clss.__name__ for clss in builders_set]) \
+                    + " in favour of '%s'" % selected.__name__)
+            # remove unselected builder(s) from overall list
+            for clss in builders_set:
+                builders.remove(clss)
+        
+        return builders
 
     @staticmethod
     def getSupportedTables():

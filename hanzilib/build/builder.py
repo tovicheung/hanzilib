@@ -160,10 +160,10 @@ class TableBuilder(ABC):
         :rtype: dict
         :return: dictionary of metadata
         """
-        optionsMetaData = {'dataPath': {'type': 'pathstring',
+        optionsMetaData = {'dataPath': {'type': str,
                 'action': 'extendResetDefault',
                 'description': "path to data files"},
-            'quiet': {'type': 'bool',
+            'quiet': {'type': bool,
                 'description': "don't print anything on stdout"}}
         return optionsMetaData[option]
 
@@ -594,9 +594,9 @@ class UnihanBuilder(EntryGeneratorBuilder):
 
     @classmethod
     def getOptionMetaData(cls, option):
-        optionsMetaData = {'wideBuild': {'type': 'bool',
+        optionsMetaData = {'wideBuild': {'type': bool,
                 'description': "include characters outside the Unicode BMP"},
-            'slimUnihanTable': {'type': 'bool',
+            'slimUnihanTable': {'type': bool,
                 'description': "limit keys of Unihan table"}}
 
         if option in optionsMetaData:
@@ -836,7 +836,7 @@ class Kanjidic2Builder(EntryGeneratorBuilder):
 
     @classmethod
     def getOptionMetaData(cls, option):
-        optionsMetaData = {'wideBuild': {'type': 'bool',
+        optionsMetaData = {'wideBuild': {'type': bool,
                 'description': "include characters outside the Unicode BMP"}}
 
         if option in optionsMetaData:
@@ -914,7 +914,7 @@ class UnihanDerivedBuilder(EntryGeneratorBuilder):
 
     @classmethod
     def getOptionMetaData(cls, option):
-        optionsMetaData = {'ignoreMissing': {'type': 'bool',
+        optionsMetaData = {'ignoreMissing': {'type': bool,
                 'description': \
                     "ignore missing Unihan column and build empty table"}}
 
@@ -1172,7 +1172,7 @@ class CharacterVariantBuilder(EntryGeneratorBuilder):
 
     @classmethod
     def getOptionMetaData(cls, option):
-        optionsMetaData = {'wideBuild': {'type': 'bool',
+        optionsMetaData = {'wideBuild': {'type': bool,
                 'description': "include characters outside the Unicode BMP"}}
 
         if option in optionsMetaData:
@@ -1663,7 +1663,7 @@ class CSVFileLoader(TableBuilder):
 
     @classmethod
     def getOptionMetaData(cls, option):
-        optionsMetaData = {'entrywise': {'type': 'bool',
+        optionsMetaData = {'entrywise': {'type': bool,
                 'description': "insert entries one at a time (for debugging)"}}
 
         if option in optionsMetaData:
@@ -2008,7 +2008,7 @@ class NarrowBuildCSVFileLoader(CSVFileLoader):
 
     @classmethod
     def getOptionMetaData(cls, option):
-        optionsMetaData = {'wideBuild': {'type': 'bool',
+        optionsMetaData = {'wideBuild': {'type': bool,
                 'description': "include characters outside the Unicode BMP"}}
 
         if option in optionsMetaData:
@@ -3186,17 +3186,16 @@ class EDICTFormatBuilder(EntryGeneratorBuilder):
 
     @classmethod
     def getOptionMetaData(cls, option):
-        optionsMetaData = {'enableFTS3': {'type': 'bool',
+        optionsMetaData = {'enableFTS3': {'type': bool,
                 'description': "enable SQLite full text search (FTS3)"},
-            'filePath': {'type': 'string', 'description': \
+            'filePath': {'type': str, 'description': \
                 "file path including file name, overrides searching"},
-            'fileType': {'type': 'choice',
-                'choices': ('.zip', '.tar', '.tar.bz2', '.tar.gz', '.gz',
-                    '.txt'),
+            'fileType': {
+                'choices': ('.zip', '.tar', '.tar.bz2', '.tar.gz', '.gz', '.txt'),
                 'description': "file extension, overrides file type guessing"},
-            'useCollation': {'type': 'bool',
+            'useCollation': {'type': bool, # TODO: accept yes/no and the like
                 'description': "use collations for dictionary entries"},
-            'collation': {'type': 'string',
+            'collation': {'type': str,
                 'description': "collation for dictionary entries"},
                 }
 
@@ -3960,9 +3959,9 @@ class SimpleWenlinFormatBuilder(EntryGeneratorBuilder):
 
     @classmethod
     def getOptionMetaData(cls, option):
-        optionsMetaData = {'filePath': {'type': 'string', 'description': \
+        optionsMetaData = {'filePath': {'type': str, 'description': \
                 "file path including file name, overrides searching"},
-            'fileType': {'type': 'choice', 'choices': ('.zip', '.gz', '.txt'),
+            'fileType': {'choices': ('.zip', '.gz', '.txt'),
                 'description': "file extension, overrides file type guessing"}}
 
         if option in optionsMetaData:

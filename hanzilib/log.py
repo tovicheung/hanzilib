@@ -20,6 +20,8 @@ import sys
 
 # config
 enabled = True
+verbose = False
+
 file = sys.stderr
 _indent = 0
 
@@ -40,11 +42,15 @@ def log(string):
     if enabled:
         print(" " * _indent + "\033[m" + str(string) + "\033[m", file=file)
 
+def logv(string):
+    if verbose:
+        log(string)
+
 def list(l):
     if enabled:
         indent()
         for item in l:
-            print(" " * _indent + str(item), file=file)
+            print(" " * _indent + str(item) + "\033[m", file=file)
         dedent()
 
 def success(string):

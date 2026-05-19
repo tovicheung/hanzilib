@@ -21,7 +21,7 @@ Apart from a Python interface, hanzilib provides the `hanzi` cli tool for conven
 pip install hanzilib
 ```
 
-After installing, run `hanzi build` to build the database
+After installing, run `hanzi db build` to setup the internal database
 
 ## CLI examples
 

@@ -1097,7 +1097,7 @@ def new_main():
     )
 
     # global Options
-    parser.add_argument("-v", "--version", action="version", version="%(prog)s 0.0.9") # temp hardcode
+    parser.add_argument("--version", action="version", version="%(prog)s 0.0.9") # temp hardcode
     parent_parser.add_argument("-l", "--locale", choices=["T", "C", "J", "K", "V"], default="C",
                         help="Set locale (Traditional, Simplified, Japanese, etc.)")
     parent_parser.add_argument("-s", "--src", "--source", help="Set source reading type (e.g., pinyin)")
@@ -1108,17 +1108,17 @@ def new_main():
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
     
-    # hanzi build
-    build_p = subparsers.add_parser("build", help="Initialize the database", parents=[parent_parser])
-    build_p.add_argument("--rebuild", action="store_true", help="Rebuild existing databases")
+    # hanzi db ...
+    build_p = subparsers.add_parser("db", help="Database management", add_help=False, parents=[parent_parser])
+    build_p.add_argument("db_args", nargs=argparse.REMAINDER)
 
     # hanzi dict
-    dict_parser = subparsers.add_parser("dict", help="Dictionary management", parents=[parent_parser])
-    dict_sub = dict_parser.add_subparsers(dest="dict_action")
+    dict_p = subparsers.add_parser("dict", help="Dictionary management", parents=[parent_parser])
+    dict_sub = dict_p.add_subparsers(dest="dict_action")
 
     # hanzi dict install
     install_p = dict_sub.add_parser("install", help="Install a dictionary")
-    install_p.add_argument("name", help="Name of the dictionary to install")
+    install_p.add_argument("names", nargs="+", help="Names of the dictionary to install")
     
     # hanzi dict list
     dict_sub.add_parser("list", help="List installed dictionaries")
@@ -1155,6 +1155,11 @@ def new_main():
     search_p.add_argument("query", help="Search query (use _ or % for wildcards)")
     
     args = parser.parse_args()
+
+    if args.command == "db":
+        from hanzilib.build import cli
+        sys.argv.remove("db")
+        return cli.main()
 
     configSettings = getConfigSettings("hanzi")
     # url = configSettings.get("url")
@@ -1204,7 +1209,7 @@ def new_main():
         if args.dict_action == "install":
             from hanzilib.dictionary.install import main
             sys.argv.remove("dict")
-            sys.argv.remove("install") # Temporary
+            sys.argv.remove("install") # TODO: temporary
             main()
         elif args.dict_action == "list":
             db = char_info.db
