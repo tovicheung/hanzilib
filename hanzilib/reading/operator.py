@@ -2098,8 +2098,8 @@ class WadeGilesOperator(TonalRomanisationOperator):
     Provides an operator for the Mandarin *Wade-Giles* romanisation.
 
     .. todo::
-        * Lang: Asterisk (\\*) marking the entering tone (入聲): e.g. *chio²\**
-          and *chüeh²\** for 覺 used by Giles (A Chinese-English Dictionary,
+        * Lang: Asterisk (\\*) marking the entering tone (入聲): e.g. *chio²\\**
+          and *chüeh²\\** for 覺 used by Giles (A Chinese-English Dictionary,
           second edition, 1912).
     """
     READING_NAME = 'WadeGiles'

@@ -82,7 +82,6 @@ class DatabaseBuilder:
             # wrap as list
             options['dataPath'] = [options['dataPath']]
 
-        print(options["dataPath"])
         self.quiet = options.get('quiet', False)
         """Controls status information printed to stderr"""
         self.rebuildDepending = options.pop('rebuildDepending', True)
@@ -224,7 +223,8 @@ class DatabaseBuilder:
         if self.db.attached:
             log.log("\033[1mAttached databases:\033[m")
             log.list(f"[{i+1}] {x}" for i, x in enumerate(self.db.attached.keys()))
-        # log.log("\033[1mTables to build:\033[m " + ", ".join(tables))
+        log.logv("\033[1mTables to build:\033[m " + ", ".join(tables))
+        log.logv("\033[1mBuilder options:\033[m " + str(self.options))
 
         summary_success = []
         summary_failed = []
@@ -343,12 +343,6 @@ class DatabaseBuilder:
 
             log.dedent()
             
-            if 0:
-                result = self.db.connection.execute(sqlalchemy.text("SELECT name FROM sqlite_master WHERE type='table';"))
-                self.db.connection.commit()
-                tablesBuilt = [row[0] for row in result]
-                log.success(f"\033[1mTables built: {len(tablesBuilt)}\033[m")
-
         self.clearTemporary()
 
         dicts = [x.__name__ for x in getDictionaryClasses() if x.__name__ in summary_failed]

@@ -451,8 +451,8 @@ class SimpleTranslation(SingleEntryTranslation):
         # start with a slash '/', make sure any opening parenthesis is
         #   closed and match search string. Finish with other content in
         #   parantheses and a slash
-        regex = self._compileRegex('/' + '(\s+|\([^\)]+\))*'
-            + re.escape(searchStr) + '(\s+|\([^\)]+\))*' + '/')
+        regex = self._compileRegex(r'/' + r'(\s+|\([^\)]+\))*'
+            + re.escape(searchStr) + r'(\s+|\([^\)]+\))*' + r'/')
 
         return lambda translation: (translation is not None
             and regex.search(translation) is not None)
@@ -465,7 +465,7 @@ class _SimpleTranslationWildcardBase(_WildcardBase):
     class SingleWildcard:
         SQL_LIKE_STATEMENT = '_'
         # don't match a trailing space or following space if bordered by bracket
-        REGEX_PATTERN = '(?:(?:(?<!\)) (?!\())|[^ ])'
+        REGEX_PATTERN = r'(?:(?:(?<!\)) (?!\())|[^ ])'
 
 
 class SimpleWildcardTranslation(SingleEntryTranslation,
@@ -483,9 +483,9 @@ class SimpleWildcardTranslation(SingleEntryTranslation,
         #   but should probably disregard that
         regexStr = self._prepareWildcardRegex(searchStr)
         if not searchStr.startswith(self.multipleCharacters):
-            regexStr = '(\s+|\([^\)]+\))*' + regexStr
+            regexStr = r'(\s+|\([^\)]+\))*' + regexStr
         if not searchStr.endswith(self.multipleCharacters):
-            regexStr = regexStr + '(\s+|\([^\)]+\))*'
+            regexStr = regexStr + r'(\s+|\([^\)]+\))*'
 
         return self._compileRegex('/' + regexStr + '/')
 
@@ -508,8 +508,8 @@ class CEDICTTranslation(SingleEntryTranslation):
         # start with a slash '/', make sure any opening parenthesis is
         #   closed and match search string. Finish with other content in
         #   parantheses and a slash
-        regex = self._compileRegex('/' + '(\s+|\([^\)]+\))*'
-            + re.escape(searchStr) + '(\s+|\([^\)]+\))*' + '[/,]')
+        regex = self._compileRegex(r'/' + r'(\s+|\([^\)]+\))*'
+            + re.escape(searchStr) + r'(\s+|\([^\)]+\))*' + r'[/,]')
 
         return lambda translation: (translation is not None
             and regex.search(translation) is not None)
@@ -531,9 +531,9 @@ class CEDICTWildcardTranslation(SingleEntryTranslation,
         #   but should probably disregard that
         regexStr = self._prepareWildcardRegex(searchStr)
         if not searchStr.startswith('%'):
-            regexStr = '(\s+|\([^\)]+\))*' + regexStr
+            regexStr = r'(\s+|\([^\)]+\))*' + regexStr
         if not searchStr.endswith('%'):
-            regexStr = regexStr + '(\s+|\([^\)]+\))*'
+            regexStr = regexStr + r'(\s+|\([^\)]+\))*'
 
         return self._compileRegex('/' + regexStr + '[/,]')
 
@@ -558,9 +558,9 @@ class HanDeDictTranslation(SingleEntryTranslation):
         #   closed, end any other entry with a punctuation mark, and match
         #   search string. Finish with other content in parantheses and
         #   a slash or punctuation mark
-        regex = self._compileRegex('/((\([^\)]+\)|[^\(])+'
-            + '(?!; Bsp.: [^/]+?--[^/]+)[\,\;\.\?\!])?' + '(\s+|\([^\)]+\))*'
-            + re.escape(searchStr) + '(\s+|\([^\)]+\))*' + '[/\,\;\.\?\!]')
+        regex = self._compileRegex(r'/((\([^\)]+\)|[^\(])+'
+            + r'(?!; Bsp.: [^/]+?--[^/]+)[\,\;\.\?\!])?' + r'(\s+|\([^\)]+\))*'
+            + re.escape(searchStr) + r'(\s+|\([^\)]+\))*' + r'[/\,\;\.\?\!]')
 
         return lambda translation: (translation is not None
             and regex.search(translation) is not None)
@@ -582,13 +582,13 @@ class HanDeDictWildcardTranslation(SingleEntryTranslation,
         #   but should probably disregard that
         regexStr = self._prepareWildcardRegex(searchStr)
         if not searchStr.startswith('%'):
-            regexStr = '(\s+|\([^\)]+\))*' + regexStr
+            regexStr = r'(\s+|\([^\)]+\))*' + regexStr
         if not searchStr.endswith('%'):
-            regexStr = regexStr + '(\s+|\([^\)]+\))*'
+            regexStr = regexStr + r'(\s+|\([^\)]+\))*'
 
-        return self._compileRegex('/((\([^\)]+\)|[^\(])+'
-            + '(?!; Bsp.: [^/]+?--[^/]+)[\,\;\.\?\!])?' + regexStr
-            + '[/\,\;\.\?\!]')
+        return self._compileRegex(r'/((\([^\)]+\)|[^\(])+'
+            + r'(?!; Bsp.: [^/]+?--[^/]+)[\,\;\.\?\!])?' + regexStr
+            + r'[/\,\;\.\?\!]')
 
     def getWhereClause(self, column, searchStr):
         wildcardSearchStr = self._getWildcardQuery(searchStr)

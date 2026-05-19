@@ -270,15 +270,16 @@ format --BuilderName-option or --TableName-option, e.g.
 
         return options
     
-    def build_cli_parser(self):
-        description = self.DESCRIPTION
+    @classmethod
+    def build_cli_parser(cls):
+        description = cls.DESCRIPTION
         
         parser = argparse.ArgumentParser(
             prog="hanzi db",
             description=description,
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
-        subparsers = parser.add_subparsers(dest="command", help="Available commands")
+        subparsers = parser.add_subparsers(dest="db_command", help="Available commands")
         
         build_p = subparsers.add_parser("build", help="Build database")
         build_p.add_argument("groups", nargs="*", help="List of group names to build")
@@ -286,7 +287,7 @@ format --BuilderName-option or --TableName-option, e.g.
         groups_p = subparsers.add_parser("groups", help="List build groups")
         groups_p.add_argument("-a", "--all", action="store_true", dest="all", default=False, help="List all contents in groups")
 
-        defaults = self.getDefaultOptions()
+        defaults = cls.getDefaultOptions()
         build_p.add_argument("-r", "--rebuild", action="store_true",
             dest="rebuildExisting", default=False,
             help="build tables even if they already exist")
@@ -313,16 +314,16 @@ format --BuilderName-option or --TableName-option, e.g.
             help="ignore settings from hanzilib.conf")
         build_p.add_argument("-v", "--verbose", action="store_true",
             dest="verbose", default=False,
-            help="Verbose logging")
+            help="verbose logging")
 
         optionSet = set(['rebuildExisting', 'rebuildDepending', 'quiet',
             'databaseUrl', "verbose"
             # 'attach', 'prefer'
         ])
-        globalBuilderGroup = parser.add_argument_group("Global builder options")
-        localBuilderGroup = parser.add_argument_group("Local builder options")
+        globalBuilderGroup = build_p.add_argument_group("Global builder options")
+        localBuilderGroup = build_p.add_argument_group("Local builder options")
 
-        for builder in DatabaseBuilder.getTableBuilderClasses(preferClassNameSet=self.DB_PREFER_BUILDERS):
+        for builder in DatabaseBuilder.getTableBuilderClasses(preferClassNameSet=cls.DB_PREFER_BUILDERS):
             if not builder.PROVIDES:
                 continue
 
@@ -378,97 +379,97 @@ format --BuilderName-option or --TableName-option, e.g.
         return parser
 
 
-    def buildParser(self):
-        usage = "%(prog)s [options] [list | build TABLE [TABLE_2 ...]]"
-        description = self.DESCRIPTION
-        
-        parser = OptionParser(usage=usage, description=description, option_class=ExtendedOption)
-
-        defaults = self.getDefaultOptions()
-        parser.add_option("-r", "--rebuild", action="store_true",
-            dest="rebuildExisting", default=False,
-            help="build tables even if they already exist")
-        parser.add_option("-d", "--keepDepending", action="store_false",
-            dest="rebuildDepending", default=True,
-            help="don't rebuild build-depends tables that are not given")
-        parser.add_option("-p", "--prefer", action="appendResetDefault",
-            metavar="BUILDER", dest="prefer",
-            help="builder preferred where several provide the same table" \
-                + " [default: %s]" % defaults.get("prefer", []))
-        parser.add_option("-q", "--quiet", action="store_true", dest="quiet",
-            default=False, help="don't print anything on stdout")
-        parser.add_option("--database", action="store", metavar="URL",
-            dest="databaseUrl", default=defaults.get("databaseUrl", None),
-            help="database url [default: %default]")
-        parser.add_option("--attach", action="appendResetDefault",
-            metavar="URL", dest="attach",
-            help="attachable databases [default: %s]"
-                % defaults.get("attach", []))
-        parser.add_option("--registerUnicode", action="store", type='bool',
-            metavar="BOOL", dest="registerUnicode",
-            help=("register own Unicode functions if no ICU support available"
-                " [default: %s]" % defaults.get("registerUnicode", False)))
-        parser.add_option("--ignoreConfig", action="store_true",
-            dest="ignoreConfig", default=False,
-            help="ignore settings from hanzilib.conf")
-
-        optionSet = set(['rebuildExisting', 'rebuildDepending', 'quiet',
-            'databaseUrl', 'attach', 'prefer'])
-        globalBuilderGroup = OptionGroup(parser, "Global builder commands")
-        localBuilderGroup = OptionGroup(parser, "Local builder commands")
-        for builder in DatabaseBuilder.getTableBuilderClasses(resolveConflicts=False):
-            if not builder.PROVIDES:
-                continue
-
-            for option, defaultValue in sorted(
-                builder.getDefaultOptions().items()):
-                try:
-                    metadata = builder.getOptionMetaData(option)
-                except KeyError:
-                    continue
-
-                includeOptions = {'action': 'action', 'type': 'type',
-                    'metavar': 'metavar', 'choices': 'choices',
-                        'description': 'help'}
-                options = dict([(includeOptions[key], value) for key, value \
-                    in list(metadata.items()) if key in includeOptions])
-
-                if 'metavar' not in options:
-                    if 'type' in options and options['type'] == 'bool':
-                        options['metavar'] = 'BOOL'
-                    else:
-                        options['metavar'] = 'VALUE'
-
-                if 'help' not in options:
-                    options['help'] = ''
-
-                default = defaults.get(option, defaultValue)
-                if default == []:
-                    options['help'] += ' [default: ""]'
-                elif default is not None:
-                    options['help'] += ' [default: %s]' % default
-
-                # global option, only need to add it once, DatabaseBuilder makes
-                #   sure option is consistent between builder
-                options['dest'] = option
-                if option not in optionSet:
-                    globalBuilderGroup.add_option('--' + option, **options)
-                    optionSet.add(option)
-
-                # local options
-                #options['help'] = optparse.SUPPRESS_HELP
-                localBuilderOption = '--%s-%s' % (builder.__name__, option)
-                options['dest'] = localBuilderOption
-                localBuilderGroup.add_option(localBuilderOption, **options)
-
-                localTableOption = '--%s-%s' % (builder.PROVIDES, option)
-                options['dest'] = localTableOption
-                localBuilderGroup.add_option(localTableOption, **options)
-
-        parser.add_option_group(globalBuilderGroup)
-        parser.add_option_group(localBuilderGroup)
-
-        return parser
+    # def buildParser(self):
+    #     usage = "%(prog)s [options] [list | build TABLE [TABLE_2 ...]]"
+    #     description = self.DESCRIPTION
+    #     
+    #     parser = OptionParser(usage=usage, description=description, option_class=ExtendedOption)
+# 
+    #     defaults = self.getDefaultOptions()
+    #     parser.add_option("-r", "--rebuild", action="store_true",
+    #         dest="rebuildExisting", default=False,
+    #         help="build tables even if they already exist")
+    #     parser.add_option("-d", "--keepDepending", action="store_false",
+    #         dest="rebuildDepending", default=True,
+    #         help="don't rebuild build-depends tables that are not given")
+    #     parser.add_option("-p", "--prefer", action="appendResetDefault",
+    #         metavar="BUILDER", dest="prefer",
+    #         help="builder preferred where several provide the same table" \
+    #             + " [default: %s]" % defaults.get("prefer", []))
+    #     parser.add_option("-q", "--quiet", action="store_true", dest="quiet",
+    #         default=False, help="don't print anything on stdout")
+    #     parser.add_option("--database", action="store", metavar="URL",
+    #         dest="databaseUrl", default=defaults.get("databaseUrl", None),
+    #         help="database url [default: %default]")
+    #     parser.add_option("--attach", action="appendResetDefault",
+    #         metavar="URL", dest="attach",
+    #         help="attachable databases [default: %s]"
+    #             % defaults.get("attach", []))
+    #     parser.add_option("--registerUnicode", action="store", type='bool',
+    #         metavar="BOOL", dest="registerUnicode",
+    #         help=("register own Unicode functions if no ICU support available"
+    #             " [default: %s]" % defaults.get("registerUnicode", False)))
+    #     parser.add_option("--ignoreConfig", action="store_true",
+    #         dest="ignoreConfig", default=False,
+    #         help="ignore settings from hanzilib.conf")
+# 
+    #     optionSet = set(['rebuildExisting', 'rebuildDepending', 'quiet',
+    #         'databaseUrl', 'attach', 'prefer'])
+    #     globalBuilderGroup = OptionGroup(parser, "Global builder commands")
+    #     localBuilderGroup = OptionGroup(parser, "Local builder commands")
+    #     for builder in DatabaseBuilder.getTableBuilderClasses(resolveConflicts=False):
+    #         if not builder.PROVIDES:
+    #             continue
+# 
+    #         for option, defaultValue in sorted(
+    #             builder.getDefaultOptions().items()):
+    #             try:
+    #                 metadata = builder.getOptionMetaData(option)
+    #             except KeyError:
+    #                 continue
+# 
+    #             includeOptions = {'action': 'action', 'type': 'type',
+    #                 'metavar': 'metavar', 'choices': 'choices',
+    #                     'description': 'help'}
+    #             options = dict([(includeOptions[key], value) for key, value \
+    #                 in list(metadata.items()) if key in includeOptions])
+# 
+    #             if 'metavar' not in options:
+    #                 if 'type' in options and options['type'] == 'bool':
+    #                     options['metavar'] = 'BOOL'
+    #                 else:
+    #                     options['metavar'] = 'VALUE'
+# 
+    #             if 'help' not in options:
+    #                 options['help'] = ''
+# 
+    #             default = defaults.get(option, defaultValue)
+    #             if default == []:
+    #                 options['help'] += ' [default: ""]'
+    #             elif default is not None:
+    #                 options['help'] += ' [default: %s]' % default
+# 
+    #             # global option, only need to add it once, DatabaseBuilder makes
+    #             #   sure option is consistent between builder
+    #             options['dest'] = option
+    #             if option not in optionSet:
+    #                 globalBuilderGroup.add_option('--' + option, **options)
+    #                 optionSet.add(option)
+# 
+    #             # local options
+    #             #options['help'] = optparse.SUPPRESS_HELP
+    #             localBuilderOption = '--%s-%s' % (builder.__name__, option)
+    #             options['dest'] = localBuilderOption
+    #             localBuilderGroup.add_option(localBuilderOption, **options)
+# 
+    #             localTableOption = '--%s-%s' % (builder.PROVIDES, option)
+    #             options['dest'] = localTableOption
+    #             localBuilderGroup.add_option(localTableOption, **options)
+# 
+    #     parser.add_option_group(globalBuilderGroup)
+    #     parser.add_option_group(localBuilderGroup)
+# 
+    #     return parser
 
     def listBuildGroups(self, all: bool = False):
         print("\033[1mGeneric groups:\033[m")
@@ -498,7 +499,6 @@ format --BuilderName-option or --TableName-option, e.g.
         """
         builderClasses = DatabaseBuilder.getTableBuilderClasses(
             resolveConflicts=False)
-        preferredBuilders = preferred + otherPreferred
         dbPreferClasses = [clss for clss in builderClasses
             if clss.__name__ in (preferred + otherPreferred)]
 
@@ -584,19 +584,20 @@ format --BuilderName-option or --TableName-option, e.g.
 
         return True
 
-    def run(self):
+    def run(self, args=None):
         """
         Runs the builder
         """
         # parse command line parameters
-        parser = self.build_cli_parser()
-        args = parser.parse_args()
+        if args is None:
+            parser = self.build_cli_parser()
+            args = parser.parse_args()
 
-        if args.command is None:
+        if args.db_command is None:
             print("hanzilib database manager (hanzi db)")
             return True
         
-        command = args.command.lower()
+        command = args.db_command.lower()
         if command == "groups":
             self.listBuildGroups(all=args.all)
             return True

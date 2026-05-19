@@ -49,6 +49,7 @@ else:
     from hanzilib import exception
     from hanzilib import __version__
 
+from hanzilib.build import cli as build_cli
 from hanzilib.dictionary import search
 from hanzilib.util import getConfigSettings
 
@@ -991,7 +992,8 @@ HELP = """\
 Usage: hanzi <COMMAND> [OPTIONS]
 
 Database Management:
-  build                     Initialize the database
+  db build <GROUPS>         Build the database; run: hanzi db build --help for details
+  db groups                 List the available build groups
 
 Character Lookup:
   lookup <CHAR>             Get detailed information, components, and stroke count
@@ -1087,6 +1089,12 @@ def new_main():
         return
     
     parent_parser = argparse.ArgumentParser(add_help=False, description="", usage="")
+    parent_parser.add_argument("-l", "--locale", choices=["T", "C", "J", "K", "V"], default="C",
+                        help="Set locale (Traditional, Simplified, Japanese, etc.)")
+    parent_parser.add_argument("-s", "--src", "--source", help="Set source reading type (e.g., pinyin)")
+    parent_parser.add_argument("-t", "--target", help="Set target reading type (e.g., zhuyin)")
+    parent_parser.add_argument("-d", "--domain", help="Set domain")
+    parent_parser.add_argument("-w", "--dictionary", help="Set dictionary")
     
     parser = argparse.ArgumentParser(
         prog="hanzi",
@@ -1098,20 +1106,15 @@ def new_main():
 
     # global Options
     parser.add_argument("--version", action="version", version="%(prog)s 0.0.9") # temp hardcode
-    parent_parser.add_argument("-l", "--locale", choices=["T", "C", "J", "K", "V"], default="C",
-                        help="Set locale (Traditional, Simplified, Japanese, etc.)")
-    parent_parser.add_argument("-s", "--src", "--source", help="Set source reading type (e.g., pinyin)")
-    parent_parser.add_argument("-t", "--target", help="Set target reading type (e.g., zhuyin)")
-    parent_parser.add_argument("-d", "--domain", help="Set domain")
-    parent_parser.add_argument("-w", "--dictionary", help="Set dictionary")
     # parser.add_argument("--json", action="store_true", help="Output results in JSON format")
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
     
     # hanzi db ...
-    build_p = subparsers.add_parser("db", help="Database management", add_help=False, parents=[parent_parser])
-    build_p.add_argument("db_args", nargs=argparse.REMAINDER)
-
+    build_sub_p = build_cli.CommandLineBuilder.build_cli_parser()
+    subparsers.add_parser("db", help="Database management", add_help=False, parents=[build_sub_p])
+    # build_p.add_argument("db_args", nargs=argparse.REMAINDER)
+    
     # hanzi dict
     dict_p = subparsers.add_parser("dict", help="Dictionary management", parents=[parent_parser])
     dict_sub = dict_p.add_subparsers(dest="dict_action")
@@ -1157,9 +1160,7 @@ def new_main():
     args = parser.parse_args()
 
     if args.command == "db":
-        from hanzilib.build import cli
-        sys.argv.remove("db")
-        return cli.main()
+        build_cli.CommandLineBuilder().run(args)
 
     configSettings = getConfigSettings("hanzi")
     # url = configSettings.get("url")
