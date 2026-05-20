@@ -9,11 +9,12 @@ Apart from a Python interface, hanzilib provides the `hanzi` cli tool for conven
 **Important ⚠️**
 * hanzilib is a work in progress; the interface (both Python and CLI) are not final
 * hanzilib is not backwards-compatible with cjklib. The API has been modernized for clarity and maintainability.
+* Character decomposition is not stable yet; see [this page from the cjklib wiki](https://code.google.com/archive/p/cjklib/wikis/Decomposition.wiki)
 
-#### Jump to useful sections
-* [CLI examples](#cli-examples)
-* [Python examples](#python-examples)
-* [Details](#details-of-hanzilib)
+#### Data sources in `hanzilib/data`
+* `Unihan_*.txt` files are from Unihan
+* `kanjidic2.xml` is taken from https://www.edrdg.org/kanjidic/kanjd2index_legacy.html
+* the other `.csv` and `.sql` files are provided by the original author(s) of cjklib
 
 ## Installation
 

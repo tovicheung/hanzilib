@@ -23,14 +23,13 @@ Command line interface (*CLI*) to the library's build functionality.
 import argparse
 import sys
 import os
-from optparse import OptionParser, OptionGroup
 import configparser
 from typing import Any
 
 # Absolute imports for cli
 from hanzilib.build import DatabaseBuilder
 from hanzilib import exception, dbconnector
-from hanzilib.util import getConfigSettings, getDataPath#, ExtendedOption
+from hanzilib.util import getConfigSettings, getDataPath
 from hanzilib import log
 
 class CommandLineBuilder(object):
