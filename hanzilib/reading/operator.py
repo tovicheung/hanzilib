@@ -119,7 +119,7 @@ class ReadingOperator(abc.ABC):
         else:
             self.db = dbconnector.getDBConnector()
 
-        for option, defaultValue in list(self.getDefaultOptions().items()):
+        for option, defaultValue in self.getDefaultOptions().items():
             optionValue = options.get(option, defaultValue)
             if not hasattr(optionValue, '__call__'):
                 setattr(self, option, copy.deepcopy(optionValue))

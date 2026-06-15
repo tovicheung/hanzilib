@@ -47,7 +47,7 @@ from ..exception import (ConversionError, AmbiguousConversionError,
     InvalidEntityError, UnsupportedError)
 from .. import dbconnector
 from . import operator as readingoperator
-from . import ReadingFactory
+from . import ReadingFactory, getReadingConverterClasses
 from ..util import titlecase, istitlecase
 from .types import Reading
 
@@ -2115,7 +2115,7 @@ class BridgeConverter(ReadingConverter):
                 defaultOptions[option] = value
 
         converterClassLookup: dict[tuple[str, str], type[ReadingConverter]] = {}
-        for clss in ReadingFactory.getReadingConverterClasses():
+        for clss in getReadingConverterClasses():
             for fromReading, targetReading in clss.CONVERSION_DIRECTIONS:
                 converterClassLookup[(fromReading, targetReading)] = clss
 

@@ -33,6 +33,53 @@ import typing
 if typing.TYPE_CHECKING:
     from .converter import ReadingConverter
 
+
+# Registry
+
+_registry = {'readingOperatorClasses': {}, 'readingConverterClasses': {}}
+
+def _auto_discover():
+    from . import converter as readingconverter
+    _registry["readingOperatorClasses"].update({
+        clss.READING_NAME: clss for name in readingoperator.__all__
+        if (clss := getattr(readingoperator, name))
+        if issubclass(clss, readingoperator.ReadingOperator) and clss.READING_NAME
+    })
+    
+    converters = [
+        clss for name in readingconverter.__all__
+        if (clss := getattr(readingconverter, name))
+        if issubclass(clss, readingconverter.ReadingConverter) and clss.CONVERSION_DIRECTIONS
+    ]
+
+    for c in converters:
+        for fromReading, toReading in c.CONVERSION_DIRECTIONS:
+            _registry['readingConverterClasses'][(fromReading, toReading)] = c
+
+def getReadingOperatorClasses():
+    """
+    Gets all classes implementing
+    :class:`~cjklib.reading.operator.ReadingOperator` from module
+    :mod:`cjklib.reading.operator`.
+
+    :rtype: list
+    :return: list of all classes inheriting form
+        :class:`~cjklib.reading.operator.ReadingOperator`
+    """
+    return _registry["readingOperatorClasses"]
+
+def getReadingConverterClasses():
+    """
+    Gets all classes implementing
+    :class:`~cjklib.reading.converter.ReadingConverter` from module
+    :mod:`cjklib.reading.converter`.
+
+    :rtype: list
+    :return: list of all classes inheriting form
+        :class:`~cjklib.reading.converter.ReadingConverter`
+    """
+    return _registry["readingConverterClasses"]
+
 class ReadingFactory(object):
     """
     Provides an abstract factory for creating
@@ -63,47 +110,6 @@ class ReadingFactory(object):
           user of specifying an operator twice, one per options, one per
           concrete instance (similar to sourceOptions and targetOptions)?
     """
-    @staticmethod
-    def getReadingOperatorClasses():
-        """
-        Gets all classes implementing
-        :class:`~cjklib.reading.operator.ReadingOperator` from module
-        :mod:`cjklib.reading.operator`.
-
-        :rtype: list
-        :return: list of all classes inheriting form
-            :class:`~cjklib.reading.operator.ReadingOperator`
-        """
-        # get all non-abstract classes that inherit from ReadingOperator
-        readingOperatorClasses = [
-            clss for name in readingoperator.__all__
-            if (clss := getattr(readingoperator, name))
-            if issubclass(clss, readingoperator.ReadingOperator) and clss.READING_NAME
-        ]
-
-        return readingOperatorClasses
-
-    @staticmethod
-    def getReadingConverterClasses():
-        """
-        Gets all classes implementing
-        :class:`~cjklib.reading.converter.ReadingConverter` from module
-        :mod:`cjklib.reading.converter`.
-
-        :rtype: list
-        :return: list of all classes inheriting form
-            :class:`~cjklib.reading.converter.ReadingConverter`
-        """
-        # get all non-abstract classes that inherit from ReadingConverter
-        
-        from . import converter as readingconverter
-        readingConverterClasses = [
-            clss for name in readingconverter.__all__
-            if (clss := getattr(readingconverter, name))
-            if issubclass(clss, readingconverter.ReadingConverter) and clss.CONVERSION_DIRECTIONS
-        ]
-
-        return readingConverterClasses
 
     _sharedState = {'readingOperatorClasses': {}, 'readingConverterClasses': {}}
     """
@@ -228,34 +234,22 @@ class ReadingFactory(object):
             self.db = dbconnector.getDBConnector(databaseUrl)
         # create object instance cache if needed, shared with all factories
         #   using the same database connection
-        if self.db not in self._sharedState:
+        if self.db not in _registry:
             # clear also generates the structure
             self.clearCache()
-        # publish default reading operators and converters
-            for readingOperator in self.getReadingOperatorClasses():
-                self.publishReadingOperator(readingOperator)
-            for readingConverter in self.getReadingConverterClasses():
-                self.publishReadingConverter(readingConverter)
         
+        _auto_discover()
     #{ Meta
 
     def clearCache(self):
         """Clears cached classes for the current database."""
-        self._sharedState[self.db] = {}
-        self._sharedState[self.db]['readingOperatorInstances'] = {}
-        self._sharedState[self.db]['readingConverterInstances'] = {}
+        # self._sharedState[self.db] = {}
+        # self._sharedState[self.db]['readingOperatorInstances'] = {}
+        # self._sharedState[self.db]['readingConverterInstances'] = {}
+        _registry[self.db] = {}
+        _registry[self.db]['readingOperatorInstances'] = {}
+        _registry[self.db]['readingConverterInstances'] = {}
 
-    def publishReadingOperator(self, readingOperator):
-        """
-        Publishes a :class:`~cjklib.reading.operator.ReadingOperator` to the
-        list and thus makes it available for other methods in the library.
-
-        :type readingOperator: classobj
-        :param readingOperator: a new
-            :class:`~cjklib.reading.operator.ReadingOperator` to be published
-        """
-        self._sharedState['readingOperatorClasses']\
-            [readingOperator.READING_NAME] = readingOperator
 
     def getSupportedReadings(self) -> list[str]:
         """
@@ -265,7 +259,7 @@ class ReadingFactory(object):
         :return: a list of readings a
             :class:`~cjklib.reading.operator.ReadingOperator` is available for
         """
-        return list(self._sharedState['readingOperatorClasses'].keys())
+        return list(_registry['readingOperatorClasses'].keys())
 
     def getReadingOperatorClass(self, readingN):
         """
@@ -278,9 +272,9 @@ class ReadingFactory(object):
         :return: a :class:`~cjklib.reading.operator.ReadingOperator` class
         :raise UnsupportedError: if the given reading is not supported.
         """
-        if readingN not in self._sharedState['readingOperatorClasses']:
+        if readingN not in _registry['readingOperatorClasses']:
             raise UnsupportedError("reading '%s' not supported" % readingN)
-        return self._sharedState['readingOperatorClasses'][readingN]
+        return _registry['readingOperatorClasses'][readingN]
 
     def createReadingOperator(self, readingN, **options):
         """
@@ -301,19 +295,6 @@ class ReadingFactory(object):
             opt['dbConnectInst'] = self.db
         return operatorClass(**opt)
 
-    def publishReadingConverter(self, readingConverter):
-        """
-        Publishes a :class:`~cjklib.reading.converter.ReadingConverter` to the
-        list and thus makes it available for other methods in the library.
-
-        :type readingConverter: classobj
-        :param readingConverter: a new
-            :class:`~cjklib.reading.converter.ReadingConverter` to be published
-        """
-        for fromReading, toReading in readingConverter.CONVERSION_DIRECTIONS:
-            self._sharedState['readingConverterClasses']\
-                [(fromReading, toReading)] = readingConverter
-
     def getReadingConverterClass(self, fromReading, toReading):
         """
         Gets the :class:`~cjklib.reading.converter.ReadingConverter`'s class
@@ -332,7 +313,7 @@ class ReadingFactory(object):
             raise UnsupportedError(
                 "conversion from '%s' to '%s' not supported"
                 % (fromReading, toReading))
-        return self._sharedState['readingConverterClasses']\
+        return _registry['readingConverterClasses']\
             [(fromReading, toReading)]
 
     def createReadingConverter(self, fromReading, toReading, *args, **options):
@@ -411,7 +392,7 @@ class ReadingFactory(object):
         :return: true if conversion is supported, false otherwise
         """
         return (fromReading, toReading) \
-            in self._sharedState['readingConverterClasses']
+            in _registry['readingConverterClasses']
 
     def isReadingOperationSupported(self, operation, readingN, **options):
         """
@@ -483,7 +464,7 @@ class ReadingFactory(object):
         # construct key for lookup in cache
         cacheKey = (readingN, self._getHashableCopy(options))
         # get cache
-        instanceCache = self._sharedState[self.db]['readingOperatorInstances']
+        instanceCache = _registry[self.db]['readingOperatorInstances']
         if cacheKey not in instanceCache:
             operatorInst = self.createReadingOperator(readingN, **options)
             instanceCache[cacheKey] = operatorInst
@@ -534,7 +515,7 @@ class ReadingFactory(object):
         # construct key for lookup in cache
         cacheKey = ((fromReading, toReading), self._getHashableCopy(options))
         # get cache
-        instanceCache = self._sharedState[self.db]['readingConverterInstances']
+        instanceCache = _registry[self.db]['readingConverterInstances']
         if cacheKey not in instanceCache:
             opt = options.copy()
             opt['hideComplexConverter'] = False
@@ -646,9 +627,6 @@ class ReadingFactory(object):
         else:
             return data
 
-    #}
-    #{ ReadingConverter methods
-
     def convert(self, readingStr: str, fromReading: Reading, toReading: Reading, *args, **options):
         """
         Converts the given string in the source reading to the given target
@@ -741,9 +719,6 @@ class ReadingFactory(object):
         return readingConv.convertEntities(readingEntities, fromReading,
             toReading)
 
-    #}
-    #{ ReadingOperator methods
-
     def decompose(self, string, readingN, **options):
         """
         Decomposes the given string into basic entities that can be mapped to
@@ -824,9 +799,6 @@ class ReadingFactory(object):
         """
         readingOp = self._getReadingOperatorInstance(readingN, **options)
         return readingOp.isFormattingEntity(entity)
-
-    #}
-    #{ RomanisationOperator methods
 
     def getDecompositions(self, string, readingN, **options):
         """
@@ -1056,3 +1028,130 @@ class ReadingFactory(object):
             raise UnsupportedError(
                 "method 'isPlainReadingEntity' not supported")
         return readingOp.isPlainReadingEntity(entity)
+
+
+# Top-level interface (temp)
+
+_factory = None
+
+def _get_factory():
+    global _factory
+    if _factory is None:
+        _factory = ReadingFactory()
+    return _factory
+
+def convert(readingStr: str, fromReading: Reading, toReading: Reading, *args, **options):
+    """
+    Converts the given string in the source reading to the given target
+    reading.
+
+    :type readingStr: str
+    :param readingStr: string that needs to be converted
+    :type fromReading: str
+    :param fromReading: name of the source reading
+    :type toReading: str
+    :param toReading: name of the target reading
+    :param args: optional list of
+        :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+        to use for handling source and target readings.
+    :param options: additional options for handling the input
+    :keyword sourceOperators: list of :class:`ReadingOperators
+        <cjklib.reading.operator.ReadingOperator>` used for handling
+        source readings.
+    :keyword targetOperators: list of :class:`ReadingOperators
+        <cjklib.reading.operator.ReadingOperator>` used for handling
+        target readings.
+    :keyword sourceOptions: dictionary of options to configure the
+        :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+        used for handling source readings. If an
+        operator for the source reading is explicitly specified, no options
+        can be given.
+    :keyword targetOptions: dictionary of options to configure the
+        :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+        used for handling target readings. If an
+        operator for the target reading is explicitly specified, no options
+        can be given.
+    :rtype: str
+    :return: the converted string
+    :raise DecompositionError: if the string can not be decomposed into
+        basic entities with regards to the source reading or the given
+        information is insufficient.
+    :raise CompositionError: if the target reading's entities can not be
+        composed.
+    :raise ConversionError: on operations specific to the conversion between
+        the two readings (e.g. error on converting entities).
+    :raise UnsupportedError: if source or target reading is not supported
+        for conversion.
+    """
+    return _get_factory().convert(readingStr, fromReading, toReading, *args, **options)
+
+
+def decompose(self, string, readingN, **options):
+    """
+    Decomposes the given string into basic entities that can be mapped to
+    one Chinese character each for the given reading.
+
+    The given input string can contain other non reading characters, e.g.
+    punctuation marks.
+
+    The returned list contains a mix of basic reading entities and other
+    characters e.g. spaces and punctuation marks.
+
+    :type string: str
+    :param string: reading string
+    :type readingN: str
+    :param readingN: name of reading
+    :param options: additional options for handling the input
+    :rtype: list of str
+    :return: a list of basic entities of the input string
+    :raise DecompositionError: if the string can not be decomposed.
+    :raise UnsupportedError: if the given reading is not supported.
+    """
+    return _get_factory().decompose(string, readingN, **options)
+
+
+def compose(self, readingEntities, readingN, **options):
+    """
+    Composes the given list of basic entities to a string for the given
+    reading.
+
+    Composing entities can raise a :exc:`~cjklib.exception.CompositionError`
+    if a non-reading entity is about to be joined with a reading entity
+    and will result in a string that is impossible to decompose.
+
+    :type readingEntities: list of str
+    :param readingEntities: list of basic syllables or other content
+    :type readingN: str
+    :param readingN: name of reading
+    :param options: additional options for handling the input
+    :rtype: str
+    :return: composed entities
+    :raise CompositionError: if the given entities can not be composed.
+    :raise UnsupportedError: if the given reading is not supported.
+    """
+    return _get_factory().compose(readingEntities, readingN, **options)
+
+
+def segment(self, string, readingN, **options):
+    """
+    Takes a string written in the romanisation and returns the possible
+    segmentations as a list of syllables.
+
+    In contrast to :meth:`~cjklib.reading.ReadingFactory.decompose`
+    this method merely segments continuous entities of the romanisation.
+    Characters not part of the romanisation will not be dealt with,
+    this is the task of the more general decompose method.
+
+    :type string: str
+    :param string: reading string
+    :type readingN: str
+    :param readingN: name of reading
+    :param options: additional options for handling the input
+    :rtype: list of list of str
+    :return: a list of possible segmentations (several if ambiguous) into
+        single syllables
+    :raise DecompositionError: if the given string has an invalid format.
+    :raise UnsupportedError: if the given reading is not supported or the
+        reading doesn't support the specified method.
+    """
+    return _get_factory().segment(string, readingN, **options)

@@ -45,8 +45,7 @@ packages = [
     "hanzilib", 
     "hanzilib.reading", 
     "hanzilib.dictionary", 
-    "hanzilib.build", 
-    "hanzilib.test"
+    "hanzilib.build"
 ]
 
 [tool.setuptools.package-data]

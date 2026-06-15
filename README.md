@@ -124,6 +124,8 @@ Character operations:
 # Get stroke order
 >>> cjk.getStrokeOrder('說')
 ['㇔', '㇐', '㇐', '㇐', '㇑', '㇕', '㇐', '㇒', '㇏', '㇑', '㇕', '㇐', '㇓', '㇟']
+>>> cjk.getStrokeOrderAbbrev('說')
+"D H H H S-HZ-H P N S-HZ-H SP SWG"
 
 # Get characters from components
 >>> cjk.getCharactersForComponents([u'门', u'⼉'])
@@ -135,9 +137,8 @@ Character operations:
 Reading conversions:
 
 ```py
->>> from hanzilib.reading import ReadingFactory
->>> f = ReadingFactory()
->>> f.convert('lǎoshī', 'Pinyin', 'MandarinIPA')
+>>> from hanzilib.reading import convert
+>>> convert('lǎoshī', 'Pinyin', 'MandarinIPA')
 lau˨˩.ʂʅ˥˥
 ```
 
