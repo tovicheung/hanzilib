@@ -104,7 +104,7 @@ class ReadingOperator(abc.ABC):
     """
     Defines an abstract operator on text written in a *character reading*.
     """
-    READING_NAME = None
+    READING_NAME: str = None
     """Unique name of reading"""
 
     def __init__(self, **options):

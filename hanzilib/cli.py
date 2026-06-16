@@ -1005,7 +1005,6 @@ Character Lookup:
 Text Processing:
   zhscript <TEXT>           Get Simplified and Traditional Chinese
   to-reading <TEXT>         Get the phonetic reading for a string of text
-  convert-reading <TEXT>    Convert readings (e.g., Pinyin to Zhuyin)
 
 Dictionary:
   dict install <NAME>       Download and install a specific dictionary
@@ -1150,8 +1149,8 @@ def new_main():
     to_reading_p.add_argument("text", help="The text string to read")
 
     # hanzi convert-reading
-    phon_p = subparsers.add_parser("convert-reading", help="Convert between reading systems", parents=[parent_parser])
-    phon_p.add_argument("text", help="The reading string to convert")
+    # phon_p = subparsers.add_parser("convert-reading", help="Convert between reading systems", parents=[parent_parser])
+    # phon_p.add_argument("text", help="The reading string to convert")
 
     # hanzi search-
     search_p = subparsers.add_parser("search", help="Wildcard dictionary search", parents=[parent_parser])
@@ -1305,7 +1304,7 @@ def new_main():
             sys.exit(1)
 
 
-    elif args.command == "convert-reading":
+    elif False and args.command == "convert-reading":
         try:
             print(char_info.convertReading(args.text, config.source_reading, config.target_reading))
         except exception.DecompositionError as m:

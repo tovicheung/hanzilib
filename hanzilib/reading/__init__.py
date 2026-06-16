@@ -27,14 +27,15 @@ from .. import dbconnector
 from . import operator as readingoperator
 # from . import converter as readingconverter
 
-from .types import Reading
-
 import typing
 if typing.TYPE_CHECKING:
     from .converter import ReadingConverter
+    from .operator import ReadingOperator
 
+from .readings import Reading, _get_reading_info
 
 # Registry
+# the registry also stores reading operators created from database
 
 _registry = {'readingOperatorClasses': {}, 'readingConverterClasses': {}}
 
@@ -143,11 +144,11 @@ class ReadingFactory(object):
             :param toReading: name of reading converted to
             """
             self.converterInst = converterInst
-            self.fromReading = fromReading
-            self.toReading = toReading
-            self.CONVERSION_DIRECTIONS = [(fromReading, toReading)]
+            self.fromReading = _get_reading_info(fromReading)[0]
+            self.toReading = _get_reading_info(toReading)[0]
+            self.CONVERSION_DIRECTIONS = [(self.fromReading, self.toReading)]
 
-        def convert(self, string: str, fromReading: Reading | None = None, toReading: Reading | None = None):
+        def convert(self, string: str, fromReading: str |  None = None, toReading: str | None = None):
             """
             Converts a string in the source reading to the target reading.
 
@@ -175,7 +176,7 @@ class ReadingFactory(object):
                 fromReading = self.fromReading
             if not toReading:
                 toReading = self.toReading
-            return self.converterInst.convert(string, fromReading, toReading)
+            return self.converterInst.convert(string, _get_reading_info(fromReading)[0], _get_reading_info(toReading)[0])
 
         def convertEntities(self, readingEntities, fromReading=None,
             toReading=None):
@@ -261,7 +262,7 @@ class ReadingFactory(object):
         """
         return list(_registry['readingOperatorClasses'].keys())
 
-    def getReadingOperatorClass(self, readingN):
+    def getReadingOperatorClass(self, reading: str | Reading):
         """
         Gets the :class:`~cjklib.reading.operator.ReadingOperator`'s class
         for the given reading.
@@ -272,11 +273,12 @@ class ReadingFactory(object):
         :return: a :class:`~cjklib.reading.operator.ReadingOperator` class
         :raise UnsupportedError: if the given reading is not supported.
         """
-        if readingN not in _registry['readingOperatorClasses']:
-            raise UnsupportedError("reading '%s' not supported" % readingN)
-        return _registry['readingOperatorClasses'][readingN]
+        reading_name, _ = _get_reading_info(reading)
+        if reading_name not in _registry['readingOperatorClasses']:
+            raise UnsupportedError("reading '%s' not supported" % reading_name)
+        return _registry['readingOperatorClasses'][reading_name]
 
-    def createReadingOperator(self, readingN, **options):
+    def createReadingOperator(self, reading: str | Reading, **options):
         """
         Creates an instance of a
         :class:`~cjklib.reading.operator.ReadingOperator` for the given reading.
@@ -288,14 +290,15 @@ class ReadingFactory(object):
         :return: a :class:`~cjklib.reading.operator.ReadingOperator` instance
         :raise UnsupportedError: if the given reading is not supported.
         """
-        operatorClass = self.getReadingOperatorClass(readingN)
 
-        opt = options.copy()
-        if 'dbConnectInst' not in opt:
-            opt['dbConnectInst'] = self.db
-        return operatorClass(**opt)
+        reading_name, reading_opts = _get_reading_info(reading, options)
+        operatorClass = self.getReadingOperatorClass(reading_name)
 
-    def getReadingConverterClass(self, fromReading, toReading):
+        if 'dbConnectInst' not in reading_opts:
+            reading_opts['dbConnectInst'] = self.db
+        return operatorClass(**reading_opts)
+
+    def getReadingConverterClass(self, fromReading: str | Reading, toReading: str | Reading):
         """
         Gets the :class:`~cjklib.reading.converter.ReadingConverter`'s class
         for the given source and target reading.
@@ -309,14 +312,15 @@ class ReadingFactory(object):
         :raise UnsupportedError: if conversion for the given readings is not
             supported.
         """
-        if not self.isReadingConversionSupported(fromReading, toReading):
+        from_reading_name, _ = _get_reading_info(fromReading)
+        to_reading_name, _ = _get_reading_info(toReading)
+        if not self.isReadingConversionSupported(from_reading_name, to_reading_name):
             raise UnsupportedError(
                 "conversion from '%s' to '%s' not supported"
-                % (fromReading, toReading))
-        return _registry['readingConverterClasses']\
-            [(fromReading, toReading)]
+                % (from_reading_name, to_reading_name))
+        return _registry['readingConverterClasses'][(from_reading_name, to_reading_name)]
 
-    def createReadingConverter(self, fromReading, toReading, *args, **options):
+    def createReadingConverter(self, fromReading: str | Reading, toReading: str | Reading, *args, **options):
         """
         Creates an instance of a
         :class:`~cjklib.reading.converter.ReadingConverter` for the given
@@ -375,6 +379,7 @@ class ReadingFactory(object):
         opt = options.copy()
         if 'dbConnectInst' not in opt:
             opt['dbConnectInst'] = self.db
+        # print(999, fromReading, toReading, args, opt)
         converterInst = converterClass(*args, **opt)
         if 'hideComplexConverter' not in options \
             or options['hideComplexConverter']:
@@ -442,7 +447,7 @@ class ReadingFactory(object):
         else:
             raise ValueError("Wrong number of arguments")
 
-    def _getReadingOperatorInstance(self, readingN: Reading, **options):
+    def _getReadingOperatorInstance(self, reading: str | Reading, **options) -> ReadingOperator:
         """
         Returns an instance of a
         :class:`~cjklib.reading.operator.ReadingOperator` for the given
@@ -461,16 +466,17 @@ class ReadingFactory(object):
               instances in cache. Same for
               :meth:`~cjklib.reading.ReadingFactory._getReadingConverterInstance`.
         """
+        reading_name, reading_opts = _get_reading_info(reading, options)
         # construct key for lookup in cache
-        cacheKey = (readingN, self._getHashableCopy(options))
+        cacheKey = (reading_name, self._getHashableCopy(reading_opts))
         # get cache
         instanceCache = _registry[self.db]['readingOperatorInstances']
         if cacheKey not in instanceCache:
-            operatorInst = self.createReadingOperator(readingN, **options)
+            operatorInst = self.createReadingOperator(reading, **options)
             instanceCache[cacheKey] = operatorInst
         return instanceCache[cacheKey]
 
-    def _getReadingConverterInstance(self, fromReading, toReading, *args,
+    def _getReadingConverterInstance(self, fromReading: str | Reading, toReading: str | Reading, *args,
         **options) -> ReadingConverter:
         """
         Returns an instance of a
@@ -511,29 +517,32 @@ class ReadingFactory(object):
               is specified for one direction, that doesn't affect others.
         """
         self._checkSpecialOperators(fromReading, toReading, args, options)
-
+        
+        # TODO: this key is wrong!
         # construct key for lookup in cache
-        cacheKey = ((fromReading, toReading), self._getHashableCopy(options))
+        from_reading_name, _ = _get_reading_info(fromReading)
+        to_reading_name, _ = _get_reading_info(toReading)
+        cacheKey = (from_reading_name, to_reading_name, self._getHashableCopy(options))
         # get cache
         instanceCache = _registry[self.db]['readingConverterInstances']
+
         if cacheKey not in instanceCache:
             opt = options.copy()
             opt['hideComplexConverter'] = False
             converterInst = self.createReadingConverter(fromReading, toReading,
                 *args, **options)
             # use instance for all supported conversion directions
-            for convFromReading, convToReading \
-                in converterInst.CONVERSION_DIRECTIONS:
-                oCacheKey = ((convFromReading, convToReading),
-                    self._getHashableCopy(options))
+            for convFromReading, convToReading in converterInst.CONVERSION_DIRECTIONS:
+                oCacheKey = ((convFromReading, convToReading, self._getHashableCopy(options)))
                 if oCacheKey not in instanceCache:
                     instanceCache[oCacheKey] = converterInst
         return instanceCache[cacheKey]
 
-    def _checkSpecialOperators(self, fromReading, toReading, args, options):
+    def _checkSpecialOperators(self, fromReading: str | Reading, toReading: str | Reading, args, options):
         """
         Checks for special operators requested for the given source and target
         reading.
+        Sanitizes arguments such that 'sourceOptions' and 'targetOptions' are resolved and removed
 
         :type fromReading: str
         :param fromReading: name of the source reading
@@ -576,6 +585,12 @@ class ReadingFactory(object):
                     raise ValueError(
                         "target reading operator options given, " \
                         + "but a target reading operator already exists")
+        
+        if isinstance(fromReading, Reading):
+            options["sourceOptions"] = options.get("sourceOptions", {}) | fromReading.to_dict()
+        
+        if isinstance(toReading, Reading):
+            options["targetOptions"] = options.get("targetOptions", {}) | toReading.to_dict()
         # create operators for options
         if 'sourceOptions' in options:
             readingOp = self._getReadingOperatorInstance(fromReading,
@@ -585,7 +600,8 @@ class ReadingFactory(object):
             # add reading operator to converter
             if 'sourceOperators' not in options:
                 options['sourceOperators'] = []
-            options['sourceOperators'].append(readingOp)
+            if readingOp not in options["sourceOperators"]:
+                options['sourceOperators'].append(readingOp)
 
         if 'targetOptions' in options:
             readingOp = self._getReadingOperatorInstance(toReading,
@@ -595,7 +611,8 @@ class ReadingFactory(object):
             # add reading operator to converter
             if 'targetOperators' not in options:
                 options['targetOperators'] = []
-            options['targetOperators'].append(readingOp)
+            if readingOp not in options["targetOperators"]:
+                options['targetOperators'].append(readingOp)
 
     @staticmethod
     def _getHashableCopy(data):
@@ -627,49 +644,7 @@ class ReadingFactory(object):
         else:
             return data
 
-    def convert(self, readingStr: str, fromReading: Reading, toReading: Reading, *args, **options):
-        """
-        Converts the given string in the source reading to the given target
-        reading.
-
-        :type readingStr: str
-        :param readingStr: string that needs to be converted
-        :type fromReading: str
-        :param fromReading: name of the source reading
-        :type toReading: str
-        :param toReading: name of the target reading
-        :param args: optional list of
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
-            to use for handling source and target readings.
-        :param options: additional options for handling the input
-        :keyword sourceOperators: list of :class:`ReadingOperators
-            <cjklib.reading.operator.ReadingOperator>` used for handling
-            source readings.
-        :keyword targetOperators: list of :class:`ReadingOperators
-            <cjklib.reading.operator.ReadingOperator>` used for handling
-            target readings.
-        :keyword sourceOptions: dictionary of options to configure the
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
-            used for handling source readings. If an
-            operator for the source reading is explicitly specified, no options
-            can be given.
-        :keyword targetOptions: dictionary of options to configure the
-            :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
-            used for handling target readings. If an
-            operator for the target reading is explicitly specified, no options
-            can be given.
-        :rtype: str
-        :return: the converted string
-        :raise DecompositionError: if the string can not be decomposed into
-            basic entities with regards to the source reading or the given
-            information is insufficient.
-        :raise CompositionError: if the target reading's entities can not be
-            composed.
-        :raise ConversionError: on operations specific to the conversion between
-            the two readings (e.g. error on converting entities).
-        :raise UnsupportedError: if source or target reading is not supported
-            for conversion.
-        """
+    def convert(self, readingStr: str, fromReading: str | Reading, toReading: str | Reading, *args, **options):
         readingConv = self._getReadingConverterInstance(fromReading, toReading,
             *args, **options)
         return readingConv.convert(readingStr, fromReading, toReading)
@@ -827,7 +802,7 @@ class ReadingFactory(object):
             raise UnsupportedError("method 'getDecompositions' not supported")
         return readingOp.getDecompositions(string)
 
-    def segment(self, string, readingN, **options):
+    def segment(self, string: str, readingN: str, **options):
         """
         Takes a string written in the romanisation and returns the possible
         segmentations as a list of syllables.
@@ -1040,34 +1015,40 @@ def _get_factory():
         _factory = ReadingFactory()
     return _factory
 
-def convert(readingStr: str, fromReading: Reading, toReading: Reading, *args, **options):
+def convert(
+        readingStr: str,
+        fromReading: str | Reading | type[Reading],
+        toReading: str | Reading | type[Reading],
+        *operators: ReadingOperator,
+        **options,
+    ) -> str:
     """
     Converts the given string in the source reading to the given target
     reading.
 
     :type readingStr: str
     :param readingStr: string that needs to be converted
-    :type fromReading: str
-    :param fromReading: name of the source reading
-    :type toReading: str
-    :param toReading: name of the target reading
-    :param args: optional list of
-        :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+    :type fromReading: str | Reading | type[Reading]
+    :param fromReading: source reading
+    :type toReading: str | Reading | type[Reading]
+    :param toReading: target reading
+    :param operators: optional list of
+        :class:`ReadingOperators <hanzilib.reading.operator.ReadingOperator>`
         to use for handling source and target readings.
     :param options: additional options for handling the input
     :keyword sourceOperators: list of :class:`ReadingOperators
-        <cjklib.reading.operator.ReadingOperator>` used for handling
+        <hanzilib.reading.operator.ReadingOperator>` used for handling
         source readings.
     :keyword targetOperators: list of :class:`ReadingOperators
-        <cjklib.reading.operator.ReadingOperator>` used for handling
+        <hanzilib.reading.operator.ReadingOperator>` used for handling
         target readings.
     :keyword sourceOptions: dictionary of options to configure the
-        :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+        :class:`ReadingOperators <hanzilib.reading.operator.ReadingOperator>`
         used for handling source readings. If an
         operator for the source reading is explicitly specified, no options
         can be given.
     :keyword targetOptions: dictionary of options to configure the
-        :class:`ReadingOperators <cjklib.reading.operator.ReadingOperator>`
+        :class:`ReadingOperators <hanzilib.reading.operator.ReadingOperator>`
         used for handling target readings. If an
         operator for the target reading is explicitly specified, no options
         can be given.
@@ -1083,10 +1064,10 @@ def convert(readingStr: str, fromReading: Reading, toReading: Reading, *args, **
     :raise UnsupportedError: if source or target reading is not supported
         for conversion.
     """
-    return _get_factory().convert(readingStr, fromReading, toReading, *args, **options)
+    return _get_factory().convert(readingStr, fromReading, toReading, *operators, **options)
 
 
-def decompose(self, string, readingN, **options):
+def decompose(string: str, readingN: str, **options):
     """
     Decomposes the given string into basic entities that can be mapped to
     one Chinese character each for the given reading.
@@ -1110,7 +1091,7 @@ def decompose(self, string, readingN, **options):
     return _get_factory().decompose(string, readingN, **options)
 
 
-def compose(self, readingEntities, readingN, **options):
+def compose(readingEntities: list[str], readingN: str, **options):
     """
     Composes the given list of basic entities to a string for the given
     reading.
@@ -1131,8 +1112,7 @@ def compose(self, readingEntities, readingN, **options):
     """
     return _get_factory().compose(readingEntities, readingN, **options)
 
-
-def segment(self, string, readingN, **options):
+def segment(string: str, readingN: str, **options):
     """
     Takes a string written in the romanisation and returns the possible
     segmentations as a list of syllables.

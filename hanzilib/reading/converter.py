@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with hanzilib.  If not, see <http://www.gnu.org/licenses/>.
-
+from __future__ import annotations
 """
 Conversion between character readings.
 """
@@ -49,7 +49,15 @@ from .. import dbconnector
 from . import operator as readingoperator
 from . import ReadingFactory, getReadingConverterClasses
 from ..util import titlecase, istitlecase
-from .types import Reading
+from .types import Entity
+
+from typing import TYPE_CHECKING
+
+from .readings import Reading
+
+if TYPE_CHECKING:
+    from .operator import ReadingOperator
+    from .converter import ReadingConverter
 
 class ReadingConverter(abc.ABC):
     """
@@ -68,6 +76,75 @@ class ReadingConverter(abc.ABC):
     to reading B. If both directions are supported, two tuples (A, B) and (B, A)
     are given.
     """
+
+    # def __init__(self,
+    #     *operators: ReadingOperator,
+    #     dbConnectInst: Optional[dbconnector.DatabaseConnector] = None,
+    #     sourceOperators: Optional[dict[str, ReadingOperator] | list[ReadingOperator]] = None,
+    #     targetOperators: Optional[dict[str, ReadingOperator] | list[ReadingOperator]] = None,
+    # ):
+    #     """
+    #     :param operators: optional list of
+    #         :class:`ReadingOperators <_reading.operator.ReadingOperator>`
+    #         to use for handling source and target readings.
+    #     :param dbConnectInst: instance of a
+    #         :class:`~cjklib.dbconnector.DatabaseConnector`, if none is
+    #         given, default settings will be assumed.
+    #     :param sourceOperators: list of
+    #         :class:`ReadingOperators <_reading.operator.ReadingOperator>`
+    #         used for handling source readings.
+    #     :param targetOperators: list of
+    #         :class:`ReadingOperators <_reading.operator.ReadingOperator>`
+    #         used for handling target readings.
+    #     """
+    #     if dbConnectInst is not None:
+    #         self.db = dbConnectInst
+    #     else:
+    #         self.db = dbconnector.getDBConnector()
+
+    #     self._f = ReadingFactory(dbConnectInst=self.db)
+
+    #     if isinstance(sourceOperators, list):
+    #         self.sourceOperators = {operatorInst.READING_NAME: operatorInst \
+    #                 for operatorInst in sourceOperators}
+    #     else:
+    #         self.sourceOperators = sourceOperators or {}
+
+    #     if isinstance(targetOperators, list):
+    #         self.targetOperators = {operatorInst.READING_NAME: operatorInst \
+    #                 for operatorInst in targetOperators}
+    #     else:
+    #         self.targetOperators = targetOperators or {}
+
+    #     for operatorInst in list(self.sourceOperators.values()):
+    #         if not isinstance(operatorInst, readingoperator.ReadingOperator):
+    #             raise ValueError(
+    #                 "Unknown type '%s' given as source reading operator"
+    #                     % str(type(operatorInst)))
+    #     for operatorInst in list(self.targetOperators.values()):
+    #         if not isinstance(operatorInst, readingoperator.ReadingOperator):
+    #             raise ValueError(
+    #                 "Unknown type '%s' given as target reading operator"
+    #                     % str(type(operatorInst)))
+
+    #     # get reading operators from args
+    #     for op in operators:
+    #         if isinstance(op, readingoperator.ReadingOperator):
+    #             # store reading operator for the given reading
+    #             if op.READING_NAME in self.sourceOperators \
+    #                 or op.READING_NAME in self.targetOperators:
+    #                 raise ValueError("Operator for '%s'" \
+    #                         % op.READING_NAME
+    #                     + " specified twice as plain and keyword argument")
+    #             self.sourceOperators[op.READING_NAME] = op
+    #             self.targetOperators[op.READING_NAME] = op
+    #         else:
+    #             raise ValueError("Unknown type '%s' given as reading operator"
+    #                 % str(type(op)))
+
+    # NOTE: any options for fromReading and toReading are supplied in the form of
+    # sourceOperators and targetOperators
+    # (ReadingFactory converts those options into operators)
 
     def __init__(self, *args, **options):
         """
@@ -177,8 +254,7 @@ class ReadingConverter(abc.ABC):
               :meth:`~_reading.converter.ReadingConverter.convertEntities`.
         """
         # decompose string
-        fromReadingEntities = self._getFromOperator(fromReading).decompose(
-            string)
+        fromReadingEntities = self._getFromOperator(fromReading).decompose(string)
         # convert entities
         toReadingEntities = self.convertEntities(fromReadingEntities,
             fromReading, toReading)
@@ -186,7 +262,7 @@ class ReadingConverter(abc.ABC):
         return self._getToOperator(toReading).compose(toReadingEntities)
 
     @abc.abstractmethod
-    def convertEntities(self, readingEntities: list[str], fromReading: str, toReading: str):
+    def convertEntities(self, readingEntities: list[Entity], fromReading: str, toReading: str) -> list[Entity]:
         """
         Converts a list of entities in the source reading to the given target
         reading.
@@ -209,7 +285,7 @@ class ReadingConverter(abc.ABC):
         """
         pass
 
-    def _getFromOperator(self, readingN):
+    def _getFromOperator(self, reading: str | Reading) -> ReadingOperator:
         """
         Gets a reading operator instance for conversion from the given reading.
 
@@ -219,12 +295,14 @@ class ReadingConverter(abc.ABC):
         :return: a :class:`~_reading.operator.ReadingOperator` instance
         :raise UnsupportedError: if the given reading is not supported.
         """
-        if readingN not in self.sourceOperators:
-            self.sourceOperators[readingN] \
-                = self._f._getReadingOperatorInstance(readingN)
-        return self.sourceOperators[readingN]
+        if isinstance(reading, Reading):
+            reading = reading.get_name()
+        if reading not in self.sourceOperators:
+            self.sourceOperators[reading] \
+                = self._f._getReadingOperatorInstance(reading)
+        return self.sourceOperators[reading]
 
-    def _getToOperator(self, readingN):
+    def _getToOperator(self, readingN) -> ReadingOperator:
         """
         Gets a reading operator instance for conversion to the given reading.
 
@@ -292,15 +370,13 @@ class DialectSupportReadingConverter(ReadingConverter):
             raise UnsupportedError("conversion direction from '" \
                 + fromReading + "' to '" + toReading + "' not supported")
 
-        # first split into reading and non-reading sequences, so that later
-        #   reading conversion is only done for reading entities
-        entitySequence = []
+        # Split into reading and non-reading sequences; conversion will only done to reading entities later
+        entitySequence: list[list[Entity] | Entity] = [] # contains (list of reading entitites) or non-reading entity
         for entity in readingEntities:
+            readingEntitySequence: list[Entity] = []
             # get last reading entity sequence if any
-            if entitySequence and type(entitySequence[-1]) == type([]):
+            if entitySequence and isinstance(entitySequence[-1], list):
                 readingEntitySequence = entitySequence.pop()
-            else:
-                readingEntitySequence = []
 
             if self._getFromOperator(fromReading).isReadingEntity(entity) \
                 or self._getFromOperator(fromReading).isFormattingEntity(
@@ -314,10 +390,9 @@ class DialectSupportReadingConverter(ReadingConverter):
                 # append non-reading entity
                 entitySequence.append(entity)
 
-        # convert to standard form if supported (step 1)
+        # Convert to standard form (if supported)
         if self._f.isReadingConversionSupported(fromReading, fromReading):
-            # get default options if available used for converting the reading
-            #   dialect
+            # get default options if available used for converting the reading dialect
             if fromReading in self.DEFAULT_READING_OPTIONS:
                 fromDefaultOptions = self.DEFAULT_READING_OPTIONS[fromReading]
             else:
@@ -328,9 +403,10 @@ class DialectSupportReadingConverter(ReadingConverter):
                 sourceOperators=[self._getFromOperator(fromReading)],
                 targetOptions=fromDefaultOptions)
 
-            convertedEntitySequence = []
+            convertedEntitySequence: list[list[Entity] | Entity] = []
             for sequence in entitySequence:
-                if type(sequence) == type([]):
+                if isinstance(sequence, list):
+                    # reading entity sequence
                     convertedEntities = converter.convertEntities(sequence,
                         fromReading, fromReading)
                     convertedEntitySequence.append(convertedEntities)
@@ -338,14 +414,12 @@ class DialectSupportReadingConverter(ReadingConverter):
                     convertedEntitySequence.append(sequence)
             entitySequence = convertedEntitySequence
 
-        # do the actual conversion to the target reading (step 2)
-        toEntitySequence = self.convertEntitySequence(entitySequence,
-            fromReading, toReading)
+        # Actual conversion
+        toEntitySequence = self.convertEntitySequence(entitySequence, fromReading, toReading)
 
-        # convert to requested form if supported (step 3)
+        # Convert to requested form (if supported)
         if self._f.isReadingConversionSupported(toReading, toReading):
-            # get default options if available used for converting the reading
-            #   dialect
+            # get default options if available used for converting the reading dialect
             if toReading in self.DEFAULT_READING_OPTIONS:
                 toDefaultOptions = self.DEFAULT_READING_OPTIONS[toReading]
             else:
@@ -368,7 +442,7 @@ class DialectSupportReadingConverter(ReadingConverter):
         # flatten into target entity list
         toReadingEntities = []
         for sequence in toEntitySequence:
-            if type(sequence) == type([]):
+            if isinstance(sequence, list):
                 toReadingEntities.extend(sequence)
             else:
                 toReadingEntities.append(sequence)
@@ -376,12 +450,11 @@ class DialectSupportReadingConverter(ReadingConverter):
         return toReadingEntities
 
     @abc.abstractmethod
-    def convertEntitySequence(self, entitySequence, fromReading, toReading):
+    def convertEntitySequence(self, entitySequence: list[list[Entity] | Entity], fromReading: str, toReading: str):
         """
         Convert a list of reading entities in standard representatinon given by
         :meth:`~_reading.converter.DialectSupportReadingConverter.DEFAULT_READING_OPTIONS`
-        and non reading entities from the source
-        reading to the target reading.
+        and non reading entities from the source reading to the target reading.
 
         The default implementation will raise a NotImplementedError.
 
@@ -427,7 +500,7 @@ class EntityWiseReadingConverter(ReadingConverter):
         return toReadingEntities
 
     @abc.abstractmethod
-    def convertBasicEntity(self, entity: str, fromReading: str, toReading: str):
+    def convertBasicEntity(self, entity: str, fromReading: str, toReading: str) -> list[list[Entity] | Entity]:
         """
         Converts a basic entity (e.g. a syllable) in the source reading to the
         given target reading.
@@ -484,9 +557,9 @@ class RomanisationConverter(DialectSupportReadingConverter):
     a syllable from one romanisation to another possible.
     """
     def convertEntitySequence(self, entitySequence, fromReading, toReading):
-        toEntitySequence = []
+        toEntitySequence: list[list[Entity] | Entity] = []
         for sequence in entitySequence:
-            if type(sequence) == type([]):
+            if isinstance(sequence, list):
                 toSequence = []
                 for entity in sequence:
                     if self._f.isReadingEntity(entity, fromReading,
@@ -511,7 +584,8 @@ class RomanisationConverter(DialectSupportReadingConverter):
 
         return toEntitySequence
 
-    def convertBasicEntity(self, entity, fromReading, toReading):
+    @abc.abstractmethod
+    def convertBasicEntity(self, entity: Entity, fromReading: str, toReading: str) -> Entity:
         """
         Converts a basic entity (e.g. a syllable) in the source reading to the
         given target reading.
@@ -549,7 +623,7 @@ class RomanisationConverter(DialectSupportReadingConverter):
             of the entity.
         :raise InvalidEntityError: if the entity is invalid.
         """
-        raise NotImplementedError
+        pass
 
 
 class PinyinDialectConverter(ReadingConverter):
