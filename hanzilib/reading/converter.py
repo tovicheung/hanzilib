@@ -482,7 +482,12 @@ class PinyinDialectConverter(ReadingConverter):
 
     SOURCE = TARGET = "Pinyin"
 
-    def __init__(self, dbConnectInst=None, source_operator=None, target_operator=None, keepPinyinApostrophes: bool = False, breakUpErhua: str = "auto"):
+    def __init__(self, dbConnectInst=None, 
+            source_operator: ReadingOperator | None = None,
+            target_operator: ReadingOperator | None = None, 
+            keepPinyinApostrophes: bool = False,
+            breakUpErhua: str = "auto"
+        ):
         """
         :param options: extra options
         :keyword dbConnectInst: instance of a
@@ -799,7 +804,7 @@ class PinyinToWadeGilesConverter(RomanisationConverter):
             #   accepted by the operator
             raise ConversionError(*e.args)
 
-
+@register
 class WadeGilesToPinyinConverter(RomanisationConverter):
     SOURCE = "WadeGiles"
     TARGET = "Pinyin"
@@ -837,7 +842,7 @@ class WadeGilesToPinyinConverter(RomanisationConverter):
             #   accepted by the operator
             raise ConversionError(*e.args)
 
-
+@register
 class GRDialectConverter(ReadingConverter):
     """
     Provides a converter for different representations of the Chinese
@@ -845,7 +850,12 @@ class GRDialectConverter(ReadingConverter):
     """
     SOURCE = TARGET = "GR"
 
-    def __init__(self, dbConnectInst=None, sourceOperators=None, targetOperators=None, keepGRApostrophes: bool = False, breakUpAbbreviated: str = "auto"):
+    def __init__(self, dbConnectInst=None, 
+            source_operator: ReadingOperator | None = None,
+            target_operator: ReadingOperator | None = None,
+            keepGRApostrophes: bool = False,
+            breakUpAbbreviated: str = "auto"
+        ):
         """
         :param options: extra options
         :keyword dbConnectInst: instance of a
@@ -875,7 +885,7 @@ class GRDialectConverter(ReadingConverter):
             * Impl: Add option to remove hyphens, "A Grammar of Spoken Chinese,
               p. xxii", Conversion to Pinyin can use that.
         """
-        super(GRDialectConverter, self).__init__(dbConnectInst, sourceOperators, targetOperators)
+        super(GRDialectConverter, self).__init__(dbConnectInst, source_operator, target_operator)
 
         self.keepGRApostrophes = keepGRApostrophes
         self.breakUpAbbreviated = breakUpAbbreviated
@@ -1120,6 +1130,7 @@ class GRDialectConverter(ReadingConverter):
 
         return convertedEntities
 
+@register
 class GRToPinyinConverter(RomanisationConverter):
     SOURCE = "GR"
     TARGET = "Pinyin"
@@ -1127,8 +1138,12 @@ class GRToPinyinConverter(RomanisationConverter):
     DEFAULT_READING_OPTIONS = {'Pinyin': {'erhua': 'oneSyllable'},
         'GR': {'abbreviations': False}}
 
-    def __init__(self, dbConnectInst=None, sourceOperators=None, targetOperators=None, grOptionalNeutralToneMapping: str = "original"):
-        super().__init__(dbConnectInst, sourceOperators, targetOperators)
+    def __init__(self, dbConnectInst=None, 
+            source_operator: ReadingOperator | None = None,
+            target_operator: ReadingOperator | None = None,
+            grOptionalNeutralToneMapping: str = "original"
+        ):
+        super().__init__(dbConnectInst, source_operator, target_operator)
         self.grOptionalNeutralToneMapping = grOptionalNeutralToneMapping
 
         if self.grOptionalNeutralToneMapping not in ['original', 'neutral']:
@@ -1194,7 +1209,7 @@ class GRToPinyinConverter(RomanisationConverter):
         """GROperator instance"""
         return readingoperator.GROperator(**self.DEFAULT_READING_OPTIONS['GR'])
 
-
+@register
 class PinyinToGRConverter(RomanisationConverter):
     SOURCE = "Pinyin"
     TARGET = "GR"
@@ -1211,7 +1226,7 @@ class PinyinToGRConverter(RomanisationConverter):
 
         # split syllable into plain part and tonal information
         plainSyllable, tone = self._f.splitEntityTone(entity, self.SOURCE,
-            **self.DEFAULT_READING_OPTIONS[self.SORUCE])
+            **self.DEFAULT_READING_OPTIONS[self.SOURCE])
 
         # reduce Erlhuah form
         if plainSyllable != 'er' and plainSyllable.endswith('r'):
@@ -1259,7 +1274,7 @@ class PinyinToGRConverter(RomanisationConverter):
         """GROperator instance"""
         return readingoperator.GROperator(**self.DEFAULT_READING_OPTIONS['GR'])
 
-
+@register
 class PinyinToIPAConverter(DialectSupportReadingConverter):
     """
     Provides a converter between the Mandarin Chinese romanisation
@@ -1293,7 +1308,11 @@ class PinyinToIPAConverter(DialectSupportReadingConverter):
         '5thToneLow': '5thToneLow'}
     """Mapping of neutral tone following another tone."""
 
-    def __init__(self, dbConnectInst=None, sourceOperators=None, targetOperators=None, sandhiFunction=None, coarticulationFunction=None):
+    def __init__(self, dbConnectInst=None, 
+            source_operator: ReadingOperator | None = None,
+            target_operator: ReadingOperator | None = None,
+            sandhiFunction=None,
+            coarticulationFunction=None):
         """
         :param options: extra options
         :keyword dbConnectInst: instance of a
@@ -1315,7 +1334,7 @@ class PinyinToIPAConverter(DialectSupportReadingConverter):
             :meth:`~PinyinIPAConverter.finalECoarticulation`
             for an example implementation.
         """
-        super().__init__(dbConnectInst, sourceOperators, targetOperators)
+        super().__init__(dbConnectInst, source_operator, target_operator)
 
         self.sandhiFunction = sandhiFunction
         self.coarticulationFunction = coarticulationFunction or self.lowThirdAndNeutralToneRule
@@ -1519,7 +1538,7 @@ class PinyinToIPAConverter(DialectSupportReadingConverter):
 
                 return transSyllables[0], PinyinToIPAConverter.TONEMARK_MAPPING[tone]
 
-
+@register
 class PinyinToBrailleConverter(DialectSupportReadingConverter):
     SOURCE = "Pinyin"
     TARGET = "MandarinBraille"
@@ -1531,8 +1550,10 @@ class PinyinToBrailleConverter(DialectSupportReadingConverter):
         '!': '⠰⠂', ':': '⠒', ';': '⠰', '-': '⠠⠤', '…': '⠐⠐⠐',
         '·': '⠠⠄', '(': '⠰⠄', ')': '⠠⠆', '[': '⠰⠆', ']': '⠰⠆'}
     
-    def __init__(self, dbConnectInst=None, sourceOperators=None, targetOperators=None):
-        super().__init__(dbConnectInst, sourceOperators, targetOperators)
+    def __init__(self, dbConnectInst=None, 
+            source_operator: ReadingOperator | None = None,
+            target_operator: ReadingOperator | None = None):
+        super().__init__(dbConnectInst, source_operator, target_operator)
         # get mappings
         self._createMappings()
 
@@ -1685,7 +1706,7 @@ class PinyinToBrailleConverter(DialectSupportReadingConverter):
             #   accepted by the operator
             raise ConversionError(*e.args)
 
-
+@register
 class BrailleToPinyinConverter(DialectSupportReadingConverter):
     """
     PinyinBrailleConverter defines a converter between the Mandarin Chinese
@@ -1702,7 +1723,9 @@ class BrailleToPinyinConverter(DialectSupportReadingConverter):
         '!': '⠰⠂', ':': '⠒', ';': '⠰', '-': '⠠⠤', '…': '⠐⠐⠐',
         '·': '⠠⠄', '(': '⠰⠄', ')': '⠠⠆', '[': '⠰⠆', ']': '⠰⠆'}
 
-    def __init__(self, dbConnectInst=None, sourceOperators=None, targetOperators=None):
+    def __init__(self, dbConnectInst=None, 
+            source_operator: ReadingOperator | None = None,
+            target_operator: ReadingOperator | None = None):
         """
         :param options: extra options
         :keyword dbConnectInst: instance of a
@@ -1715,7 +1738,7 @@ class BrailleToPinyinConverter(DialectSupportReadingConverter):
             :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling target readings.
         """
-        super().__init__(dbConnectInst, sourceOperators, targetOperators)
+        super().__init__(dbConnectInst, source_operator, target_operator)
         # get mappings
         self._createMappings()
 
@@ -1885,13 +1908,12 @@ class BrailleToPinyinConverter(DialectSupportReadingConverter):
             #   accepted by the operator
             raise ConversionError(*e.args)
 
-
+@register
 class JyutpingDialectConverter(EntityWiseReadingConverter):
     """
     Provides a converter for different representations of the Cantonese
     romanisation *Jyutping*.
     """
-
     SOURCE = TARGET = "Jyutping"
 
     def convertBasicEntity(self, entity):
@@ -1912,7 +1934,7 @@ class JyutpingDialectConverter(EntityWiseReadingConverter):
             #   accepted by the operator
             raise ConversionError(*e.args)
 
-
+@register
 class CantoneseYaleDialectConverter(EntityWiseReadingConverter):
     """
     Provides a converter for different representations of the *Cantonese Yale*
@@ -1945,7 +1967,7 @@ class CantoneseYaleDialectConverter(EntityWiseReadingConverter):
             #   accepted by the operator
             raise ConversionError(*e.args)
 
-
+@register
 class JyutpingToYaleConverter(RomanisationConverter):
     SOURCE = "Jyutping"
     TARGET = "CantoneseYale"
@@ -1957,7 +1979,10 @@ class JyutpingToYaleConverter(RomanisationConverter):
         4: '4thTone', 5: '5thTone', 6: '6thTone'}
     
     
-    def __init__(self, dbConnectInst=None, sourceOperators=None, targetOperators=None, yaleFirstTone: str = "1stToneLevel"):
+    def __init__(self, dbConnectInst=None, 
+            source_operator: ReadingOperator | None = None,
+            target_operator: ReadingOperator | None = None,
+            yaleFirstTone: str = "1stToneLevel"):
         """
         :param options: extra options
         :keyword dbConnectInst: instance of a
@@ -1975,7 +2000,7 @@ class JyutpingToYaleConverter(RomanisationConverter):
             falling tone with contour 53. This is only important if the target
             reading dialect uses diacritical tone marks.
         """
-        super().__init__(dbConnectInst, sourceOperators, targetOperators)
+        super().__init__(dbConnectInst, source_operator, target_operator)
         self.yaleFirstTone = yaleFirstTone
 
         # check yaleFirstTone for handling ambiguous conversion of first
@@ -2019,7 +2044,7 @@ class JyutpingToYaleConverter(RomanisationConverter):
             #   accepted by the operator
             raise ConversionError(*e.args)
 
-
+@register
 class YaleToJyutpingConverter(RomanisationConverter):
     """
     Provides a converter between the Cantonese romanisation systems *Jyutping*
@@ -2070,7 +2095,7 @@ class YaleToJyutpingConverter(RomanisationConverter):
             #   accepted by the operator
             raise ConversionError(*e.args)
 
-
+@register
 class ShanghaineseIPADialectConverter(EntityWiseReadingConverter):
     """
     Provides a converter for different representations of Shanghainese IPA

@@ -471,7 +471,7 @@ class ReadingFactory(object):
             instanceCache[cacheKey] = operatorInst
         return instanceCache[cacheKey]
 
-    def _getReadingConverterInstance(self, fromReading: str | Reading, toReading: str | Reading, **options) -> ReadingConverter:
+    def _getReadingConverterInstance(self, fromReading: str | Reading | type[Reading], toReading: str | Reading | type[Reading], **options) -> ReadingConverter:
         """
         Returns an instance of a
         :class:`~cjklib.reading.converter.ReadingConverter` for the given
@@ -509,7 +509,7 @@ class ReadingFactory(object):
         """
         from_reading, to_reading, converter_options = self._resolveConverterArgs(fromReading, toReading, options)
         
-        temp = self._getHashableCopy(self._isolateConverterOptions(converter_options))
+        temp = self._getHashableCopy(converter_options)
         cacheKey = (from_reading, to_reading, temp)
         instanceCache = _registry[self.db]['readingConverterInstances']
 
@@ -533,16 +533,7 @@ class ReadingFactory(object):
             instanceCache[cacheKey] = converterInst
         return instanceCache[cacheKey]
     
-    # temp
-    def _isolateConverterOptions(self, options: dict[str, Any]) -> dict[str, Any]:
-        opt = options.copy()
-        if "sourceOperators" in opt:
-            del opt["sourceOperators"]
-        if "targetOperators" in opt:
-            del opt["targetOperators"]
-        return opt
-    
-    def _resolveConverterArgs(self, fromReading: str | Reading, toReading: str | Reading, options: dict[str, Any]) -> tuple[Reading, Reading, dict[str, Any]]:
+    def _resolveConverterArgs(self, fromReading: str | Reading | type[Reading], toReading: str | Reading | type[Reading], options: dict[str, Any]) -> tuple[Reading, Reading, dict[str, Any]]:
         """
         Resolve into the standard form of args:
         (fromReading: Reading, toReading: Reading, options)
@@ -624,7 +615,12 @@ class ReadingFactory(object):
         else:
             return data
 
-    def convert(self, readingStr: str, fromReading: str | Reading, toReading: str | Reading, **options):
+    def convert(self, readingStr: str, fromReading: str | Reading | type[Reading], toReading: str | Reading | type[Reading], sourceOptions: dict[str, Any] | None = None, targetOptions: dict[str, Any] | None = None, **options):
+        options = options.copy()
+        if sourceOptions:
+            options["sourceOptions"] = sourceOptions
+        if targetOptions:
+            options["targetOptions"] = targetOptions
         readingConv = self._getReadingConverterInstance(fromReading, toReading, **options)
         return readingConv.convert(readingStr, fromReading, toReading)
 
@@ -993,6 +989,8 @@ def convert(
         readingStr: str,
         fromReading: str | Reading | type[Reading],
         toReading: str | Reading | type[Reading],
+        sourceOptions: dict[str, Any] | None = None,
+        targetOptions: dict[str, Any] | None = None,
         **options,
     ) -> str:
     """
@@ -1034,7 +1032,7 @@ def convert(
     :raise UnsupportedError: if source or target reading is not supported
         for conversion.
     """
-    return _get_factory().convert(readingStr, fromReading, toReading, **options)
+    return _get_factory().convert(readingStr, fromReading, toReading, sourceOptions, targetOptions, **options)
 
 
 def decompose(string: str, readingN: str, **options):

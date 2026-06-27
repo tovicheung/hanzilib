@@ -3275,7 +3275,7 @@ class GROperator(TonalRomanisationOperator):
 
         columns = [table.c.GRFinal]
         columns.extend([table.c[final] for final in finalTypes])
-        for row in self.db.selectRows(select(columns)):
+        for row in self.db.selectRows(select(*columns)):
             nonRhotacisedFinal = row[0]
             for idx, column in enumerate(finalTypes):
                 if row[idx + 1]:
@@ -3409,8 +3409,8 @@ class GROperator(TonalRomanisationOperator):
         finalTypeColumns = [table.c[final] for final in finalTypes]
         columns.extend(finalTypeColumns)
 
-        results = self.db.selectRows(select(columns,
-            or_(*[column == baseTonalFinal for column in finalTypeColumns])))
+        results = self.db.selectRows(select(*columns)
+            .where(or_(*[column == baseTonalFinal for column in finalTypeColumns])))
         if not results:
             raise InvalidEntityError(
                 "Invalid rhotacised entity given for '%s'" % tonalEntity)

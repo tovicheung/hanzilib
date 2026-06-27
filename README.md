@@ -142,7 +142,21 @@ Reading conversions:
 lau˨˩.ʂʅ˥˥
 ```
 
-## Details of hanzilib
+* Options can be passed into conversions:
+
+```py
+>>> from hanzilib.reading import convert
+>>> from hanzilib.reading.readings import Pinyin, WadeGiles
+
+>>> convert('lǎo shī', Pinyin, WadeGiles)
+lao³ shih¹
+>>> convert('lǎo shī', Pinyin, WadeGiles(toneMarkType="numbers"))
+lao3 shih1
+>>> convert('lao3 shi1', "Pinyin", "WadeGiles", sourceOptions={"toneMarkType": "numbers"}, targetOptions={"toneMarkType": "numbers"})
+lao3 shih1
+```
+
+## Technical details
 
 ### Readings
 
@@ -180,6 +194,8 @@ Mandarin
 Cantonese
 - Inter-conversions within Jyutping and Cantonese Yale
 - No conversion support for Cantonese IPA
+
+**Technical detail:** conversion classes are now unidirectional instead of bidirectional, as per the Single Responsibility Principle
 
 ## Changes since cjklib
 
