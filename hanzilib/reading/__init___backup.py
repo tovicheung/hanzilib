@@ -48,15 +48,15 @@ def _auto_discover():
         if issubclass(clss, readingoperator.ReadingOperator) and clss.READING_NAME
     })
     
-    # converters = [
-    #     clss for name in readingconverter.__all__
-    #     if (clss := getattr(readingconverter, name))
-    #     if issubclass(clss, readingconverter.ReadingConverter) and clss.CONVERSION_DIRECTIONS
-    # ]
+    converters = [
+        clss for name in readingconverter.__all__
+        if (clss := getattr(readingconverter, name))
+        if issubclass(clss, readingconverter.ReadingConverter) and clss.CONVERSION_DIRECTIONS
+    ]
 
-    # for c in converters:
-    #     for fromReading, toReading in c.CONVERSION_DIRECTIONS:
-    #         _registry['readingConverterClasses'][(fromReading, toReading)] = c
+    for c in converters:
+        for fromReading, toReading in c.CONVERSION_DIRECTIONS:
+            _registry['readingConverterClasses'][(fromReading, toReading)] = c
 
 def getReadingOperatorClasses():
     """
@@ -177,7 +177,7 @@ class ReadingFactory(object):
                 fromReading = self.fromReading
             if not toReading:
                 toReading = self.toReading
-            return self.converterInst.convert(string)
+            return self.converterInst.convert(string, _get_reading_info(fromReading)[0], _get_reading_info(toReading)[0])
 
         def convertEntities(self, readingEntities, fromReading=None,
             toReading=None):
@@ -206,7 +206,8 @@ class ReadingFactory(object):
                 fromReading = self.fromReading
             if not toReading:
                 toReading = self.toReading
-            return self.converterInst.convertEntities(readingEntities)
+            return self.converterInst.convertEntities(readingEntities,
+                fromReading, toReading)
 
         def __getattr__(self, name):
             return getattr(self.converterInst, name)
@@ -420,27 +421,27 @@ class ReadingFactory(object):
         readingOp = self._getReadingOperatorInstance(readingN, **options)
         return hasattr(readingOp, operation)
 
-    # def getDefaultOptions(self, *args):
-    #     """
-    #     Returns the default options for the
-    #     :class:`~cjklib.reading.operator.ReadingOperator` or
-    #     :class:`~cjklib.reading.converter.ReadingConverter` applied for
-    #     the given reading name or names respectively.
+    def getDefaultOptions(self, *args):
+        """
+        Returns the default options for the
+        :class:`~cjklib.reading.operator.ReadingOperator` or
+        :class:`~cjklib.reading.converter.ReadingConverter` applied for
+        the given reading name or names respectively.
 
-    #     The keyword 'dbConnectInst' is not regarded a configuration option and
-    #     is thus not included in the dict returned.
+        The keyword 'dbConnectInst' is not regarded a configuration option and
+        is thus not included in the dict returned.
 
-    #     :raise ValueError: if more than one or two reading names are given.
-    #     :raise UnsupportedError: if no ReadingOperator or ReadingConverter
-    #         exists for the given reading or readings respectively.
-    #     """
-    #     if len(args) == 1:
-    #         return self.getReadingOperatorClass(args[0]).getDefaultOptions()
-    #     elif len(args) == 2:
-    #         return self.getReadingConverterClass(args[0], args[1])\
-    #             .getDefaultOptions()
-    #     else:
-    #         raise ValueError("Wrong number of arguments")
+        :raise ValueError: if more than one or two reading names are given.
+        :raise UnsupportedError: if no ReadingOperator or ReadingConverter
+            exists for the given reading or readings respectively.
+        """
+        if len(args) == 1:
+            return self.getReadingOperatorClass(args[0]).getDefaultOptions()
+        elif len(args) == 2:
+            return self.getReadingConverterClass(args[0], args[1])\
+                .getDefaultOptions()
+        else:
+            raise ValueError("Wrong number of arguments")
 
     def _getReadingOperatorInstance(self, reading: str | Reading, **options) -> ReadingOperator:
         """
@@ -508,29 +509,34 @@ class ReadingFactory(object):
               is specified for one direction, that doesn't affect others.
         """
         from_reading, to_reading, converter_options = self._resolveConverterArgs(fromReading, toReading, options)
+
+        # temp
+        reading_configs = {
+            from_reading.get_name(): from_reading,
+            to_reading.get_name(): to_reading,
+        }
         
         temp = self._getHashableCopy(self._isolateConverterOptions(converter_options))
         cacheKey = (from_reading, to_reading, temp)
         instanceCache = _registry[self.db]['readingConverterInstances']
 
+        print("MAIN")
+        print()
+        print(cacheKey)
+        print()
         if cacheKey not in instanceCache:
             opt = options.copy()
             opt['hideComplexConverter'] = False
 
-            converterInst = self.createReadingConverter(from_reading, to_reading, **converter_options)
-            # print()
-            # print("CREATED CONVERTER", from_reading, to_reading, converter_options)
-            # print()
+            converterInst = self.createReadingConverter(from_reading, to_reading, **options)
 
             # use instance for all supported conversion directions
-            # for convFromReading, convToReading in converterInst.CONVERSION_DIRECTIONS:
-            #     oCacheKey = (Reading.from_name(convFromReading), Reading.from_name(convToReading), temp)
-            #     if oCacheKey not in instanceCache:
-            #         instanceCache[oCacheKey] = converterInst
-            #         print(oCacheKey)
-            #         print()
-
-            instanceCache[cacheKey] = converterInst
+            for convFromReading, convToReading in converterInst.CONVERSION_DIRECTIONS:
+                oCacheKey = (Reading.from_name(convFromReading), Reading.from_name(convToReading), temp)
+                if oCacheKey not in instanceCache:
+                    instanceCache[oCacheKey] = converterInst
+                    print(oCacheKey)
+                    print()
         return instanceCache[cacheKey]
     
     # temp
@@ -543,55 +549,42 @@ class ReadingFactory(object):
         return opt
     
     def _resolveConverterArgs(self, fromReading: str | Reading, toReading: str | Reading, options: dict[str, Any]) -> tuple[Reading, Reading, dict[str, Any]]:
-        """
-        Resolve into the standard form of args:
-        (fromReading: Reading, toReading: Reading, options)
-        **options is passed into converter
-
-        Precedence:
-        * options.source_operator and .target_operator
-        * options.sourceOptions and options.targetOptions
-        * fields of fromReading and toReading
-        * defaults of fromReading and toReading
-
-        After processing, sourceOptions and targetOptions should not be present in options
+        options = options.copy() # temp
+        if isinstance(fromReading, Reading):
+            options["sourceOptions"] = options.get("sourceOptions", {}) | fromReading.to_dict()
         
-        fromReading and toReading should be Reading objects that are consistent with
-        options.source_operator and .target_operator (for cache key purposes)
-        """
+        if isinstance(toReading, Reading):
+            options["targetOptions"] = options.get("targetOptions", {}) | toReading.to_dict()
 
-        # ensure correct reading types
+        if "sourceOptions" not in options:
+            options["sourceOptions"] = {}
+        if "targetOptions" not in options:
+            options["targetOptions"] = {}
+        
+        from_reading = Reading.from_name(_get_reading_info(fromReading)[0], options["sourceOptions"])
+        to_reading = Reading.from_name(_get_reading_info(toReading)[0], options["targetOptions"])
 
-        from .operator import ReadingOperator
-        if "source_operator" in options:
-            source_operator = options["source_operator"]
-            if not isinstance(source_operator, ReadingOperator):
-                raise TypeError # todo
-            assert source_operator.READING_NAME == _get_reading_info(fromReading)[0]
+        # create operators for options
+        readingOp = self._getReadingOperatorInstance(fromReading,
+            **options['sourceOptions'])
+        del options['sourceOptions']
 
-            from_reading = Reading.from_operator(source_operator)
-        else:
-            source_options = _get_reading_info(fromReading)[1] | options.get("sourceOptions", {})
-            options["source_operator"] = self._getReadingOperatorInstance(_get_reading_info(fromReading)[0], **source_options)
+        # add reading operator to converter
+        if 'sourceOperators' not in options:
+            options['sourceOperators'] = []
+        if readingOp not in options["sourceOperators"]:
+            options['sourceOperators'].append(readingOp)
 
-            from_reading = Reading.from_operator(options["source_operator"]) # temp
-            
-        if "target_operator" in options:
-            target_operator = options["target_operator"]
-            if not isinstance(target_operator, ReadingOperator):
-                raise TypeError # todo
-            assert target_operator.READING_NAME == _get_reading_info(toReading)[0]
+        readingOp = self._getReadingOperatorInstance(toReading,
+            **options['targetOptions'])
+        del options['targetOptions']
 
-            to_reading = Reading.from_operator(target_operator)
-        else:
-            target_options = _get_reading_info(toReading)[1] | options.get("targetOptions", {})
-            options["target_operator"] = self._getReadingOperatorInstance(_get_reading_info(toReading)[0], **target_options)
-            
-            to_reading = Reading.from_operator(options["target_operator"])
-
-        options.pop("sourceOptions", None)
-        options.pop("targetOptions", None)
-
+        # add reading operator to converter
+        if 'targetOperators' not in options:
+            options['targetOperators'] = []
+        if readingOp not in options["targetOperators"]:
+            options['targetOperators'].append(readingOp)
+        
         return from_reading, to_reading, options
 
     @staticmethod

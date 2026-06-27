@@ -5,7 +5,7 @@ from __future__ import annotations
 
 # Temp; these may be absorbed into operator later
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, fields
 from typing import Any, Callable, Literal, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -17,6 +17,20 @@ class Reading:
     
     def get_name(self):
         return type(self).__name__
+    
+    @staticmethod
+    def from_name(name: str, options: dict[str, Any] | None = None) -> Reading:
+        if name not in _registry:
+            raise ValueError("Not supported: " + str(name))
+        return _registry[name](**(options or {}))
+    
+    @staticmethod
+    def from_operator(operator: ReadingOperator):
+        typ = _registry[operator.READING_NAME]
+        kwargs = {}
+        for field in fields(typ):
+            kwargs[field.name] = getattr(operator, field.name)
+        return typ(**kwargs)
 
 @dataclass(frozen=True)
 class _RomanisationBase(Reading):
@@ -113,7 +127,12 @@ def _get_reading_info(obj: str | Reading | type[Reading], extra_options = None) 
         return obj.get_name(), obj.to_dict() | extra_options
     elif isinstance(obj, type) and issubclass(obj, Reading):
         return obj.__name__, obj().to_dict() | extra_options
-    if obj in globals():
-        return obj, globals()[obj]().to_dict() | extra_options # temp
+    if obj in _registry:
+        return obj, _registry[obj]().to_dict() | extra_options # temp
     return obj, extra_options
 
+_registry: dict[str, type[Reading]] = {}
+
+for k, v in globals().copy().items():
+    if type(v) is type and issubclass(v, Reading):
+        _registry[k] = v

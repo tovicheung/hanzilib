@@ -524,8 +524,12 @@ def deprecated(func):
         return func(*args, **kwargs)
     return new_func
 
+# for 3.10:
+from typing import TypeVar
+K = TypeVar("K")
+V = TypeVar("V")
 
-class LazyDict[K, V](dict[K, V]):
+class LazyDict(dict[K, V]):
     """A dict that will load entries on-demand."""
     def __init__(self, creator: Callable[[K], V], *args):
         dict.__init__(self, *args)

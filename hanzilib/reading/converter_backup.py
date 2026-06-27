@@ -59,15 +59,9 @@ if TYPE_CHECKING:
     from .operator import ReadingOperator
     from .converter import ReadingConverter
 
-def register(cls: type[ReadingConverter]):
-    from . import _registry
-    _registry["readingConverterClasses"][(cls.SOURCE, cls.TARGET)] = cls
-    return cls
-
 class ReadingConverter(abc.ABC):
     """
     Defines an abstract converter between two or more *character readings*.
-    This base class handles conversion between text and entities ([de]composition)
     
     Provides:
     * `.convert(string, fromReading, toReading)`
@@ -76,19 +70,83 @@ class ReadingConverter(abc.ABC):
     * `.convertEntities(readingEntities, fromReading, toReading)`
     """
 
+    CONVERSION_DIRECTIONS = []
+    """
+    List of tuples for specifying supported conversion directions from reading A
+    to reading B. If both directions are supported, two tuples (A, B) and (B, A)
+    are given.
+    """
+
+    # def __init__(self,
+    #     *operators: ReadingOperator,
+    #     dbConnectInst: Optional[dbconnector.DatabaseConnector] = None,
+    #     sourceOperators: Optional[dict[str, ReadingOperator] | list[ReadingOperator]] = None,
+    #     targetOperators: Optional[dict[str, ReadingOperator] | list[ReadingOperator]] = None,
+    # ):
+    #     """
+    #     :param operators: optional list of
+    #         :class:`ReadingOperators <_reading.operator.ReadingOperator>`
+    #         to use for handling source and target readings.
+    #     :param dbConnectInst: instance of a
+    #         :class:`~cjklib.dbconnector.DatabaseConnector`, if none is
+    #         given, default settings will be assumed.
+    #     :param sourceOperators: list of
+    #         :class:`ReadingOperators <_reading.operator.ReadingOperator>`
+    #         used for handling source readings.
+    #     :param targetOperators: list of
+    #         :class:`ReadingOperators <_reading.operator.ReadingOperator>`
+    #         used for handling target readings.
+    #     """
+    #     if dbConnectInst is not None:
+    #         self.db = dbConnectInst
+    #     else:
+    #         self.db = dbconnector.getDBConnector()
+
+    #     self._f = ReadingFactory(dbConnectInst=self.db)
+
+    #     if isinstance(sourceOperators, list):
+    #         self.sourceOperators = {operatorInst.READING_NAME: operatorInst \
+    #                 for operatorInst in sourceOperators}
+    #     else:
+    #         self.sourceOperators = sourceOperators or {}
+
+    #     if isinstance(targetOperators, list):
+    #         self.targetOperators = {operatorInst.READING_NAME: operatorInst \
+    #                 for operatorInst in targetOperators}
+    #     else:
+    #         self.targetOperators = targetOperators or {}
+
+    #     for operatorInst in list(self.sourceOperators.values()):
+    #         if not isinstance(operatorInst, readingoperator.ReadingOperator):
+    #             raise ValueError(
+    #                 "Unknown type '%s' given as source reading operator"
+    #                     % str(type(operatorInst)))
+    #     for operatorInst in list(self.targetOperators.values()):
+    #         if not isinstance(operatorInst, readingoperator.ReadingOperator):
+    #             raise ValueError(
+    #                 "Unknown type '%s' given as target reading operator"
+    #                     % str(type(operatorInst)))
+
+    #     # get reading operators from args
+    #     for op in operators:
+    #         if isinstance(op, readingoperator.ReadingOperator):
+    #             # store reading operator for the given reading
+    #             if op.READING_NAME in self.sourceOperators \
+    #                 or op.READING_NAME in self.targetOperators:
+    #                 raise ValueError("Operator for '%s'" \
+    #                         % op.READING_NAME
+    #                     + " specified twice as plain and keyword argument")
+    #             self.sourceOperators[op.READING_NAME] = op
+    #             self.targetOperators[op.READING_NAME] = op
+    #         else:
+    #             raise ValueError("Unknown type '%s' given as reading operator"
+    #                 % str(type(op)))
+
     # NOTE: any options for fromReading and toReading are supplied in the form of
     # sourceOperators and targetOperators
     # (ReadingFactory converts those options into operators)
 
-    SOURCE: str
-    TARGET: str
-
-    def __init__(
-            self,
-            dbConnectInst: dbconnector.DatabaseConnector | None = None,
-            source_operator: ReadingOperator | None = None,
-            target_operator: ReadingOperator | None = None,
-        ): # TODO: don't use list, just use single value
+    def __init__(self, **options):
         """
         :param options: extra options
         :keyword dbConnectInst: instance of a
@@ -101,41 +159,56 @@ class ReadingConverter(abc.ABC):
             :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling target readings.
         """
-
-        self.db = dbConnectInst or dbconnector.getDBConnector()
-        # self.sourceOperators = sourceOperators or []
-        # self.targetOperators = targetOperators or []
+        if 'dbConnectInst' in options:
+            self.db = options['dbConnectInst']
+        else:
+            self.db = dbconnector.getDBConnector()
 
         self._f = ReadingFactory(dbConnectInst=self.db)
 
-        # self.sourceOperators \
-        #         = dict([(operatorInst.READING_NAME, operatorInst) \
-        #             for operatorInst in self.sourceOperators])
+        for option, defaultValue in list(self.getDefaultOptions().items()):
+            optionValue = options.get(option, defaultValue)
+            if option in ('sourceOperators', 'targetOperators'):
+                setattr(self, option, copy.copy(optionValue))
+            elif hasattr(optionValue, '__call__'):
+                setattr(self, option, copy.deepcopy(optionValue))
+            else:
+                setattr(self, option, optionValue)
 
-        # self.targetOperators \
-        #         = dict([(operatorInst.READING_NAME, operatorInst) \
-        #             for operatorInst in self.targetOperators])
+        if type(self.sourceOperators) != type({}):
+            self.sourceOperators \
+                = dict([(operatorInst.READING_NAME, operatorInst) \
+                    for operatorInst in self.sourceOperators])
+        if type(self.targetOperators) != type({}):
+            self.targetOperators \
+                = dict([(operatorInst.READING_NAME, operatorInst) \
+                    for operatorInst in self.targetOperators])
 
-        # for operatorInst in list(self.sourceOperators.values()):
-        #     if not isinstance(operatorInst, readingoperator.ReadingOperator):
-        #         raise ValueError(
-        #             "Unknown type '%s' given as source reading operator"
-        #                 % str(type(operatorInst)))
-        # for operatorInst in list(self.targetOperators.values()):
-        #     if not isinstance(operatorInst, readingoperator.ReadingOperator):
-        #         raise ValueError(
-        #             "Unknown type '%s' given as target reading operator"
-        #                 % str(type(operatorInst)))
-        
-    
-        # # new, temp
-        # self._source_operator = self.sourceOperators.get(self.SOURCE, self._f._getReadingOperatorInstance(self.SOURCE))
-        # self._target_operator = self.targetOperators.get(self.TARGET, self._f._getReadingOperatorInstance(self.TARGET))
+        for operatorInst in list(self.sourceOperators.values()):
+            if not isinstance(operatorInst, readingoperator.ReadingOperator):
+                raise ValueError(
+                    "Unknown type '%s' given as source reading operator"
+                        % str(type(operatorInst)))
+        for operatorInst in list(self.targetOperators.values()):
+            if not isinstance(operatorInst, readingoperator.ReadingOperator):
+                raise ValueError(
+                    "Unknown type '%s' given as target reading operator"
+                        % str(type(operatorInst)))
 
-        self._source_operator = source_operator or self._f._getReadingOperatorInstance(self.SOURCE)
-        self._target_operator = target_operator or self._f._getReadingOperatorInstance(self.TARGET)
+    @classmethod
+    def getDefaultOptions(cls):
+        """
+        Returns the reading converter's default options.
 
-    def convert(self, string: str):
+        The keyword 'dbConnectInst' is not regarded a configuration option of
+        the converter and is thus not included in the dict returned.
+
+        :rtype: dict
+        :return: the reading converter's default options.
+        """
+        return {'sourceOperators': {}, 'targetOperators': {}}
+
+    def convert(self, string: str, fromReading: Reading, toReading: Reading):
         """
         Converts a string in the source reading to the given target reading.
 
@@ -163,14 +236,15 @@ class ReadingConverter(abc.ABC):
               :meth:`~_reading.converter.ReadingConverter.convertEntities`.
         """
         # decompose string
-        fromReadingEntities = self._source_operator.decompose(string)
+        fromReadingEntities = self._getFromOperator(fromReading).decompose(string)
         # convert entities
-        toReadingEntities = self.convertEntities(fromReadingEntities)
-        # compose string
-        return self._target_operator.compose(toReadingEntities)
+        toReadingEntities = self.convertEntities(fromReadingEntities,
+            fromReading, toReading)
+        # compose
+        return self._getToOperator(toReading).compose(toReadingEntities)
 
     @abc.abstractmethod
-    def convertEntities(self, readingEntities: list[Entity]) -> list[Entity]:
+    def convertEntities(self, readingEntities: list[Entity], fromReading: str, toReading: str) -> list[Entity]:
         """
         Converts a list of entities in the source reading to the given target
         reading.
@@ -179,6 +253,10 @@ class ReadingConverter(abc.ABC):
 
         :type readingEntities: list of str
         :param readingEntities: list of entities written in source reading
+        :type fromReading: str
+        :param fromReading: name of the source reading
+        :type toReading: str
+        :param toReading: name of the target reading
         :rtype: list of str
         :return: list of entities written in target reading
         :raise ConversionError: on operations specific to the conversion between
@@ -188,6 +266,39 @@ class ReadingConverter(abc.ABC):
         :raise InvalidEntityError: if an invalid entity is given.
         """
         pass
+
+    def _getFromOperator(self, reading: str | Reading) -> ReadingOperator:
+        """
+        Gets a reading operator instance for conversion from the given reading.
+
+        :type readingN: str
+        :param readingN: name of reading
+        :rtype: instance
+        :return: a :class:`~_reading.operator.ReadingOperator` instance
+        :raise UnsupportedError: if the given reading is not supported.
+        """
+        if isinstance(reading, Reading):
+            reading = reading.get_name()
+        if reading not in self.sourceOperators:
+            self.sourceOperators[reading] \
+                = self._f._getReadingOperatorInstance(reading)
+        return self.sourceOperators[reading]
+
+    def _getToOperator(self, readingN) -> ReadingOperator:
+        """
+        Gets a reading operator instance for conversion to the given reading.
+
+        :type readingN: str
+        :param readingN: name of reading
+        :rtype: instance
+        :return: a :class:`~_reading.operator.ReadingOperator` instance
+        :raise UnsupportedError: if the given reading is not supported.
+        """
+        if readingN not in self.targetOperators:
+            self.targetOperators[readingN] \
+                = self._f._getReadingOperatorInstance(readingN)
+        return self.targetOperators[readingN]
+
 
 class DialectSupportReadingConverter(ReadingConverter):
     """
@@ -216,13 +327,17 @@ class DialectSupportReadingConverter(ReadingConverter):
     range of input.
     """
 
-    def convertEntities(self, readingEntities):
+    def convertEntities(self, readingEntities, fromReading, toReading):
         """
         Converts a list of entities in the source reading to the given target
         reading.
 
         :type readingEntities: list of str
         :param readingEntities: list of entities written in source reading
+        :type fromReading: str
+        :param fromReading: name of the source reading
+        :type toReading: str
+        :param toReading: name of the target reading
         :rtype: list of str
         :return: list of entities written in target reading
         :raise AmbiguousConversionError: if conversion for a specific entity of
@@ -233,6 +348,10 @@ class DialectSupportReadingConverter(ReadingConverter):
             for conversion.
         :raise InvalidEntityError: if an invalid entity is given.
         """
+        if (fromReading, toReading) not in self.CONVERSION_DIRECTIONS:
+            raise UnsupportedError("conversion direction from '" \
+                + fromReading + "' to '" + toReading + "' not supported")
+
         # Split into reading and non-reading sequences; conversion will only done to reading entities later
         entitySequence: list[list[Entity] | Entity] = [] # contains (list of reading entitites) or non-reading entity
         for entity in readingEntities:
@@ -241,8 +360,9 @@ class DialectSupportReadingConverter(ReadingConverter):
             if entitySequence and isinstance(entitySequence[-1], list):
                 readingEntitySequence = entitySequence.pop()
 
-            if self._source_operator.isReadingEntity(entity) \
-                or self._target_operator.isFormattingEntity(entity):
+            if self._getFromOperator(fromReading).isReadingEntity(entity) \
+                or self._getFromOperator(fromReading).isFormattingEntity(
+                    entity):
                 # add reading entity to preceding ones
                 readingEntitySequence.append(entity)
                 entitySequence.append(readingEntitySequence)
@@ -253,47 +373,49 @@ class DialectSupportReadingConverter(ReadingConverter):
                 entitySequence.append(entity)
 
         # Convert to standard form (if supported)
-        if self._f.isReadingConversionSupported(self.SOURCE, self.SOURCE):
+        if self._f.isReadingConversionSupported(fromReading, fromReading):
             # get default options if available used for converting the reading dialect
-            if self.SOURCE in self.DEFAULT_READING_OPTIONS:
-                fromDefaultOptions = self.DEFAULT_READING_OPTIONS[self.SOURCE]
+            if fromReading in self.DEFAULT_READING_OPTIONS:
+                fromDefaultOptions = self.DEFAULT_READING_OPTIONS[fromReading]
             else:
                 fromDefaultOptions = {}
             # use user specified source operator, set target to default form
-            converter = self._f._getReadingConverterInstance(self.SOURCE,
-                self.SOURCE,
-                source_operator=self._source_operator,
+            converter = self._f._getReadingConverterInstance(fromReading,
+                fromReading,
+                sourceOperators=[self._getFromOperator(fromReading)],
                 targetOptions=fromDefaultOptions)
 
             convertedEntitySequence: list[list[Entity] | Entity] = []
             for sequence in entitySequence:
                 if isinstance(sequence, list):
                     # reading entity sequence
-                    convertedEntities = converter.convertEntities(sequence)
+                    convertedEntities = converter.convertEntities(sequence,
+                        fromReading, fromReading)
                     convertedEntitySequence.append(convertedEntities)
                 else:
                     convertedEntitySequence.append(sequence)
             entitySequence = convertedEntitySequence
 
         # Actual conversion
-        toEntitySequence = self.convertEntitySequence(entitySequence)
+        toEntitySequence = self.convertEntitySequence(entitySequence, fromReading, toReading)
 
         # Convert to requested form (if supported)
-        if self._f.isReadingConversionSupported(self.TARGET, self.TARGET):
+        if self._f.isReadingConversionSupported(toReading, toReading):
             # get default options if available used for converting the reading dialect
-            if self.TARGET in self.DEFAULT_READING_OPTIONS:
-                toDefaultOptions = self.DEFAULT_READING_OPTIONS[self.TARGET]
+            if toReading in self.DEFAULT_READING_OPTIONS:
+                toDefaultOptions = self.DEFAULT_READING_OPTIONS[toReading]
             else:
                 toDefaultOptions = {}
             # use user specified target operator, set source to default form
-            converter = self._f._getReadingConverterInstance(self.TARGET,
-                self.TARGET, sourceOptions=toDefaultOptions,
-                target_operator=self._target_operator)
+            converter = self._f._getReadingConverterInstance(toReading,
+                toReading, sourceOptions=toDefaultOptions,
+                targetOperators=[self._getToOperator(toReading)])
 
             convertedEntitySequence = []
             for sequence in toEntitySequence:
                 if type(sequence) == type([]):
-                    convertedEntities = converter.convertEntities(sequence, self.TARGET, self.TARGET)
+                    convertedEntities = converter.convertEntities(sequence,
+                        toReading, toReading)
                     convertedEntitySequence.append(convertedEntities)
                 else:
                     convertedEntitySequence.append(sequence)
@@ -310,7 +432,7 @@ class DialectSupportReadingConverter(ReadingConverter):
         return toReadingEntities
 
     @abc.abstractmethod
-    def convertEntitySequence(self, entitySequence: list[list[Entity] | Entity]):
+    def convertEntitySequence(self, entitySequence: list[list[Entity] | Entity], fromReading: str, toReading: str):
         """
         Convert a list of reading entities in standard representatinon given by
         :meth:`~_reading.converter.DialectSupportReadingConverter.DEFAULT_READING_OPTIONS`
@@ -342,13 +464,18 @@ class EntityWiseReadingConverter(ReadingConverter):
     Subclasses should implement:
     * `.convertBasicEntity(entity, fromReading, toReading)`
     """
-    def convertEntities(self, readingEntities):
+    def convertEntities(self, readingEntities, fromReading, toReading):
+        if (fromReading, toReading) not in self.CONVERSION_DIRECTIONS:
+            raise UnsupportedError("conversion direction from '" \
+                + fromReading + "' to '" + toReading + "' not supported")
+
         # do a entity wise conversion to the target reading
         toReadingEntities = []
         for entity in readingEntities:
             # convert reading entities, don't convert the rest
-            if self._source_operator.isReadingEntity(entity):
-                toReadingEntity = self.convertBasicEntity(entity)
+            if self._getFromOperator(fromReading).isReadingEntity(entity):
+                toReadingEntity = self.convertBasicEntity(entity, fromReading,
+                    toReading)
                 toReadingEntities.append(toReadingEntity)
             else:
                 toReadingEntities.append(entity)
@@ -356,7 +483,7 @@ class EntityWiseReadingConverter(ReadingConverter):
         return toReadingEntities
 
     @abc.abstractmethod
-    def convertBasicEntity(self, entity: str) -> list[list[Entity] | Entity]:
+    def convertBasicEntity(self, entity: str, fromReading: str, toReading: str) -> list[list[Entity] | Entity]:
         """
         Converts a basic entity (e.g. a syllable) in the source reading to the
         given target reading.
@@ -369,6 +496,10 @@ class EntityWiseReadingConverter(ReadingConverter):
 
         :type entity: str
         :param entity: string written in the source reading
+        :type fromReading: str
+        :param fromReading: name of the source reading
+        :type toReading: str
+        :param toReading: name of the target reading
         :rtype: str
         :return: the entity converted to the ``toReading``
         :raise AmbiguousConversionError: if conversion for this entity of the
@@ -408,15 +539,16 @@ class RomanisationConverter(DialectSupportReadingConverter):
     has to be implemented, as to make the translation of
     a syllable from one romanisation to another possible.
     """
-    def convertEntitySequence(self, entitySequence):
+    def convertEntitySequence(self, entitySequence, fromReading, toReading):
         toEntitySequence: list[list[Entity] | Entity] = []
         for sequence in entitySequence:
             if isinstance(sequence, list):
                 toSequence = []
                 for entity in sequence:
-                    if self._f.isReadingEntity(entity, self.SOURCE,
-                        **self.DEFAULT_READING_OPTIONS[self.SOURCE]):
-                        toReadingEntity = self.convertBasicEntity(entity.lower())
+                    if self._f.isReadingEntity(entity, fromReading,
+                        **self.DEFAULT_READING_OPTIONS[fromReading]):
+                        toReadingEntity = self.convertBasicEntity(
+                            entity.lower(), fromReading, toReading)
 
                         # transfer letter case, target reading dialect will take
                         #   care of final transformation (lower/both)
@@ -436,7 +568,7 @@ class RomanisationConverter(DialectSupportReadingConverter):
         return toEntitySequence
 
     @abc.abstractmethod
-    def convertBasicEntity(self, entity: Entity) -> Entity:
+    def convertBasicEntity(self, entity: Entity, fromReading: str, toReading: str) -> Entity:
         """
         Converts a basic entity (e.g. a syllable) in the source reading to the
         given target reading.
@@ -462,6 +594,10 @@ class RomanisationConverter(DialectSupportReadingConverter):
         :type entity: str
         :param entity: string written in the source reading in lower case
             letters
+        :type fromReading: str
+        :param fromReading: name of the source reading
+        :type toReading: str
+        :param toReading: name of the target reading
         :rtype: str
         :return: the entity converted to the ``toReading`` in lower case
         :raise AmbiguousConversionError: if conversion for this entity of the
@@ -472,7 +608,7 @@ class RomanisationConverter(DialectSupportReadingConverter):
         """
         pass
 
-@register
+
 class PinyinDialectConverter(ReadingConverter):
     """
     Provides a converter for different representations of the Chinese
@@ -480,9 +616,7 @@ class PinyinDialectConverter(ReadingConverter):
     """
     CONVERSION_DIRECTIONS = [('Pinyin', 'Pinyin')]
 
-    SOURCE = TARGET = "Pinyin"
-
-    def __init__(self, dbConnectInst=None, source_operator=None, target_operator=None, keepPinyinApostrophes: bool = False, breakUpErhua: str = "auto"):
+    def __init__(self, **options):
         """
         :param options: extra options
         :keyword dbConnectInst: instance of a
@@ -506,12 +640,7 @@ class PinyinDialectConverter(ReadingConverter):
             Erhua forms, if set to ``'off'`` Erhua forms will always be
             conserved.
         """
-        super(PinyinDialectConverter, self).__init__(dbConnectInst, source_operator, target_operator)
-        self._source_operator: readingoperator.PinyinOperator
-        self._target_operator: readingoperator.PinyinOperator
-
-        self.keepPinyinApostrophes = keepPinyinApostrophes
-        self.breakUpErhua = breakUpErhua
+        super(PinyinDialectConverter, self).__init__(**options)
 
         if self.breakUpErhua not in ['on', 'auto', 'off']:
             raise ValueError("Invalid option %s for keyword 'breakUpErhua'"
@@ -520,38 +649,42 @@ class PinyinDialectConverter(ReadingConverter):
         # get Erhua settings, 'twoSyllables' is default
         if self.breakUpErhua == 'on' \
             or (self.breakUpErhua == 'auto' \
-                and self._target_operator.erhua == 'ignore')\
-            or (self._target_operator.erhua == 'twoSyllables'\
-            and self._source_operator.erhua == 'oneSyllable'):
+                and self._getToOperator('Pinyin').erhua == 'ignore')\
+            or (self._getToOperator('Pinyin').erhua == 'twoSyllables'\
+            and self._getFromOperator('Pinyin').erhua == 'oneSyllable'):
             # need to convert from one-syllable-form to two-syllables-form
             self._convertErhuaFunc = self.convertToTwoSyllablesErhua
-        elif self._target_operator.erhua == 'oneSyllable'\
-            and self._source_operator.erhua != 'oneSyllable':
+        elif self._getToOperator('Pinyin').erhua == 'oneSyllable'\
+            and self._getFromOperator('Pinyin').erhua != 'oneSyllable':
             # need to convert from two-syllables-form to one-syllable-form
             self._convertErhuaFunc = self.convertToSingleSyllableErhua
-        elif self._source_operator.erhua != 'ignore'\
-            and self._target_operator.erhua == 'ignore':
+        elif self._getFromOperator('Pinyin').erhua != 'ignore'\
+            and self._getToOperator('Pinyin').erhua == 'ignore':
             # no real conversion but make sure to raise an error for Erhua forms
             self._convertErhuaFunc = self._checkForErhua
         else:
             # do nothing
             self._convertErhuaFunc = lambda x: x
-        
 
-    # @classmethod
-    # def getDefaultOptions(cls):
-    #     options = super(PinyinDialectConverter, cls).getDefaultOptions()
-    #     options.update({'keepPinyinApostrophes': False, 'breakUpErhua': 'auto'})
+    @classmethod
+    def getDefaultOptions(cls):
+        options = super(PinyinDialectConverter, cls).getDefaultOptions()
+        options.update({'keepPinyinApostrophes': False, 'breakUpErhua': 'auto'})
 
-    #     return options
+        return options
 
-    def convertEntities(self, readingEntities):
+    def convertEntities(self, readingEntities, fromReading='Pinyin',
+        toReading='Pinyin'):
         """
         Converts a list of entities in the source reading to the given target
         reading.
 
         :type readingEntities: list of str
         :param readingEntities: list of entities written in source reading
+        :type fromReading: str
+        :param fromReading: name of the source reading
+        :type toReading: str
+        :param toReading: name of the target reading
         :rtype: list of str
         :return: list of entities written in target reading
         :raise AmbiguousConversionError: if conversion for a specific entity of
@@ -562,21 +695,28 @@ class PinyinDialectConverter(ReadingConverter):
             for conversion.
         :raise InvalidEntityError: if an invalid entity is given.
         """
+        if (fromReading, toReading) not in self.CONVERSION_DIRECTIONS:
+            raise UnsupportedError("conversion direction from '" \
+                + fromReading + "' to '" + toReading + "' not supported")
+
         # remove apostrophes
         if not self.keepPinyinApostrophes:
-            readingEntities = self._source_operator.removeApostrophes(readingEntities)
+            readingEntities = self._getFromOperator(fromReading)\
+                .removeApostrophes(readingEntities)
 
         targetOptions = {}
         for option in ['shortenedLetters', 'yVowel']:
-            targetOptions[option] = getattr(self._target_operator, option)
+            targetOptions[option] = getattr(self._getToOperator(toReading),
+                option)
 
         # split syllables into plain syllable and tone part
         entityTuples = []
         for entity in readingEntities:
             # convert reading entities, don't convert the rest
-            if self._source_operator.isReadingEntity(entity):
+            if self._getFromOperator(fromReading).isReadingEntity(entity):
                 # split syllable into plain part and tonal information
-                plainSyllable, tone = self._source_operator.splitEntityTone(entity)
+                plainSyllable, tone = self._getFromOperator(fromReading)\
+                    .splitEntityTone(entity)
 
                 entityTuples.append((plainSyllable, tone))
             else:
@@ -585,7 +725,7 @@ class PinyinDialectConverter(ReadingConverter):
         # fix Erhua forms if needed
         entityTuples = self._convertErhuaFunc(entityTuples)
 
-        targetTones = self._target_operator.getTones()
+        targetTones = self._getToOperator(toReading).getTones()
 
         # convert
         toReadingEntities = []
@@ -599,12 +739,13 @@ class PinyinDialectConverter(ReadingConverter):
                     raise AmbiguousConversionError("Target reading does not " \
                         "support missing tone information")
 
-                plainSyllable = self._source_operator.convertPlainEntity(plainSyllable, targetOptions)
+                plainSyllable = self._getFromOperator(fromReading)\
+                    .convertPlainEntity(plainSyllable, targetOptions)
 
                 # fix Erhua form if needed
                 if plainSyllable.lower() == 'r' \
                     and ((self.breakUpErhua == 'auto' \
-                        and self._target_operator.erhua == 'ignore') \
+                        and self._getToOperator('Pinyin').erhua == 'ignore') \
                         or self.breakUpErhua == 'on'):
                     # transfer letter case, title() cannot be tested, len() == 1
                     if plainSyllable.isupper():
@@ -613,20 +754,20 @@ class PinyinDialectConverter(ReadingConverter):
                         plainSyllable = 'er'
 
                 # letter case
-                if self._target_operator.case == 'lower':
+                if self._getToOperator(toReading).case == 'lower':
                     plainSyllable = plainSyllable.lower()
 
                 try:
                     toReadingEntities.append(
-                        self._target_operator.getTonalEntity(
+                        self._getToOperator(toReading).getTonalEntity(
                             plainSyllable, tone))
                 except InvalidEntityError as e:
                     # handle this as a conversion error as the converted
                     #   syllable is not accepted by the operator
                     raise ConversionError(*e.args)
-            elif entry == self._target_operator.pinyinApostrophe:
+            elif entry == self._getToOperator(fromReading).pinyinApostrophe:
                 toReadingEntities.append(
-                    self._target_operator.pinyinApostrophe)
+                    self._getToOperator(toReading).pinyinApostrophe)
             else:
                 toReadingEntities.append(entry)
 
@@ -720,118 +861,103 @@ class PinyinDialectConverter(ReadingConverter):
 
         return entityTuples
 
-@register
+
 class WadeGilesDialectConverter(EntityWiseReadingConverter):
     """
     Provides a converter for different representations of the Mandarin Chinese
     romanisation *Wade-Giles*.
     """
-    SOURCE = TARGET = "WadeGiles"
+    CONVERSION_DIRECTIONS = [('WadeGiles', 'WadeGiles')]
 
-    def convertBasicEntity(self, entity):
+    def convertBasicEntity(self, entity, fromReading, toReading):
         # split syllable into plain part and tonal information
         plainSyllable, tone \
-            = self._source_operator.splitEntityTone(entity)
+            = self._getFromOperator(fromReading).splitEntityTone(entity)
 
         targetOptions = {}
         for option in ['diacriticE', 'zeroFinal', 'umlautU',
             'wadeGilesApostrophe', 'useInitialSz']:
-            targetOptions[option] = getattr(self._target_operator,
+            targetOptions[option] = getattr(self._getToOperator(toReading),
                 option)
 
-        plainSyllable = self._source_operator.convertPlainEntity(
+        plainSyllable = self._getFromOperator(fromReading).convertPlainEntity(
             plainSyllable, targetOptions)
 
         # fix letter case
-        if self._target_operator.case == 'lower':
+        if self._getToOperator(toReading).case == 'lower':
             plainSyllable = plainSyllable.lower()
 
         # get syllable with tone mark
         try:
-            return self._target_operator.getTonalEntity(plainSyllable,
+            return self._getToOperator(toReading).getTonalEntity(plainSyllable,
                 tone)
         except InvalidEntityError as e:
             # handle this as a conversion error as the converted syllable is not
             #   accepted by the operator
             raise ConversionError(*e.args)
-@register
-class PinyinToWadeGilesConverter(RomanisationConverter):
-    SOURCE = "Pinyin"
-    TARGET = "WadeGiles"
-
-    DEFAULT_READING_OPTIONS = {'Pinyin': {'erhua': 'ignore',
-        'toneMarkType': 'numbers'}, 'WadeGiles': {}}
-
-    def convertBasicEntity(self, entity):
-        # split syllable into plain part and tonal information
-        plainSyllable, tone = self._f.splitEntityTone(entity, self.SOURCE,
-            **self.DEFAULT_READING_OPTIONS[self.SOURCE])
-
-        # mapping from WG to Pinyin has old, dialect forms, use index
-        table = self.db.tables['WadeGilesPinyinMapping']
-        transSyllables = self.db.selectScalars(
-            select(table.c.WadeGiles)
-            .where(
-                and_(
-                    table.c.Pinyin == plainSyllable,
-                    table.c.PinyinIdx == 0
-                )
-            )
-        )
-        if len(transSyllables) > 1:
-            raise AmbiguousConversionError(
-                "conversion for entity '%s' is ambiguous: %s" \
-                    % (entity, ', '.join(transSyllables)))
-        elif transSyllables:
-            transSyllable = transSyllables[0]
-        else:
-            transSyllable = None
-
-        if not transSyllable:
-            raise ConversionError("conversion for entity '" + plainSyllable \
-                + "' not supported")
-
-        try:
-            return self._f.getTonalEntity(transSyllable, tone, self.TARGET,
-                **self.DEFAULT_READING_OPTIONS[self.TARGET])
-        except InvalidEntityError as e:
-            # handle this as a conversion error as the converted syllable is not
-            #   accepted by the operator
-            raise ConversionError(*e.args)
 
 
-class WadeGilesToPinyinConverter(RomanisationConverter):
-    SOURCE = "WadeGiles"
-    TARGET = "Pinyin"
+class PinyinWadeGilesConverter(RomanisationConverter):
+    """
+    Provides a converter between the Chinese romanisation *Hanyu Pinyin* and
+    *Wade-Giles*.
+    """
+    CONVERSION_DIRECTIONS = [('Pinyin', 'WadeGiles'), ('WadeGiles', 'Pinyin')]
     # Use the tone mark type 'numbers' from Pinyin to support missing tonal
     #   information. Erhua furthermore is not supported.
     DEFAULT_READING_OPTIONS = {'Pinyin': {'erhua': 'ignore',
         'toneMarkType': 'numbers'}, 'WadeGiles': {}}
 
-    def convertEntities(self, readingEntities):
+    def convertEntities(self, readingEntities, fromReading, toReading):
         # For conversion from Wade-Giles remove the hyphens that will not be
         #   transfered to Pinyin.
-        readingEntities = self._source_operator.removeHyphens(
+        if fromReading == 'WadeGiles':
+            readingEntities = self._getFromOperator(fromReading).removeHyphens(
                 readingEntities)
-        return super().convertEntities(readingEntities)
 
-    def convertBasicEntity(self, entity):
+        return super(PinyinWadeGilesConverter, self).convertEntities(
+            readingEntities, fromReading, toReading)
+
+    def convertBasicEntity(self, entity, fromReading, toReading):
         # split syllable into plain part and tonal information
-        plainSyllable, tone = self._f.splitEntityTone(entity, self.SOURCE,
-            **self.DEFAULT_READING_OPTIONS[self.SOURCE])
+        plainSyllable, tone = self._f.splitEntityTone(entity, fromReading,
+            **self.DEFAULT_READING_OPTIONS[fromReading])
 
-        table = self.db.tables['WadeGilesPinyinMapping']
-        transSyllable = self.db.selectScalar(
-            select(table.c.Pinyin)
-            .where(table.c.WadeGiles == plainSyllable)
-        )
+        # lookup in database
+        if fromReading == "WadeGiles":
+            table = self.db.tables['WadeGilesPinyinMapping']
+            transSyllable = self.db.selectScalar(
+                select(table.c.Pinyin)
+                .where(table.c.WadeGiles == plainSyllable)
+            )
+        elif fromReading == "Pinyin":
+            # mapping from WG to Pinyin has old, dialect forms, use index
+            table = self.db.tables['WadeGilesPinyinMapping']
+            transSyllables = self.db.selectScalars(
+                select(table.c.WadeGiles)
+                .where(
+                    and_(
+                        table.c.Pinyin == plainSyllable,
+                        table.c.PinyinIdx == 0
+                    )
+                )
+            )
+            if len(transSyllables) > 1:
+                raise AmbiguousConversionError(
+                    "conversion for entity '%s' is ambiguous: %s" \
+                        % (entity, ', '.join(transSyllables)))
+            elif transSyllables:
+                transSyllable = transSyllables[0]
+            else:
+                transSyllable = None
+
         if not transSyllable:
             raise ConversionError("conversion for entity '" + plainSyllable \
                 + "' not supported")
 
         try:
-            return self._f.getTonalEntity(transSyllable, tone, self.TARGET,
-                **self.DEFAULT_READING_OPTIONS[self.TARGET])
+            return self._f.getTonalEntity(transSyllable, tone, toReading,
+                **self.DEFAULT_READING_OPTIONS[toReading])
         except InvalidEntityError as e:
             # handle this as a conversion error as the converted syllable is not
             #   accepted by the operator
@@ -843,9 +969,9 @@ class GRDialectConverter(ReadingConverter):
     Provides a converter for different representations of the Chinese
     romanisation *Gwoyeu Romatzyh*.
     """
-    SOURCE = TARGET = "GR"
+    CONVERSION_DIRECTIONS = [('GR', 'GR')]
 
-    def __init__(self, dbConnectInst=None, sourceOperators=None, targetOperators=None, keepGRApostrophes: bool = False, breakUpAbbreviated: str = "auto"):
+    def __init__(self, **options):
         """
         :param options: extra options
         :keyword dbConnectInst: instance of a
@@ -861,7 +987,6 @@ class GRDialectConverter(ReadingConverter):
             two syllables in Gwoyeu Romatzyh will be kept even if not necessary.
             Apostrophes missing before 0-initials will be added though.
         :keyword breakUpAbbreviated: if set to ``'on'`` *abbreviated spellings*
-            raise ConversionError("conversion for entity '" + plainSyllable \
             will be converted to full entities, e.g. *sherm.me* will be
             converted to *shern.me*, if set to ``'auto'`` abbreviated forms are
             converted if the given target reading operator doesn't support
@@ -875,10 +1000,7 @@ class GRDialectConverter(ReadingConverter):
             * Impl: Add option to remove hyphens, "A Grammar of Spoken Chinese,
               p. xxii", Conversion to Pinyin can use that.
         """
-        super(GRDialectConverter, self).__init__(dbConnectInst, sourceOperators, targetOperators)
-
-        self.keepGRApostrophes = keepGRApostrophes
-        self.breakUpAbbreviated = breakUpAbbreviated
+        super(GRDialectConverter, self).__init__(**options)
 
         # conversion of abbreviated forms
         if self.breakUpAbbreviated not in ['on', 'auto', 'off']:
@@ -886,19 +1008,24 @@ class GRDialectConverter(ReadingConverter):
                 "Invalid option %s for keyword 'breakUpAbbreviated'"
                     % repr(self.breakUpAbbreviated))
 
-    # @classmethod
-    # def getDefaultOptions(cls):
-    #     options = super(GRDialectConverter, cls).getDefaultOptions()
-    #     options.update({'keepGRApostrophes': False,
-    #         'breakUpAbbreviated': 'auto'})
+    @classmethod
+    def getDefaultOptions(cls):
+        options = super(GRDialectConverter, cls).getDefaultOptions()
+        options.update({'keepGRApostrophes': False,
+            'breakUpAbbreviated': 'auto'})
 
-    #     return options
+        return options
 
-    def convertEntities(self, readingEntities):
+    def convertEntities(self, readingEntities, fromReading='GR',
+        toReading='GR'):
+        if (fromReading, toReading) not in self.CONVERSION_DIRECTIONS:
+            raise UnsupportedError("conversion direction from '" \
+                + fromReading + "' to '" + toReading + "' not supported")
+
         # abbreviated forms
         if self.breakUpAbbreviated == 'on' \
             or (self.breakUpAbbreviated == 'auto' \
-                and not self._target_operator.abbreviations):
+                and not self._getToOperator(toReading).abbreviations):
             # remove x, v
             readingEntities = self.convertRepetitionMarker(readingEntities)
             # substitute abbreviations
@@ -906,9 +1033,9 @@ class GRDialectConverter(ReadingConverter):
 
         if self.keepGRApostrophes:
             # convert separator apostrophe
-            fromApostrophe = self._source_operator\
+            fromApostrophe = self._getFromOperator(fromReading)\
                 .grSyllableSeparatorApostrophe
-            toApostrophe = self._target_operator\
+            toApostrophe = self._getToOperator(toReading)\
                 .grSyllableSeparatorApostrophe
             if fromApostrophe != toApostrophe:
                 convertedEntities = []
@@ -919,31 +1046,31 @@ class GRDialectConverter(ReadingConverter):
                         convertedEntities.append(entity)
         else:
             # remove syllable separator
-            readingEntities = self._source_operator\
+            readingEntities = self._getFromOperator(fromReading)\
                 .removeApostrophes(readingEntities)
 
         # capitalisation
-        if self._target_operator.case == 'lower':
+        if self._getToOperator(toReading).case == 'lower':
             readingEntities = [entity.lower() for entity in readingEntities]
 
         # convert rhotacised final apostrophe
-        fromApostrophe = self._source_operator\
+        fromApostrophe = self._getFromOperator(fromReading)\
             .grRhotacisedFinalApostrophe
-        toApostrophe = self._target_operator\
+        toApostrophe = self._getToOperator(toReading)\
             .grRhotacisedFinalApostrophe
         if fromApostrophe != toApostrophe:
             readingEntities = [entity.replace(fromApostrophe, toApostrophe) \
                 for entity in readingEntities]
 
         # convert optional neutral tone marker
-        fromMarker = self._source_operator\
+        fromMarker = self._getFromOperator(fromReading)\
             .optionalNeutralToneMarker
-        toMarker = self._target_operator.optionalNeutralToneMarker
+        toMarker = self._getToOperator(toReading).optionalNeutralToneMarker
         if fromMarker != toMarker:
             convReadingEntities = []
             for entity in readingEntities:
                 if entity.startswith(fromMarker) \
-                    and self._source_operator.isReadingEntity(
+                    and self._getFromOperator(fromReading).isReadingEntity(
                         entity):
                     entity = entity.replace(fromMarker, toMarker, 1)
                 convReadingEntities.append(entity)
@@ -996,7 +1123,7 @@ class GRDialectConverter(ReadingConverter):
             return grOperator.getTonalEntity(plainRealEntity, tone)
 
         repeatedEntities = []
-        grOperator = self._source_operator
+        grOperator = self._getFromOperator('GR')
 
         # Convert repetition markers, go backwards as 'vx' needs the 'x' to
         #   be concious about the preceding 'v'.
@@ -1074,7 +1201,7 @@ class GRDialectConverter(ReadingConverter):
         :raise AmbiguousConversionError: if conversion is ambiguous.
         """
         convertedEntities = []
-        grOperator = self._source_operator
+        grOperator = self._getFromOperator('GR')
 
         abbreviatedForms = grOperator.getAbbreviatedForms()
         maxLen = max([len(form) for form in abbreviatedForms])
@@ -1120,16 +1247,36 @@ class GRDialectConverter(ReadingConverter):
 
         return convertedEntities
 
-class GRToPinyinConverter(RomanisationConverter):
-    SOURCE = "GR"
-    TARGET = "Pinyin"
-    
+
+class GRPinyinConverter(RomanisationConverter):
+    """
+    Provides a converter between the Chinese romanisation *Gwoyeu Romatzyh* and
+    *Hanyu Pinyin*.
+    """
+    CONVERSION_DIRECTIONS = [('GR', 'Pinyin'), ('Pinyin', 'GR')]
+    # GR deals with Erlhuah in one syllable, force on Pinyin. Convert GR
+    #   abbreviations to full forms
     DEFAULT_READING_OPTIONS = {'Pinyin': {'erhua': 'oneSyllable'},
         'GR': {'abbreviations': False}}
 
-    def __init__(self, dbConnectInst=None, sourceOperators=None, targetOperators=None, grOptionalNeutralToneMapping: str = "original"):
-        super().__init__(dbConnectInst, sourceOperators, targetOperators)
-        self.grOptionalNeutralToneMapping = grOptionalNeutralToneMapping
+    def __init__(self, **options):
+        """
+        :param options: extra options
+        :keyword dbConnectInst: instance of a
+            :class:`~cjklib.dbconnector.DatabaseConnector`, if none is
+            given, default settings will be assumed.
+        :keyword sourceOperators: list of
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
+            used for handling source readings.
+        :keyword targetOperators: list of
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
+            used for handling target readings.
+        :keyword grOptionalNeutralToneMapping: if set to 'original' GR syllables
+            marked with an optional neutral tone will be mapped to the
+            etymological tone, if set to 'neutral' they will be mapped to the
+            neutral tone in Pinyin.
+        """
+        super(GRPinyinConverter, self).__init__(**options)
 
         if self.grOptionalNeutralToneMapping not in ['original', 'neutral']:
             raise ValueError(
@@ -1144,13 +1291,24 @@ class GRToPinyinConverter(RomanisationConverter):
             for tone in ['1stToneOptional5th', '2ndToneOptional5th',
                 '3rdToneOptional5th', '4thToneOptional5th']:
                 self._grToneMapping[tone] = 5
-    
 
-    def convertBasicEntity(self, entity):
+        # mapping from Pinyin tones to GR
+        self._pyToneMapping = {1: '1stTone', 2: '2ndTone', 3: '3rdTone',
+            4: '4thTone', 5: None}
+
+    @classmethod
+    def getDefaultOptions(cls):
+        options = super(GRPinyinConverter, cls).getDefaultOptions()
+        options.update({'grOptionalNeutralToneMapping': 'original'})
+
+        return options
+
+    def convertBasicEntity(self, entity, fromReading, toReading):
         erlhuahForm = False
 
-        if self._grOperator.isRhotacisedReadingEntity(entity):
-            # catch Erlhuah in GR
+        # catch Erlhuah in GR
+        if (fromReading == "GR"
+            and self._grOperator.isRhotacisedReadingEntity(entity)):
             baseEntities = self._grOperator.getBaseEntitiesForRhotacised(entity)
             if len(baseEntities) > 1:
                 raise AmbiguousConversionError(
@@ -1162,82 +1320,46 @@ class GRToPinyinConverter(RomanisationConverter):
             erlhuahForm = True
         else:
             # split syllable into plain part and tonal information
-            plainSyllable, tone = self._f.splitEntityTone(entity, self.SOURCE,
-                **self.DEFAULT_READING_OPTIONS[self.SOURCE])
+            plainSyllable, tone = self._f.splitEntityTone(entity, fromReading,
+                **self.DEFAULT_READING_OPTIONS[fromReading])
 
-        table = self.db.tables['PinyinGRMapping']
-        transSyllable = self.db.selectScalar(
-            select(table.c.Pinyin)
-            .where(
-                table.c.GR == plainSyllable
+        # lookup in database
+        if fromReading == "GR":
+            table = self.db.tables['PinyinGRMapping']
+            transSyllable = self.db.selectScalar(
+                select(table.c.Pinyin)
+                .where(
+                    table.c.GR == plainSyllable
+                )
             )
-        )
-        transTone = self._grToneMapping[tone]
+            transTone = self._grToneMapping[tone]
+
+        elif fromReading == "Pinyin":
+            # reduce Erlhuah form
+            if plainSyllable != 'er' and plainSyllable.endswith('r'):
+                erlhuahForm = True
+                plainSyllable = plainSyllable[:-1]
+
+            table = self.db.tables['PinyinGRMapping']
+            transSyllable = self.db.selectScalar(
+                select(table.c.GR)
+                .where(
+                    table.c.Pinyin == plainSyllable
+                )
+            )
+            if self._pyToneMapping[tone]:
+                transTone = self._pyToneMapping[tone]
+            else:
+                raise AmbiguousConversionError("conversion for entity '" \
+                    + plainSyllable + "' with tone '" + str(tone) \
+                    + "' is ambiguous")
 
         if not transSyllable:
             raise ConversionError("conversion for entity '" + plainSyllable \
                 + "' not supported")
 
         try:
-            if erlhuahForm:
-                transSyllable += 'r'
-
-            return self._f.getTonalEntity(transSyllable, transTone,
-                self.TARGET, **self.DEFAULT_READING_OPTIONS[self.TARGET])
-        except InvalidEntityError as e:
-            # handle this as a conversion error as the converted syllable is not
-            #   accepted by the operator
-            raise ConversionError(*e.args)
-
-    @functools.cached_property
-    def _grOperator(self):
-        """GROperator instance"""
-        return readingoperator.GROperator(**self.DEFAULT_READING_OPTIONS['GR'])
-
-
-class PinyinToGRConverter(RomanisationConverter):
-    SOURCE = "Pinyin"
-    TARGET = "GR"
-    # GR deals with Erlhuah in one syllable, force on Pinyin. Convert GR
-    #   abbreviations to full forms
-    DEFAULT_READING_OPTIONS = {'Pinyin': {'erhua': 'oneSyllable'},
-        'GR': {'abbreviations': False}}
-
-    _pyToneMapping = {1: '1stTone', 2: '2ndTone', 3: '3rdTone',
-            4: '4thTone', 5: None}
-
-    def convertBasicEntity(self, entity):
-        erlhuahForm = False
-
-        # split syllable into plain part and tonal information
-        plainSyllable, tone = self._f.splitEntityTone(entity, self.SOURCE,
-            **self.DEFAULT_READING_OPTIONS[self.SORUCE])
-
-        # reduce Erlhuah form
-        if plainSyllable != 'er' and plainSyllable.endswith('r'):
-            erlhuahForm = True
-            plainSyllable = plainSyllable[:-1]
-
-        table = self.db.tables['PinyinGRMapping']
-        transSyllable = self.db.selectScalar(
-            select(table.c.GR)
-            .where(
-                table.c.Pinyin == plainSyllable
-            )
-        )
-        if self._pyToneMapping[tone]:
-            transTone = self._pyToneMapping[tone]
-        else:
-            raise AmbiguousConversionError("conversion for entity '" \
-                + plainSyllable + "' with tone '" + str(tone) \
-                + "' is ambiguous")
-
-        if not transSyllable:
-            raise ConversionError("conversion for entity '" + plainSyllable \
-                + "' not supported")
-
-        try:
-            if erlhuahForm:
+            if toReading == 'GR' and erlhuahForm:
                 try:
                     # lookup Erlhuah form for GR
                     return self._grOperator.getRhotacisedTonalEntity(
@@ -1247,8 +1369,11 @@ class PinyinToGRConverter(RomanisationConverter):
                     #   Erlhuah form given for the given tone
                     raise ConversionError(e)
             else:
+                if toReading == 'Pinyin' and erlhuahForm:
+                    transSyllable += 'r'
+
                 return self._f.getTonalEntity(transSyllable, transTone,
-                    self.TARGET, **self.DEFAULT_READING_OPTIONS[self.TARGET])
+                    toReading, **self.DEFAULT_READING_OPTIONS[toReading])
         except InvalidEntityError as e:
             # handle this as a conversion error as the converted syllable is not
             #   accepted by the operator
@@ -1260,7 +1385,7 @@ class PinyinToGRConverter(RomanisationConverter):
         return readingoperator.GROperator(**self.DEFAULT_READING_OPTIONS['GR'])
 
 
-class PinyinToIPAConverter(DialectSupportReadingConverter):
+class PinyinIPAConverter(DialectSupportReadingConverter):
     """
     Provides a converter between the Mandarin Chinese romanisation
     *Hanyu Pinyin* and the *International Phonetic Alphabet* (*IPA*) for
@@ -1273,9 +1398,7 @@ class PinyinToIPAConverter(DialectSupportReadingConverter):
           effects?
         * Lang: Support for *Erhua* in mapping.
     """
-
-    SOURCE = "Pinyin"
-    TARGET = "MandarinIPA"
+    CONVERSION_DIRECTIONS = [('Pinyin', 'MandarinIPA')]
 
     DEFAULT_READING_OPTIONS = {'Pinyin': {'erhua': 'ignore',
         'toneMarkType': 'numbers', 'missingToneMark': 'noinfo',
@@ -1293,7 +1416,7 @@ class PinyinToIPAConverter(DialectSupportReadingConverter):
         '5thToneLow': '5thToneLow'}
     """Mapping of neutral tone following another tone."""
 
-    def __init__(self, dbConnectInst=None, sourceOperators=None, targetOperators=None, sandhiFunction=None, coarticulationFunction=None):
+    def __init__(self, **options):
         """
         :param options: extra options
         :keyword dbConnectInst: instance of a
@@ -1315,10 +1438,7 @@ class PinyinToIPAConverter(DialectSupportReadingConverter):
             :meth:`~PinyinIPAConverter.finalECoarticulation`
             for an example implementation.
         """
-        super().__init__(dbConnectInst, sourceOperators, targetOperators)
-
-        self.sandhiFunction = sandhiFunction
-        self.coarticulationFunction = coarticulationFunction or self.lowThirdAndNeutralToneRule
+        super(PinyinIPAConverter, self).__init__(**options)
 
         # set the sandhiFunction for handling tonal changes
         if self.sandhiFunction and not hasattr(self.sandhiFunction, '__call__'):
@@ -1333,28 +1453,28 @@ class PinyinToIPAConverter(DialectSupportReadingConverter):
                     % repr(self.coarticulationFunction)
                 + " for keyword 'coarticulationFunction'")
 
-    # @classmethod
-    # def getDefaultOptions(cls):
-    #     options = super(PinyinIPAConverter, cls).getDefaultOptions()
-    #     options.update({'coarticulationFunction': None,
-    #         'sandhiFunction': PinyinIPAConverter.lowThirdAndNeutralToneRule})
+    @classmethod
+    def getDefaultOptions(cls):
+        options = super(PinyinIPAConverter, cls).getDefaultOptions()
+        options.update({'coarticulationFunction': None,
+            'sandhiFunction': PinyinIPAConverter.lowThirdAndNeutralToneRule})
 
-    #     return options
+        return options
 
-    def convertEntitySequence(self, entitySequence):
+    def convertEntitySequence(self, entitySequence, fromReading, toReading):
         toEntitySequence = []
         for sequence in entitySequence:
             if type(sequence) == type([]):
                 ipaTupelList = []
                 for idx, entity in enumerate(sequence):
-                    if self._f.isFormattingEntity(entity, self.SOURCE,
-                        **self.DEFAULT_READING_OPTIONS[self.SOURCE]):
+                    if self._f.isFormattingEntity(entity, fromReading,
+                        **self.DEFAULT_READING_OPTIONS[fromReading]):
                         # ignore formatting entities
                         continue
                     # split syllable into plain part and tonal information
                     plainSyllable, tone = self._f.splitEntityTone(entity,
-                        self.SOURCE,
-                        **self.DEFAULT_READING_OPTIONS[self.SOURCE])
+                        fromReading,
+                        **self.DEFAULT_READING_OPTIONS[fromReading])
 
                     transEntry = None
                     if self.coarticulationFunction:
@@ -1369,14 +1489,14 @@ class PinyinToIPAConverter(DialectSupportReadingConverter):
                     ipaTupelList.append(transEntry)
 
                 # handle sandhi
-                if self._target_operator.toneMarkType != 'None':
+                if self._getToOperator(toReading).toneMarkType != 'None':
                     if self.sandhiFunction:
                         ipaTupelList = self.sandhiFunction(self, ipaTupelList)
 
                 # get tonal forms
                 toSequence = []
                 for plainSyllable, tone in ipaTupelList:
-                    entity = self._target_operator.getTonalEntity(
+                    entity = self._getToOperator(toReading).getTonalEntity(
                         plainSyllable, tone)
                     toSequence.append(entity)
 
@@ -1456,7 +1576,8 @@ class PinyinToIPAConverter(DialectSupportReadingConverter):
                 plainSyllable, tone = entry
 
                 if tone == '5thTone' and precedingTone:
-                    tone = PinyinToIPAConverter.NEUTRAL_TONE_MAPPING[precedingTone]
+                    tone \
+                        = PinyinIPAConverter.NEUTRAL_TONE_MAPPING[precedingTone]
                 elif tone == '3rdToneRegular' and idx + 1 != len(entityTuples):
                     tone = '3rdToneLow'
                 entry = (plainSyllable, tone)
@@ -1470,7 +1591,7 @@ class PinyinToIPAConverter(DialectSupportReadingConverter):
         return convertedEntities
 
     @staticmethod
-    def finalECoarticulation(converterInst: PinyinToIPAConverter, leftContext, plainSyllable, tone,
+    def finalECoarticulation(converterInst, leftContext, plainSyllable, tone,
         rightContext):
         """
         Example function for handling coarticulation of final *e* for the
@@ -1495,7 +1616,7 @@ class PinyinToIPAConverter(DialectSupportReadingConverter):
         :return: IPA representation
         """
         if tone == 5:
-            _, final = converterInst._source_operator.getOnsetRhyme(
+            _, final = converterInst._getToOperator('Pinyin').getOnsetRhyme(
                 plainSyllable)
             if final == 'e':
                 # lookup in database
@@ -1517,22 +1638,39 @@ class PinyinToIPAConverter(DialectSupportReadingConverter):
                         + plainSyllable + "' and tone '" + str(tone) \
                         + "' ambiguous")
 
-                return transSyllables[0], PinyinToIPAConverter.TONEMARK_MAPPING[tone]
+                return transSyllables[0], \
+                    PinyinIPAConverter.TONEMARK_MAPPING[tone]
 
 
-class PinyinToBrailleConverter(DialectSupportReadingConverter):
-    SOURCE = "Pinyin"
-    TARGET = "MandarinBraille"
-    
+class PinyinBrailleConverter(DialectSupportReadingConverter):
+    """
+    PinyinBrailleConverter defines a converter between the Mandarin Chinese
+    romanisation *Hanyu Pinyin* and the *Braille* system for Mandarin Chinese.
+    """
+    CONVERSION_DIRECTIONS = [('Pinyin', 'MandarinBraille'),
+        ('MandarinBraille', 'Pinyin')]
+
     DEFAULT_READING_OPTIONS = {'Pinyin': {'erhua': 'ignore',
         'toneMarkType': 'numbers', 'missingToneMark': 'noinfo'}}
 
     PUNCTUATION_SIGNS_MAPPING = {'。': '⠐⠆', ',': '⠐', '?': '⠐⠄',
         '!': '⠰⠂', ':': '⠒', ';': '⠰', '-': '⠠⠤', '…': '⠐⠐⠐',
         '·': '⠠⠄', '(': '⠰⠄', ')': '⠠⠆', '[': '⠰⠆', ']': '⠰⠆'}
-    
-    def __init__(self, dbConnectInst=None, sourceOperators=None, targetOperators=None):
-        super().__init__(dbConnectInst, sourceOperators, targetOperators)
+
+    def __init__(self, **options):
+        """
+        :param options: extra options
+        :keyword dbConnectInst: instance of a
+            :class:`~cjklib.dbconnector.DatabaseConnector`, if none is
+            given, default settings will be assumed.
+        :keyword sourceOperators: list of
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
+            used for handling source readings.
+        :keyword targetOperators: list of
+            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
+            used for handling target readings.
+        """
+        super(PinyinBrailleConverter, self).__init__(**options)
         # get mappings
         self._createMappings()
 
@@ -1564,6 +1702,7 @@ class PinyinToBrailleConverter(DialectSupportReadingConverter):
         """
         # initials
         self._pinyinInitial2Braille = {}
+        self._braille2PinyinInitial = {}
 
         table = self.db.tables['PinyinBrailleInitialMapping']
         entries = self.db.selectRows(
@@ -1576,11 +1715,17 @@ class PinyinToBrailleConverter(DialectSupportReadingConverter):
                 raise ValueError(
                     "Ambiguous mapping from Pinyin syllable initial to Braille")
             self._pinyinInitial2Braille[pinyinInitial] = brailleChar
+            # Braille 2 Pinyin
+            if brailleChar not in self._braille2PinyinInitial:
+                self._braille2PinyinInitial[brailleChar] = set()
+            self._braille2PinyinInitial[brailleChar].add(pinyinInitial)
 
         self._pinyinInitial2Braille[''] = ''
+        self._braille2PinyinInitial[''] = set([''])
 
         # finals
         self._pinyinFinal2Braille = {}
+        self._braille2PinyinFinal = {}
 
         table = self.db.tables['PinyinBrailleFinalMapping']
         entries = self.db.selectRows(
@@ -1593,211 +1738,60 @@ class PinyinToBrailleConverter(DialectSupportReadingConverter):
                 raise ValueError(
                     "Ambiguous mapping from Pinyin syllable final to Braille")
             self._pinyinFinal2Braille[pinyinFinal] = brailleChar
-
-        # map ê to same Braille character as e
-        self._pinyinFinal2Braille['ê'] = self._pinyinFinal2Braille['e']
-
-    def convertEntitySequence(self, entitySequence):
-        toReadingEntities = []
-        for sequence in entitySequence:
-            if type(sequence) == type([]):
-                for entity in sequence:
-                    if self._f.isReadingEntity(entity, self.SOURCE,
-                        **self.DEFAULT_READING_OPTIONS[self.SOURCE]):
-                        toReadingEntity = self.convertBasicEntity(entity)
-                        toReadingEntities.append(toReadingEntity)
-                    else:
-                        toReadingEntities.append(entity)
-            else:
-                # find punctuation marks
-                for subEntity in self._pinyinPunctuationRegex.findall(
-                    sequence):
-                    if subEntity in self.PUNCTUATION_SIGNS_MAPPING:
-                        toReadingEntities.append(
-                            self.PUNCTUATION_SIGNS_MAPPING[subEntity])
-                    else:
-                        toReadingEntities.append(subEntity)
-    
-        return toReadingEntities
-
-    def convertBasicEntity(self, entity):
-        """
-        Converts a basic entity (a syllable) in the source reading to the given
-        target reading.
-
-        This method is called by
-        :meth:`~_reading.converter.PinyinBrailleConverter.convertEntities`
-        and a single entity is given for conversion.
-
-        If a single entity needs to be converted it is recommended to use
-        :meth:`~_reading.converter.PinyinBrailleConverter.convertEntities`
-        instead. In the general case it can not be ensured
-        that a mapping from one reading to another can be done by the simple
-        conversion of a basic entity. One-to-many mappings are possible and
-        there is no guarantee that any entity of a reading recognised by
-        :meth:`~_reading.operator.ReadingOperator.isReadingEntity`
-        will be mapped here.
-
-        :type entity: str
-        :param entity: string written in the source reading in lower case
-            letters
-        :rtype: str
-        :return: the entity converted to the ``toReading`` in lower case
-        :raise AmbiguousConversionError: if conversion for this entity of the
-            source reading is ambiguous.
-        :raise ConversionError: on other operations specific to the conversion
-            of the entity.
-        :raise InvalidEntityError: if the entity is invalid.
-        """
-        # split entity into plain part and tonal information
-        # if fromReading in self.DEFAULT_READING_OPTIONS:
-        #     fromOptions = self.DEFAULT_READING_OPTIONS[fromReading]
-        # else:
-        #     fromOptions = {}
-        # fromOperator = self._f._getReadingOperatorInstance(fromReading,
-        #     **fromOptions)
-
-        fromOperator: readingoperator.PinyinOperator = self._source_operator
-
-        plainEntity, tone = fromOperator.splitEntityTone(entity)
-
-        # lookup in database
-        initial, final = fromOperator.getOnsetRhyme(plainEntity)
-
-        if plainEntity not in ['zi', 'ci', 'si', 'zhi', 'chi', 'shi', 'ri']:
-            try:
-                transSyllable = self._pinyinInitial2Braille[initial] \
-                    + self._pinyinFinal2Braille[final]
-            except KeyError:
-                raise ConversionError("conversion for entity '" \
-                    + plainEntity + "' not supported")
-        else:
-            try:
-                transSyllable = self._pinyinInitial2Braille[initial]
-            except KeyError:
-                raise ConversionError("conversion for entity '" \
-                    + plainEntity + "' not supported")
-        
-        try:
-            return self._target_operator.getTonalEntity(transSyllable, tone)
-        except InvalidEntityError as e:
-            # handle this as a conversion error as the converted syllable is not
-            #   accepted by the operator
-            raise ConversionError(*e.args)
-
-
-class BrailleToPinyinConverter(DialectSupportReadingConverter):
-    """
-    PinyinBrailleConverter defines a converter between the Mandarin Chinese
-    romanisation *Hanyu Pinyin* and the *Braille* system for Mandarin Chinese.
-    """
-
-    SOURCE = "Braille"
-    TARGET = "Pinyin"
-
-    DEFAULT_READING_OPTIONS = {'Pinyin': {'erhua': 'ignore',
-        'toneMarkType': 'numbers', 'missingToneMark': 'noinfo'}}
-
-    PUNCTUATION_SIGNS_MAPPING = {'。': '⠐⠆', ',': '⠐', '?': '⠐⠄',
-        '!': '⠰⠂', ':': '⠒', ';': '⠰', '-': '⠠⠤', '…': '⠐⠐⠐',
-        '·': '⠠⠄', '(': '⠰⠄', ')': '⠠⠆', '[': '⠰⠆', ']': '⠰⠆'}
-
-    def __init__(self, dbConnectInst=None, sourceOperators=None, targetOperators=None):
-        """
-        :param options: extra options
-        :keyword dbConnectInst: instance of a
-            :class:`~cjklib.dbconnector.DatabaseConnector`, if none is
-            given, default settings will be assumed.
-        :keyword sourceOperators: list of
-            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
-            used for handling source readings.
-        :keyword targetOperators: list of
-            :class:`ReadingOperators <_reading.operator.ReadingOperator>`
-            used for handling target readings.
-        """
-        super().__init__(dbConnectInst, sourceOperators, targetOperators)
-        # get mappings
-        self._createMappings()
-
-        # punctuation mapping
-        self._reversePunctuationMapping = {}
-        for key in self.PUNCTUATION_SIGNS_MAPPING:
-            if key in self._reversePunctuationMapping:
-                # ambiguous mapping, so remove
-                self._reversePunctuationMapping[key] = None
-            else:
-                value = self.PUNCTUATION_SIGNS_MAPPING[key]
-                self._reversePunctuationMapping[value] = key
-
-        # regex to split out punctuation
-        self._pinyinPunctuationRegex = re.compile(r'(' \
-            + '|'.join([re.escape(p) for p \
-                in list(self.PUNCTUATION_SIGNS_MAPPING.keys())]) \
-            + '|.+?)')
-
-        braillePunctuation = list(set(self.PUNCTUATION_SIGNS_MAPPING.values()))
-        # longer marks first in regex
-        braillePunctuation.sort(key=cmp_to_key(lambda x, y: len(y) - len(x)))
-        self._braillePunctuationRegex = re.compile(r'(' \
-            + '|'.join([re.escape(p) for p in braillePunctuation]) + '|.+?)')
-
-    def _createMappings(self):
-        """
-        Creates the mappings of syllable initials and finals from the database.
-        """
-        # initials
-        self._braille2PinyinInitial = {}
-
-        table = self.db.tables['PinyinBrailleInitialMapping']
-        entries = self.db.selectRows(
-            select(table.c.PinyinInitial, table.c.Braille)
-        )
-
-        for pinyinInitial, brailleChar in entries:
-            # Braille 2 Pinyin
-            if brailleChar not in self._braille2PinyinInitial:
-                self._braille2PinyinInitial[brailleChar] = set()
-            self._braille2PinyinInitial[brailleChar]
-        self._braille2PinyinInitial[''] = set([''])
-
-        # finals
-        self._braille2PinyinFinal = {}
-
-        table = self.db.tables['PinyinBrailleFinalMapping']
-        entries = self.db.selectRows(
-            select(table.c.PinyinFinal, table.c.Braille)
-        )
-
-        for pinyinFinal, brailleChar in entries:
             # Braille 2 Pinyin
             if brailleChar not in self._braille2PinyinFinal:
                 self._braille2PinyinFinal[brailleChar] = set()
             self._braille2PinyinFinal[brailleChar].add(pinyinFinal)
 
-    def convertEntitySequence(self, entitySequence):
+        # map ê to same Braille character as e
+        self._pinyinFinal2Braille['ê'] = self._pinyinFinal2Braille['e']
+
+    def convertEntitySequence(self, entitySequence, fromReading, toReading):
         toReadingEntities = []
-        for sequence in entitySequence:
-            if type(sequence) == type([]):
-                for entity in sequence:
-                    toReadingEntity = self.convertBasicEntity(entity.lower())
-                    toReadingEntities.append(toReadingEntity)
-            else:
-                # find punctuation marks
-                for subEntity in self._braillePunctuationRegex.findall(
-                    sequence):
-                    if subEntity in self._reversePunctuationMapping:
-                        if not self._reversePunctuationMapping[subEntity]:
-                            raise AmbiguousConversionError(
-                                "conversion for entity '" + subEntity \
-                                    + "' is ambiguous")
-                        toReadingEntities.append(
-                            self._reversePunctuationMapping[subEntity])
-                    else:
-                        toReadingEntities.append(subEntity)
+        if fromReading == "Pinyin":
+            for sequence in entitySequence:
+                if type(sequence) == type([]):
+                    for entity in sequence:
+                        if self._f.isReadingEntity(entity, fromReading,
+                            **self.DEFAULT_READING_OPTIONS[fromReading]):
+                            toReadingEntity = self.convertBasicEntity(entity,
+                                fromReading, toReading)
+                            toReadingEntities.append(toReadingEntity)
+                        else:
+                            toReadingEntities.append(entity)
+                else:
+                    # find punctuation marks
+                    for subEntity in self._pinyinPunctuationRegex.findall(
+                        sequence):
+                        if subEntity in self.PUNCTUATION_SIGNS_MAPPING:
+                            toReadingEntities.append(
+                                self.PUNCTUATION_SIGNS_MAPPING[subEntity])
+                        else:
+                            toReadingEntities.append(subEntity)
+        elif fromReading == "MandarinBraille":
+            for sequence in entitySequence:
+                if type(sequence) == type([]):
+                    for entity in sequence:
+                        toReadingEntity = self.convertBasicEntity(
+                            entity.lower(), fromReading, toReading)
+                        toReadingEntities.append(toReadingEntity)
+                else:
+                    # find punctuation marks
+                    for subEntity in self._braillePunctuationRegex.findall(
+                        sequence):
+                        if subEntity in self._reversePunctuationMapping:
+                            if not self._reversePunctuationMapping[subEntity]:
+                                raise AmbiguousConversionError(
+                                    "conversion for entity '" + subEntity \
+                                        + "' is ambiguous")
+                            toReadingEntities.append(
+                                self._reversePunctuationMapping[subEntity])
+                        else:
+                            toReadingEntities.append(subEntity)
 
         return toReadingEntities
 
-    def convertBasicEntity(self, entity):
+    def convertBasicEntity(self, entity, fromReading, toReading):
         """
         Converts a basic entity (a syllable) in the source reading to the given
         target reading.
@@ -1832,53 +1826,70 @@ class BrailleToPinyinConverter(DialectSupportReadingConverter):
         :raise InvalidEntityError: if the entity is invalid.
         """
         # split entity into plain part and tonal information
-        # if fromReading in self.DEFAULT_READING_OPTIONS:
-        #     fromOptions = self.DEFAULT_READING_OPTIONS[fromReading]
-        # else:
-        #     fromOptions = {}
-        # fromOperator = self._f._getReadingOperatorInstance(fromReading,
-        #     **fromOptions)
-
-        fromOperator: readingoperator.MandarinBrailleOperator = self._source_operator
+        if fromReading in self.DEFAULT_READING_OPTIONS:
+            fromOptions = self.DEFAULT_READING_OPTIONS[fromReading]
+        else:
+            fromOptions = {}
+        fromOperator = self._f._getReadingOperatorInstance(fromReading,
+            **fromOptions)
 
         plainEntity, tone = fromOperator.splitEntityTone(entity)
-        # mapping from Braille to Pinyin is ambiguous
-        initial, final = fromOperator.getOnsetRhyme(plainEntity)
+        # lookup in database
+        if fromReading == "Pinyin":
+            initial, final = fromOperator.getOnsetRhyme(plainEntity)
 
-        # get all possible forms
-        forms = []
-        for i in self._braille2PinyinInitial[initial]:
-            for f in self._braille2PinyinFinal[final]:
-                # get Pinyin syllable
-                table = self.db.tables['PinyinInitialFinal']
-                entry = self.db.selectScalar(
-                    select(table.c.Pinyin)
-                    .where(
-                        and_(
-                            table.c.PinyinInitial == i,
-                            table.c.PinyinFinal == f
+            if plainEntity not in ['zi', 'ci', 'si', 'zhi', 'chi', 'shi', 'ri']:
+                try:
+                    transSyllable = self._pinyinInitial2Braille[initial] \
+                        + self._pinyinFinal2Braille[final]
+                except KeyError:
+                    raise ConversionError("conversion for entity '" \
+                        + plainEntity + "' not supported")
+            else:
+                try:
+                    transSyllable = self._pinyinInitial2Braille[initial]
+                except KeyError:
+                    raise ConversionError("conversion for entity '" \
+                        + plainEntity + "' not supported")
+        elif fromReading == "MandarinBraille":
+            # mapping from Braille to Pinyin is ambiguous
+            initial, final = fromOperator.getOnsetRhyme(plainEntity)
+
+            # get all possible forms
+            forms = []
+            for i in self._braille2PinyinInitial[initial]:
+                for f in self._braille2PinyinFinal[final]:
+                    # get Pinyin syllable
+                    table = self.db.tables['PinyinInitialFinal']
+                    entry = self.db.selectScalar(
+                        select(table.c.Pinyin)
+                        .where(
+                            and_(
+                                table.c.PinyinInitial == i,
+                                table.c.PinyinFinal == f
+                            )
                         )
                     )
-                )
-                if entry:
-                    forms.append(entry)
+                    if entry:
+                        forms.append(entry)
 
-        # narrow down to possible ones
-        if len(forms) > 1:
-            for form in forms[:]:
-                if not self._target_operator.isPlainReadingEntity(form):
-                    forms.remove(form)
-        if not forms:
-            raise ConversionError("conversion for entity '" \
-                + plainEntity + "' not supported")
-        if len(forms) > 1:
-            raise AmbiguousConversionError("conversion for entity '" \
-                + plainEntity + "' is ambiguous")
-        else:
-            transSyllable = forms[0]
+            # narrow down to possible ones
+            if len(forms) > 1:
+                for form in forms[:]:
+                    if not self._getToOperator(toReading).isPlainReadingEntity(
+                        form):
+                        forms.remove(form)
+            if not forms:
+                raise ConversionError("conversion for entity '" \
+                    + plainEntity + "' not supported")
+            if len(forms) > 1:
+                raise AmbiguousConversionError("conversion for entity '" \
+                    + plainEntity + "' is ambiguous")
+            else:
+                transSyllable = forms[0]
 
         try:
-            return self._target_operator.getTonalEntity(transSyllable,
+            return self._getToOperator(toReading).getTonalEntity(transSyllable,
                 tone)
         except InvalidEntityError as e:
             # handle this as a conversion error as the converted syllable is not
@@ -1891,21 +1902,20 @@ class JyutpingDialectConverter(EntityWiseReadingConverter):
     Provides a converter for different representations of the Cantonese
     romanisation *Jyutping*.
     """
+    CONVERSION_DIRECTIONS = [('Jyutping', 'Jyutping')]
 
-    SOURCE = TARGET = "Jyutping"
-
-    def convertBasicEntity(self, entity):
+    def convertBasicEntity(self, entity, fromReading, toReading):
         # split syllable into plain part and tonal information
         plainSyllable, tone \
-            = self._source_operator.splitEntityTone(entity)
+            = self._getFromOperator(fromReading).splitEntityTone(entity)
 
         # capitalisation
-        if self._target_operator.case == 'lower':
+        if self._getToOperator(toReading).case == 'lower':
             plainSyllable = plainSyllable.lower()
 
         # get syllable with tone mark
         try:
-            return self._target_operator.getTonalEntity(plainSyllable,
+            return self._getToOperator(toReading).getTonalEntity(plainSyllable,
                 tone)
         except InvalidEntityError as e:
             # handle this as a conversion error as the converted syllable is not
@@ -1918,21 +1928,20 @@ class CantoneseYaleDialectConverter(EntityWiseReadingConverter):
     Provides a converter for different representations of the *Cantonese Yale*
     romanisation system.
     """
+    CONVERSION_DIRECTIONS = [('CantoneseYale', 'CantoneseYale')]
 
-    SOURCE = TARGET = "CantoneseYale"
-
-    def convertBasicEntity(self, entity):
+    def convertBasicEntity(self, entity, fromReading, toReading):
         # split syllable into plain part and tonal information
         plainSyllable, tone \
-            = self._source_operator.splitEntityTone(entity)
+            = self._getFromOperator(fromReading).splitEntityTone(entity)
 
         # capitalisation
-        if self._target_operator.case == 'lower':
+        if self._getToOperator(toReading).case == 'lower':
             plainSyllable = plainSyllable.lower()
 
         # get syllable with tone mark
         try:
-            transEntity = self._target_operator.getTonalEntity(
+            transEntity = self._getToOperator(toReading).getTonalEntity(
                 plainSyllable, tone)
 
             if istitlecase(entity) and not entity.isupper() \
@@ -1946,18 +1955,26 @@ class CantoneseYaleDialectConverter(EntityWiseReadingConverter):
             raise ConversionError(*e.args)
 
 
-class JyutpingToYaleConverter(RomanisationConverter):
-    SOURCE = "Jyutping"
-    TARGET = "CantoneseYale"
-    
+class JyutpingYaleConverter(RomanisationConverter):
+    """
+    Provides a converter between the Cantonese romanisation systems *Jyutping*
+    and *Cantonese Yale*.
+    """
+    CONVERSION_DIRECTIONS = [('Jyutping', 'CantoneseYale'),
+        ('CantoneseYale', 'Jyutping')]
+    # use special dialect for Yale to retain information for first tone and
+    #   missing tones
     DEFAULT_READING_OPTIONS = {'Jyutping': {},
         'CantoneseYale': {'toneMarkType': 'internal'}}
-        
+
     DEFAULT_TONE_MAPPING = {1: '1stToneLevel', 2: '2ndTone', 3: '3rdTone',
         4: '4thTone', 5: '5thTone', 6: '6thTone'}
-    
-    
-    def __init__(self, dbConnectInst=None, sourceOperators=None, targetOperators=None, yaleFirstTone: str = "1stToneLevel"):
+    """
+    Mapping of Jyutping tones to Yale tones. Tone 1 can be changed via option
+    'yaleFirstTone'.
+    """
+
+    def __init__(self, **options):
         """
         :param options: extra options
         :keyword dbConnectInst: instance of a
@@ -1975,8 +1992,7 @@ class JyutpingToYaleConverter(RomanisationConverter):
             falling tone with contour 53. This is only important if the target
             reading dialect uses diacritical tone marks.
         """
-        super().__init__(dbConnectInst, sourceOperators, targetOperators)
-        self.yaleFirstTone = yaleFirstTone
+        super(JyutpingYaleConverter, self).__init__(**options)
 
         # check yaleFirstTone for handling ambiguous conversion of first
         #   tone in Cantonese that has two different representations in Yale,
@@ -1988,83 +2004,53 @@ class JyutpingToYaleConverter(RomanisationConverter):
         self.defaultToneMapping = self.DEFAULT_TONE_MAPPING.copy()
         self.defaultToneMapping[1] = self.yaleFirstTone
 
-    def convertBasicEntity(self, entity):
+    @classmethod
+    def getDefaultOptions(cls):
+        options = super(JyutpingYaleConverter, cls).getDefaultOptions()
+        options.update({'yaleFirstTone': '1stToneLevel'})
+
+        return options
+
+    def convertBasicEntity(self, entity, fromReading, toReading):
         # split syllable into plain part and tonal information
-        plainSyllable, tone = self._f.splitEntityTone(entity, self.SOURCE,
-            **self.DEFAULT_READING_OPTIONS[self.SOURCE])
+        plainSyllable, tone = self._f.splitEntityTone(entity, fromReading,
+            **self.DEFAULT_READING_OPTIONS[fromReading])
 
         # lookup in database
-        
-        table = self.db.tables['JyutpingYaleMapping']
-        transSyllable = self.db.selectScalar(
-            select(table.c.CantoneseYale)
-            .where(
-                table.c.Jyutping == plainSyllable
+        if fromReading == "CantoneseYale":
+            table = self.db.tables['JyutpingYaleMapping']
+            transSyllable = self.db.selectScalar(
+                select(table.c.Jyutping)
+                .where(
+                    table.c.CantoneseYale == plainSyllable
+                )
             )
-        )
-        # get tone
-        if not tone:
-            transTone = None
-        else:
-            transTone = self.defaultToneMapping[tone]
+            # get tone
+            if tone:
+                # get tone number from first character of string representation
+                transTone = int(tone[0])
+            else:
+                transTone = None
+        elif fromReading == "Jyutping":
+            table = self.db.tables['JyutpingYaleMapping']
+            transSyllable = self.db.selectScalar(
+                select(table.c.CantoneseYale)
+                .where(
+                    table.c.Jyutping == plainSyllable
+                )
+            )
+            # get tone
+            if not tone:
+                transTone = None
+            else:
+                transTone = self.defaultToneMapping[tone]
 
         if not transSyllable:
             raise ConversionError("conversion for entity '" + plainSyllable \
                 + "' not supported")
         try:
-            return self._f.getTonalEntity(transSyllable, transTone, self.TARGET,
-                **self.DEFAULT_READING_OPTIONS[self.TARGET])
-        except InvalidEntityError as e:
-            # handle this as a conversion error as the converted syllable is not
-            #   accepted by the operator
-            raise ConversionError(*e.args)
-
-
-class YaleToJyutpingConverter(RomanisationConverter):
-    """
-    Provides a converter between the Cantonese romanisation systems *Jyutping*
-    and *Cantonese Yale*.
-    """
-
-    SOURCE = "CantoneseYale"
-    TARGET = "Jyutping"
-    # use special dialect for Yale to retain information for first tone and
-    #   missing tones
-    DEFAULT_READING_OPTIONS = {'Jyutping': {},
-        'CantoneseYale': {'toneMarkType': 'internal'}}
-
-    DEFAULT_TONE_MAPPING = {1: '1stToneLevel', 2: '2ndTone', 3: '3rdTone',
-        4: '4thTone', 5: '5thTone', 6: '6thTone'}
-    """
-    Mapping of Jyutping tones to Yale tones. Tone 1 can be changed via option
-    'yaleFirstTone'.
-    """
-
-    def convertBasicEntity(self, entity):
-        # split syllable into plain part and tonal information
-        plainSyllable, tone = self._f.splitEntityTone(entity, self.SOURCE,
-            **self.DEFAULT_READING_OPTIONS[self.SOURCE])
-
-        # lookup in database
-        table = self.db.tables['JyutpingYaleMapping']
-        transSyllable = self.db.selectScalar(
-            select(table.c.Jyutping)
-            .where(
-                table.c.CantoneseYale == plainSyllable
-            )
-        )
-        # get tone
-        if tone:
-            # get tone number from first character of string representation
-            transTone = int(tone[0])
-        else:
-            transTone = None
-        if not transSyllable:
-            raise ConversionError("conversion for entity '" + plainSyllable \
-                + "' not supported")
-        try:
-            return self._f.getTonalEntity(transSyllable, transTone, self.TARGET,
-                **self.DEFAULT_READING_OPTIONS[self.TARGET])
+            return self._f.getTonalEntity(transSyllable, transTone, toReading,
+                **self.DEFAULT_READING_OPTIONS[toReading])
         except InvalidEntityError as e:
             # handle this as a conversion error as the converted syllable is not
             #   accepted by the operator
@@ -2076,17 +2062,16 @@ class ShanghaineseIPADialectConverter(EntityWiseReadingConverter):
     Provides a converter for different representations of Shanghainese IPA
     forms.
     """
+    CONVERSION_DIRECTIONS = [('ShanghaineseIPA', 'ShanghaineseIPA')]
 
-    SOURCE = TARGET = "ShanghaineseIPA"
-
-    def convertBasicEntity(self, entity):
+    def convertBasicEntity(self, entity, fromReading, toReading):
         # split syllable into plain part and tonal information
         plainSyllable, tone \
-            = self._source_operator.splitEntityTone(entity)
+            = self._getFromOperator(fromReading).splitEntityTone(entity)
 
         # get syllable with tone mark
         try:
-            return self._target_operator.getTonalEntity(plainSyllable,
+            return self._getToOperator(toReading).getTonalEntity(plainSyllable,
                 tone)
         except InvalidEntityError as e:
             # handle this as a conversion error as the converted syllable is not

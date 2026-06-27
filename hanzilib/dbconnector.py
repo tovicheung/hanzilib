@@ -199,7 +199,7 @@ class DatabaseConnector(object):
             self._mainSchema = self.engine.url.database
 
         # attach other databases
-        self.attached = OrderedDict[str, str]()
+        self.attached: OrderedDict[str, str] = OrderedDict()
         """Mapping of attached database URLs to internal schema names"""
         attach = configuration.pop('attach', [])
         searchPaths = self.engine.name == 'sqlite'

@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with hanzilib.  If not, see <http://www.gnu.org/licenses/>.
 
-u"""
+"""
 Hanzilib is a modern fork of cjklib, a Han character library.
 
 Hanzilib provides language routines related to Han
@@ -59,11 +59,8 @@ otherwise noted.
 """
 
 __version__ = '0.0.9'
-"""The version of hanzilib"""
 
 __author__ = "Tovi Cheung"
 __credits__ = 'Christoph Burgmer <cburgmer@ira.uka.de>'
-"""The primary author of cjklib"""
 
 __license__ = 'LGPL'
-"""The license governing the use and distribution of hanzilib"""

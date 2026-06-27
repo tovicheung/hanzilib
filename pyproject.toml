@@ -7,7 +7,7 @@ name = "hanzilib"
 version = "0.0.9"
 description = "Python 3 Han character library for CJKV languages"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 license = "LGPL-3.0-only"
 license-files = ["COPYING"]
 authors = [
