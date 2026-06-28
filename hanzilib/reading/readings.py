@@ -93,6 +93,10 @@ class GR(_RomanisationBase):
     optionalNeutralToneMarker: str = "˳"
 
 @dataclass(frozen=True)
+class MandarinIPA(_TonalIPABase):
+    pass
+
+@dataclass(frozen=True)
 class MandarinBraille(Reading):
     toneMarkType: Literal["braille", "none"] = "braille"
     missingToneMark: Literal["fifth", "extended"] = "extended"

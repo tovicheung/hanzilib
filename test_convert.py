@@ -1,6 +1,7 @@
 
-from hanzilib.reading import convert
+from hanzilib.reading import convert, _registry
 from hanzilib.reading.readings import *
+# import hanzilib.reading.converter
 
 # Different methods of configuration
 assert convert('lǎo shī', Pinyin, WadeGiles) == "lao³ shih¹"
@@ -16,4 +17,11 @@ assert convert("yue", Pinyin, WadeGiles) == "yüeh"
 assert convert("yan", Pinyin, WadeGiles) == "yen"
 assert convert("xiong", Pinyin, WadeGiles) == "hsiung"
 
+assert convert("pengyoumen", Pinyin, WadeGiles) == "p’êng-yu-mên"
+assert convert("shier xiang shir", Pinyin, WadeGiles) == "shih-êrh hsiang shih-êrh" # 十二 and 事兒 should both be shih-êrh.
+
 assert convert("lao3 shi1", Pinyin(toneMarkType="numbers"), GR) == "lao shy"
+
+# bridge
+assert convert("lao3 shi1", Pinyin(toneMarkType="numbers"), MandarinIPA) == "lau˨˩˦ ʂʅ˥˥"
+assert convert("lao³ shih¹", WadeGiles, MandarinIPA) == "lau˨˩˦ ʂʅ˥˥"

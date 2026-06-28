@@ -41,7 +41,6 @@ from .readings import Reading, _get_reading_info
 _registry = {'readingOperatorClasses': {}, 'readingConverterClasses': {}}
 
 def _auto_discover():
-    from . import converter as readingconverter
     _registry["readingOperatorClasses"].update({
         clss.READING_NAME: clss for name in readingoperator.__all__
         if (clss := getattr(readingoperator, name))
@@ -58,6 +57,24 @@ def _auto_discover():
     #     for fromReading, toReading in c.CONVERSION_DIRECTIONS:
     #         _registry['readingConverterClasses'][(fromReading, toReading)] = c
 
+
+# from the original BridgeConverter
+_bridges = [('WadeGiles', 'Pinyin', 'MandarinIPA'),
+        ('MandarinBraille', 'Pinyin', 'MandarinIPA'),
+        ('WadeGiles', 'Pinyin', 'MandarinBraille'),
+        ('MandarinBraille', 'Pinyin', 'WadeGiles'),
+        ('GR', 'Pinyin', 'WadeGiles'), ('MandarinBraille', 'Pinyin', 'GR'),
+        ('WadeGiles', 'Pinyin', 'GR'), ('GR', 'Pinyin', 'MandarinBraille'),
+        ('GR', 'Pinyin', 'MandarinIPA'), # TODO remove once there is a proper
+                                         #   converter for GR to IPA
+        ]
+
+_bridge_lookup = {}
+for from_reading, bridge_reading, to_reading in _bridges:
+    _bridge_lookup[(from_reading, to_reading)] = bridge_reading
+
+
+
 def getReadingOperatorClasses():
     """
     Gets all classes implementing
@@ -70,7 +87,7 @@ def getReadingOperatorClasses():
     """
     return _registry["readingOperatorClasses"]
 
-def getReadingConverterClasses():
+def getReadingConverterClasses() -> dict[tuple[str, str], type[ReadingConverter]]:
     """
     Gets all classes implementing
     :class:`~cjklib.reading.converter.ReadingConverter` from module
@@ -118,98 +135,6 @@ class ReadingFactory(object):
     Dictionary holding global state information used by all instances of the
     ReadingFactory.
     """
-
-    class SimpleReadingConverterAdaptor(object):
-        """
-        Defines a simple converter between two *character readings* that keeps
-        the real converter doing the work in the background.
-
-        The basic method is
-        :meth:`~cjklib.reading.ReadingFactory.SimpleReadingConverterAdaptor.convert`
-        which converts one input string from
-        one reading to another. In contrast to a
-        :class:`~cjklib.reading.converter.ReadingConverter` no source
-        or target reading needs to be specified.
-        """
-        def __init__(self, converterInst, fromReading, toReading):
-            """
-            Creates an instance of the SimpleReadingConverterAdaptor.
-
-            :type converterInst: instance
-            :param converterInst:
-                :class:`~cjklib.reading.converter.ReadingConverter` instance
-                doing the actual conversion work.
-            :type fromReading: str
-            :param fromReading: name of reading converted from
-            :type toReading: str
-            :param toReading: name of reading converted to
-            """
-            self.converterInst = converterInst
-            self.fromReading = _get_reading_info(fromReading)[0]
-            self.toReading = _get_reading_info(toReading)[0]
-            self.CONVERSION_DIRECTIONS = [(self.fromReading, self.toReading)]
-
-        def convert(self, string: str, fromReading: str |  None = None, toReading: str | None = None):
-            """
-            Converts a string in the source reading to the target reading.
-
-            If parameters fromReading or toReading are not given the class's
-            default values will be applied.
-
-            :type string: str
-            :param string: string written in the source reading
-            :type fromReading: str
-            :param fromReading: name of the source reading
-            :type toReading: str
-            :param toReading: name of the target reading
-            :rtype: str
-            :return: the input string converted to the ``toReading``
-            :raise DecompositionError: if the string can not be decomposed into
-                basic entities with regards to the source reading.
-            :raise CompositionError: if the target reading's entities can not be
-                composed.
-            :raise ConversionError: on operations specific to the conversion
-                between the two readings (e.g. error on converting entities).
-            :raise UnsupportedError: if source or target reading not supported
-                for conversion.
-            """
-            if not fromReading:
-                fromReading = self.fromReading
-            if not toReading:
-                toReading = self.toReading
-            return self.converterInst.convert(string)
-
-        def convertEntities(self, readingEntities, fromReading=None,
-            toReading=None):
-            """
-            Converts a list of entities in the source reading to the target
-            reading.
-
-            If parameters fromReading or toReading are not given the class's
-            default values will be applied.
-
-            :type readingEntities: list of str
-            :param readingEntities: list of entities written in source reading
-            :type fromReading: str
-            :param fromReading: name of the source reading
-            :type toReading: str
-            :param toReading: name of the target reading
-            :rtype: list of str
-            :return: list of entities written in target reading
-            :raise ConversionError: on operations specific to the conversion
-                between the two readings (e.g. error on converting entities).
-            :raise UnsupportedError: if source or target reading is not
-                supported for conversion.
-            :raise InvalidEntityError: if an invalid entity is given.
-            """
-            if not fromReading:
-                fromReading = self.fromReading
-            if not toReading:
-                toReading = self.toReading
-            return self.converterInst.convertEntities(readingEntities)
-
-        def __getattr__(self, name):
-            return getattr(self.converterInst, name)
 
     def __init__(self, databaseUrl=None, dbConnectInst=None):
         """
@@ -320,7 +245,7 @@ class ReadingFactory(object):
                 % (from_reading_name, to_reading_name))
         return _registry['readingConverterClasses'][(from_reading_name, to_reading_name)]
 
-    def createReadingConverter(self, fromReading: str | Reading, toReading: str | Reading, **options):
+    def createReadingConverter(self, fromReading: str | Reading, toReading: str | Reading, allowBridge: bool = True, **options):
         """
         Creates an instance of a
         :class:`~cjklib.reading.converter.ReadingConverter` for the given
@@ -370,19 +295,23 @@ class ReadingFactory(object):
             supported.
         """
         from_reading, to_reading, converter_options = self._resolveConverterArgs(fromReading, toReading, options)
-        converterClass = self.getReadingConverterClass(from_reading.get_name(), to_reading.get_name())
-
+        
         opt = converter_options.copy()
         if 'dbConnectInst' not in opt:
             opt['dbConnectInst'] = self.db
-        converterInst = converterClass(**opt)
-        if 'hideComplexConverter' not in converter_options \
-            or converter_options['hideComplexConverter']:
-            return ReadingFactory.SimpleReadingConverterAdaptor(
-                converterInst=converterInst, fromReading=fromReading,
-                toReading=toReading)
-        else:
-            return converterInst
+
+        if not self.isReadingConversionSupported(from_reading.get_name(), to_reading.get_name()):
+            if (not allowBridge) or (from_reading.get_name(), to_reading.get_name()) not in _bridge_lookup:
+                raise UnsupportedError(
+                    "conversion from '%s' to '%s' not supported"
+                    % (from_reading.get_name(), to_reading.get_name()))
+                        
+            from .converter import BridgeConverter
+            return BridgeConverter(from_reading.get_name(), to_reading.get_name(), **opt)
+
+        converterClass = self.getReadingConverterClass(from_reading.get_name(), to_reading.get_name())
+
+        return converterClass(**opt)
 
     def isReadingConversionSupported(self, fromReading, toReading):
         """
@@ -471,7 +400,7 @@ class ReadingFactory(object):
             instanceCache[cacheKey] = operatorInst
         return instanceCache[cacheKey]
 
-    def _getReadingConverterInstance(self, fromReading: str | Reading | type[Reading], toReading: str | Reading | type[Reading], **options) -> ReadingConverter:
+    def _getReadingConverterInstance(self, fromReading: str | Reading | type[Reading], toReading: str | Reading | type[Reading], allowBridge: bool = True, **options) -> ReadingConverter:
         """
         Returns an instance of a
         :class:`~cjklib.reading.converter.ReadingConverter` for the given
@@ -514,10 +443,7 @@ class ReadingFactory(object):
         instanceCache = _registry[self.db]['readingConverterInstances']
 
         if cacheKey not in instanceCache:
-            opt = options.copy()
-            opt['hideComplexConverter'] = False
-
-            converterInst = self.createReadingConverter(from_reading, to_reading, **converter_options)
+            converterInst = self.createReadingConverter(from_reading, to_reading, allowBridge, **converter_options)
             # print()
             # print("CREATED CONVERTER", from_reading, to_reading, converter_options)
             # print()
@@ -615,14 +541,15 @@ class ReadingFactory(object):
         else:
             return data
 
-    def convert(self, readingStr: str, fromReading: str | Reading | type[Reading], toReading: str | Reading | type[Reading], sourceOptions: dict[str, Any] | None = None, targetOptions: dict[str, Any] | None = None, **options):
+    def convert(self, readingStr: str, fromReading: str | Reading | type[Reading], toReading: str | Reading | type[Reading], *, allowBridge: bool = True, sourceOptions: dict[str, Any] | None = None, targetOptions: dict[str, Any] | None = None, **options):
         options = options.copy()
         if sourceOptions:
             options["sourceOptions"] = sourceOptions
         if targetOptions:
             options["targetOptions"] = targetOptions
-        readingConv = self._getReadingConverterInstance(fromReading, toReading, **options)
-        return readingConv.convert(readingStr, fromReading, toReading)
+
+        readingConv = self._getReadingConverterInstance(fromReading, toReading, allowBridge=allowBridge, **options)
+        return readingConv.convert(readingStr)
 
     def convertEntities(self, readingEntities, fromReading, toReading, **options):
         """
@@ -661,8 +588,7 @@ class ReadingFactory(object):
         :raise InvalidEntityError: if an invalid entity is given.
         """
         readingConv = self._getReadingConverterInstance(fromReading, toReading, **options)
-        return readingConv.convertEntities(readingEntities, fromReading,
-            toReading)
+        return readingConv.convertEntities(readingEntities)
 
     def decompose(self, string, readingN, **options):
         """
@@ -989,6 +915,8 @@ def convert(
         readingStr: str,
         fromReading: str | Reading | type[Reading],
         toReading: str | Reading | type[Reading],
+        *,
+        allowBridge: bool = True,
         sourceOptions: dict[str, Any] | None = None,
         targetOptions: dict[str, Any] | None = None,
         **options,
@@ -1032,7 +960,7 @@ def convert(
     :raise UnsupportedError: if source or target reading is not supported
         for conversion.
     """
-    return _get_factory().convert(readingStr, fromReading, toReading, sourceOptions, targetOptions, **options)
+    return _get_factory().convert(readingStr, fromReading, toReading, allowBridge=allowBridge, sourceOptions=sourceOptions, targetOptions=targetOptions, **options)
 
 
 def decompose(string: str, readingN: str, **options):
@@ -1103,3 +1031,6 @@ def segment(string: str, readingN: str, **options):
         reading doesn't support the specified method.
     """
     return _get_factory().segment(string, readingN, **options)
+
+# init
+from . import converter

@@ -46,12 +46,11 @@ from sqlalchemy.sql import and_
 from ..exception import (ConversionError, AmbiguousConversionError,
     InvalidEntityError, UnsupportedError)
 from .. import dbconnector
-from . import operator as readingoperator
-from . import ReadingFactory, getReadingConverterClasses
+from . import operator as readingoperator, ReadingFactory, _registry, _bridge_lookup, getReadingConverterClasses
 from ..util import titlecase, istitlecase
 from .types import Entity
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .readings import Reading
 
@@ -60,7 +59,6 @@ if TYPE_CHECKING:
     from .converter import ReadingConverter
 
 def register(cls: type[ReadingConverter]):
-    from . import _registry
     _registry["readingConverterClasses"][(cls.SOURCE, cls.TARGET)] = cls
     return cls
 
@@ -293,7 +291,7 @@ class DialectSupportReadingConverter(ReadingConverter):
             convertedEntitySequence = []
             for sequence in toEntitySequence:
                 if type(sequence) == type([]):
-                    convertedEntities = converter.convertEntities(sequence, self.TARGET, self.TARGET)
+                    convertedEntities = converter.convertEntities(sequence)
                     convertedEntitySequence.append(convertedEntities)
                 else:
                     convertedEntitySequence.append(sequence)
@@ -541,14 +539,6 @@ class PinyinDialectConverter(ReadingConverter):
         else:
             # do nothing
             self._convertErhuaFunc = lambda x: x
-        
-
-    # @classmethod
-    # def getDefaultOptions(cls):
-    #     options = super(PinyinDialectConverter, cls).getDefaultOptions()
-    #     options.update({'keepPinyinApostrophes': False, 'breakUpErhua': 'auto'})
-
-    #     return options
 
     def convertEntities(self, readingEntities):
         """
@@ -895,14 +885,6 @@ class GRDialectConverter(ReadingConverter):
             raise ValueError(
                 "Invalid option %s for keyword 'breakUpAbbreviated'"
                     % repr(self.breakUpAbbreviated))
-
-    # @classmethod
-    # def getDefaultOptions(cls):
-    #     options = super(GRDialectConverter, cls).getDefaultOptions()
-    #     options.update({'keepGRApostrophes': False,
-    #         'breakUpAbbreviated': 'auto'})
-
-    #     return options
 
     def convertEntities(self, readingEntities):
         # abbreviated forms
@@ -1336,8 +1318,8 @@ class PinyinToIPAConverter(DialectSupportReadingConverter):
         """
         super().__init__(dbConnectInst, source_operator, target_operator)
 
-        self.sandhiFunction = sandhiFunction
-        self.coarticulationFunction = coarticulationFunction or self.lowThirdAndNeutralToneRule
+        self.sandhiFunction = sandhiFunction or self.lowThirdAndNeutralToneRule
+        self.coarticulationFunction = coarticulationFunction
 
         # set the sandhiFunction for handling tonal changes
         if self.sandhiFunction and not hasattr(self.sandhiFunction, '__call__'):
@@ -1351,14 +1333,6 @@ class PinyinToIPAConverter(DialectSupportReadingConverter):
             raise ValueError("Non-callable object %s" \
                     % repr(self.coarticulationFunction)
                 + " for keyword 'coarticulationFunction'")
-
-    # @classmethod
-    # def getDefaultOptions(cls):
-    #     options = super(PinyinIPAConverter, cls).getDefaultOptions()
-    #     options.update({'coarticulationFunction': None,
-    #         'sandhiFunction': PinyinIPAConverter.lowThirdAndNeutralToneRule})
-
-    #     return options
 
     def convertEntitySequence(self, entitySequence):
         toEntitySequence = []
@@ -2124,42 +2098,15 @@ class BridgeConverter(ReadingConverter):
     Provides a :class:`~_reading.converter.ReadingConverter`
     that converts between readings over a third reading called bridge reading.
     """
-    
-    def _getConversionDirections(bridge):
-        """
-        Extracts all conversion directions implicitly stored in the bridge
-        definition.
 
-        :type bridge: list of tuple
-        :param bridge: 3-tuples indicating conversion direction over a third
-            reading (bridge)
-        :rtype: list of tuple
-        :return: conversion directions
-        """
-        dirSet = set()
-        for fromReading, _, toReading in bridge:
-            dirSet.add((fromReading, toReading))
-        return list(dirSet)
-
-    CONVERSION_BRIDGE = [('WadeGiles', 'Pinyin', 'MandarinIPA'),
-        ('MandarinBraille', 'Pinyin', 'MandarinIPA'),
-        ('WadeGiles', 'Pinyin', 'MandarinBraille'),
-        ('MandarinBraille', 'Pinyin', 'WadeGiles'),
-        ('GR', 'Pinyin', 'WadeGiles'), ('MandarinBraille', 'Pinyin', 'GR'),
-        ('WadeGiles', 'Pinyin', 'GR'), ('GR', 'Pinyin', 'MandarinBraille'),
-        ('GR', 'Pinyin', 'MandarinIPA'), # TODO remove once there is a proper
-                                         #   converter for GR to IPA
-        ]
-    """
-    List containing all conversion directions together with the bridge reading
-    over which the conversion is made.
-    Form: (fromReading, bridgeReading, toReading)
-    As conversion may be lossy it is important which conversion path is chosen.
-    """
-
-    CONVERSION_DIRECTIONS = _getConversionDirections(CONVERSION_BRIDGE)
-
-    def __init__(self, **options):
+    def __init__(self,
+            fromReading: str,
+            toReading: str,
+            dbConnectInst=None,
+            source_operator: ReadingOperator | None = None,
+            target_operator: ReadingOperator | None = None,
+            **options,
+            ):
         """
         :param options: extra options passed to the
             :class:`~_reading.converter.ReadingConverter` instances
@@ -2173,58 +2120,39 @@ class BridgeConverter(ReadingConverter):
             :class:`ReadingOperators <_reading.operator.ReadingOperator>`
             used for handling target readings.
         """
-        super(BridgeConverter, self).__init__(**options)
+        
+        # temp
+        self.SOURCE = self.fromReading = fromReading # source_operator.READING_NAME
+        self.TARGET = self.toReading = toReading # target_operator.READING_NAME
 
-        self.bridgeLookup: dict[tuple[str, str], str] = {}
-        for fromReading, bridgeReading, toReading in self.CONVERSION_BRIDGE:
-            self.bridgeLookup[(fromReading, toReading)] = bridgeReading
+        super().__init__(dbConnectInst, source_operator, target_operator)
+        
+        # temp
+        self.bridgeReading = _bridge_lookup[(self.fromReading, self.toReading)]
 
-        self.conversionOptions = options
-
-    @classmethod
-    def getDefaultOptions(cls):
-        # merge together options of converters involved in bridge conversion
-        def mergeOptions(defaultOptions, options):
-            for option, value in list(options.items()):
-                assert(option not in defaultOptions \
-                    or defaultOptions[option] == value)
-                defaultOptions[option] = value
-
+        # temp
         converterClassLookup: dict[tuple[str, str], type[ReadingConverter]] = {}
-        for clss in getReadingConverterClasses():
-            for fromReading, targetReading in clss.CONVERSION_DIRECTIONS:
-                converterClassLookup[(fromReading, targetReading)] = clss
+        for (source, target), clss in getReadingConverterClasses().items():
+            converterClassLookup[(clss.SOURCE, clss.TARGET)] = clss
+        
+        def _isolate_options(func, options: dict[str, Any]):
+            import inspect
+            params = inspect.signature(func).parameters
+            return {k: v for k, v in options.items() if k in params}
+        
+        self.conversionOptions1 = _isolate_options(converterClassLookup[(self.fromReading, self.bridgeReading)].__init__, options)
+        self.conversionOptions2 = _isolate_options(converterClassLookup[(self.bridgeReading, self.toReading)].__init__, options)
 
-        # get default options for all converters used
-        defaultOptions = super(BridgeConverter, cls).getDefaultOptions()
-        for fromReading, bridgeReading, targetReading in cls.CONVERSION_BRIDGE:
-            # from direction
-            fromDefaultOptions = converterClassLookup[
-                    (fromReading, bridgeReading)].getDefaultOptions()
-            mergeOptions(defaultOptions, fromDefaultOptions)
-            # to direction
-            toDefaultOptions = converterClassLookup[
-                    (bridgeReading, targetReading)].getDefaultOptions()
-            mergeOptions(defaultOptions, toDefaultOptions)
+        self.conversionOptions1["source_operator"] = source_operator
+        self.conversionOptions2["target_operator"] = target_operator
 
-        return defaultOptions
-
-    def convertEntities(self, readingEntities: list[str], fromReading: str, toReading: str):
-        if (fromReading, toReading) not in self.CONVERSION_DIRECTIONS:
-            raise UnsupportedError("conversion direction from '" \
-                + fromReading + "' to '" + toReading + "' not supported")
-        bridgeReading = self.bridgeLookup[(fromReading, toReading)]
-
+    def convertEntities(self, readingEntities: list[str]) -> Reading:
         # to bridge reading
-        options = self.conversionOptions.copy()
-        options['sourceOperators'] = [self._getFromOperator(fromReading)]
         bridgeReadingEntities = self._f.convertEntities(readingEntities,
-            fromReading, bridgeReading, **options)
+            self.fromReading, self.bridgeReading, **self.conversionOptions1)
 
         # from bridge reading
-        options = self.conversionOptions.copy()
-        options['targetOperators'] = [self._getToOperator(toReading)]
         toReadingEntities = self._f.convertEntities(bridgeReadingEntities,
-            bridgeReading, toReading, **options)
+            self.bridgeReading, self.toReading, **self.conversionOptions2)
 
         return toReadingEntities

@@ -8,7 +8,8 @@ Apart from a Python interface, hanzilib provides the `hanzi` cli tool for conven
 
 **Important ⚠️**
 * hanzilib is a work in progress; the interface (both Python and CLI) are not final
-* hanzilib is not backwards-compatible with cjklib. The API has been modernized for clarity and maintainability.
+    * Names and naming conventions may change in the future
+* hanzilib is not backwards-compatible with cjklib. The API has been modified for clarity and maintainability.
 * Character decomposition is not stable yet; see [this page from the cjklib wiki](https://code.google.com/archive/p/cjklib/wikis/Decomposition.wiki)
 
 #### Data sources in `hanzilib/data`
@@ -22,7 +23,7 @@ Apart from a Python interface, hanzilib provides the `hanzi` cli tool for conven
 pip install hanzilib
 ```
 
-After installing, run `hanzi db build` to setup the internal database
+After installing, run `hanzi db build` to set up the internal database
 
 ## CLI examples
 
@@ -152,11 +153,15 @@ lau˨˩.ʂʅ˥˥
 lao³ shih¹
 >>> convert('lǎo shī', Pinyin, WadeGiles(toneMarkType="numbers"))
 lao3 shih1
+>>> convert('lǎo shī', Pinyin(), WadeGiles)
+lao3 shih1
 >>> convert('lao3 shi1', "Pinyin", "WadeGiles", sourceOptions={"toneMarkType": "numbers"}, targetOptions={"toneMarkType": "numbers"})
 lao3 shih1
 ```
 
-## Technical details
+The options for the reading classes (`Pinyin`, `WadeGiles`, etc.) are fully typed.
+
+## More details
 
 ### Readings
 

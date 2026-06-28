@@ -593,7 +593,8 @@ format --BuilderName-option or --TableName-option, e.g.
             args = parser.parse_args()
 
         if args.db_command is None:
-            print("hanzilib database manager (hanzi db)")
+            print("Hanzilib database manager (hanzi db)")
+            print("Usage: hanzi db [build | groups]; pass --help for more")
             return True
         
         command = args.db_command.lower()
