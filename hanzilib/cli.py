@@ -1126,8 +1126,8 @@ def new_main():
     dict_sub.add_parser("list", help="List installed dictionaries")
 
     # hanzi dict search
-    search_p = dict_sub.add_parser("search", help="Search dictionary definitions/headwords")
-    search_p.add_argument("query", help="Search string (supports % and _ wildcards)")
+    # search_p = dict_sub.add_parser("search", help="Search dictionary definitions/headwords")
+    # search_p.add_argument("query", help="Search string (supports % and _ wildcards)")
 
     # hanzi lookup
     lookup_p = subparsers.add_parser("lookup", help="Detailed character information", parents=[parent_parser])
@@ -1153,8 +1153,8 @@ def new_main():
     # phon_p.add_argument("text", help="The reading string to convert")
 
     # hanzi search-
-    search_p = subparsers.add_parser("search", help="Wildcard dictionary search", parents=[parent_parser])
-    search_p.add_argument("query", help="Search query (use _ or % for wildcards)")
+    # search_p = subparsers.add_parser("search", help="Wildcard dictionary search", parents=[parent_parser])
+    # search_p.add_argument("query", help="Search query (use _ or % for wildcards)")
     
     args = parser.parse_args()
 
@@ -1216,20 +1216,24 @@ def new_main():
             attached = list(db.attached.keys())
             for x in dictionary.getAvailableDictionaries():
                 print(x.PROVIDES, "from", attached[db.getDatabaseIdFromTable(x.PROVIDES) - 1])
+
     elif args.command == "lookup":
         cmd_lookup(args.char, char_info)
+
     elif args.command == "find":
         sets: list[set[str]] = []
 
         if args.radical is not None:
+            idx = None
             try:
                 idx = int(args.radical)
             except ValueError:
-                # print("Radicals can only be specified by KangXi index for now")
-                # sys.exit(1)
+                pass
+            
+            if idx is None: # prevent nested exceptions
                 if len(args.radical) != 1:
-                    raise ValueError("Unknown radical") # from None
-                idx = char_info.characterLookup.getKangxiRadicalIndex(args.radical)
+                    raise ValueError("Unknown radical")
+                idx = char_info.characterLookup.getKangxiRadicalIndex(args.radical) # raises exception for invalid radical
 
             args.radical = idx
 
