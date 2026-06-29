@@ -24,9 +24,6 @@ Builds the library's database.
 
 __all__ = ["DatabaseBuilder"]
 
-import types
-import locale
-import sys
 import os.path
 
 from sqlalchemy.exc import OperationalError

@@ -608,8 +608,8 @@ format --BuilderName-option or --TableName-option, e.g.
                 # 'attach', 'prefer'
             ])
             options = self.getDefaultOptions(includeConfig=not args.ignoreConfig)
-            options.update(dict([(option, getattr(args, option)) for option \
-                in optionSet if hasattr(args, option)]))
+            options.update({option: getattr(args, option) for option \
+                in optionSet if hasattr(args, option)})
 
             return self.runBuild(args.groups, options)
         else:

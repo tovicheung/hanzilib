@@ -13,14 +13,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with hanzilib.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import annotations
-
 """
 Character reading based functions (transliterations, romanizations, ...).
 """
 
-__all__ = ['operator', 'converter', 'ReadingFactory']
-
+from __future__ import annotations
 
 from ..exception import UnsupportedError
 from .. import dbconnector
@@ -35,8 +32,6 @@ if typing.TYPE_CHECKING:
 from typing import Any
 from .readings import Reading, _get_reading_info
 
-# Registry
-# the registry also stores reading operators created from database
 
 _registry = {'readingOperatorClasses': {}, 'readingConverterClasses': {}}
 
@@ -46,17 +41,6 @@ def _auto_discover():
         if (clss := getattr(readingoperator, name))
         if issubclass(clss, readingoperator.ReadingOperator) and clss.READING_NAME
     })
-    
-    # converters = [
-    #     clss for name in readingconverter.__all__
-    #     if (clss := getattr(readingconverter, name))
-    #     if issubclass(clss, readingconverter.ReadingConverter) and clss.CONVERSION_DIRECTIONS
-    # ]
-
-    # for c in converters:
-    #     for fromReading, toReading in c.CONVERSION_DIRECTIONS:
-    #         _registry['readingConverterClasses'][(fromReading, toReading)] = c
-
 
 # from the original BridgeConverter
 _bridges = [('WadeGiles', 'Pinyin', 'MandarinIPA'),
@@ -72,8 +56,6 @@ _bridges = [('WadeGiles', 'Pinyin', 'MandarinIPA'),
 _bridge_lookup = {}
 for from_reading, bridge_reading, to_reading in _bridges:
     _bridge_lookup[(from_reading, to_reading)] = bridge_reading
-
-
 
 def getReadingOperatorClasses():
     """
@@ -130,12 +112,6 @@ class ReadingFactory(object):
           concrete instance (similar to sourceOptions and targetOptions)?
     """
 
-    _sharedState = {'readingOperatorClasses': {}, 'readingConverterClasses': {}}
-    """
-    Dictionary holding global state information used by all instances of the
-    ReadingFactory.
-    """
-
     def __init__(self, databaseUrl=None, dbConnectInst=None):
         """
         Initialises the ReadingFactory.
@@ -153,29 +129,22 @@ class ReadingFactory(object):
         :param dbConnectInst: instance of a
             :class:`~cjklib.dbconnector.DatabaseConnector`
         """
-        # get connector to database
+
         if dbConnectInst:
             self.db = dbConnectInst
         else:
             self.db = dbconnector.getDBConnector(databaseUrl)
-        # create object instance cache if needed, shared with all factories
-        #   using the same database connection
         if self.db not in _registry:
             # clear also generates the structure
             self.clearCache()
         
         _auto_discover()
-    #{ Meta
 
     def clearCache(self):
         """Clears cached classes for the current database."""
-        # self._sharedState[self.db] = {}
-        # self._sharedState[self.db]['readingOperatorInstances'] = {}
-        # self._sharedState[self.db]['readingConverterInstances'] = {}
         _registry[self.db] = {}
         _registry[self.db]['readingOperatorInstances'] = {}
         _registry[self.db]['readingConverterInstances'] = {}
-
 
     def getSupportedReadings(self) -> list[str]:
         """
@@ -349,28 +318,6 @@ class ReadingFactory(object):
         readingOp = self._getReadingOperatorInstance(readingN, **options)
         return hasattr(readingOp, operation)
 
-    # def getDefaultOptions(self, *args):
-    #     """
-    #     Returns the default options for the
-    #     :class:`~cjklib.reading.operator.ReadingOperator` or
-    #     :class:`~cjklib.reading.converter.ReadingConverter` applied for
-    #     the given reading name or names respectively.
-
-    #     The keyword 'dbConnectInst' is not regarded a configuration option and
-    #     is thus not included in the dict returned.
-
-    #     :raise ValueError: if more than one or two reading names are given.
-    #     :raise UnsupportedError: if no ReadingOperator or ReadingConverter
-    #         exists for the given reading or readings respectively.
-    #     """
-    #     if len(args) == 1:
-    #         return self.getReadingOperatorClass(args[0]).getDefaultOptions()
-    #     elif len(args) == 2:
-    #         return self.getReadingConverterClass(args[0], args[1])\
-    #             .getDefaultOptions()
-    #     else:
-    #         raise ValueError("Wrong number of arguments")
-
     def _getReadingOperatorInstance(self, reading: str | Reading, **options) -> ReadingOperator:
         """
         Returns an instance of a
@@ -438,24 +385,11 @@ class ReadingFactory(object):
         """
         from_reading, to_reading, converter_options = self._resolveConverterArgs(fromReading, toReading, options)
         
-        temp = self._getHashableCopy(converter_options)
-        cacheKey = (from_reading, to_reading, temp)
+        cacheKey = (from_reading, to_reading, self._getHashableCopy(converter_options))
         instanceCache = _registry[self.db]['readingConverterInstances']
 
         if cacheKey not in instanceCache:
             converterInst = self.createReadingConverter(from_reading, to_reading, allowBridge, **converter_options)
-            # print()
-            # print("CREATED CONVERTER", from_reading, to_reading, converter_options)
-            # print()
-
-            # use instance for all supported conversion directions
-            # for convFromReading, convToReading in converterInst.CONVERSION_DIRECTIONS:
-            #     oCacheKey = (Reading.from_name(convFromReading), Reading.from_name(convToReading), temp)
-            #     if oCacheKey not in instanceCache:
-            #         instanceCache[oCacheKey] = converterInst
-            #         print(oCacheKey)
-            #         print()
-
             instanceCache[cacheKey] = converterInst
         return instanceCache[cacheKey]
     
@@ -466,7 +400,7 @@ class ReadingFactory(object):
         **options is passed into converter
 
         Precedence:
-        * options.source_operator and .target_operator
+        * options.sourceOperator and .targetOperator
         * options.sourceOptions and options.targetOptions
         * fields of fromReading and toReading
         * defaults of fromReading and toReading
@@ -474,37 +408,37 @@ class ReadingFactory(object):
         After processing, sourceOptions and targetOptions should not be present in options
         
         fromReading and toReading should be Reading objects that are consistent with
-        options.source_operator and .target_operator (for cache key purposes)
+        options.sourceOperator and .targetOperator (for cache key purposes)
         """
 
         # ensure correct reading types
 
         from .operator import ReadingOperator
-        if "source_operator" in options:
-            source_operator = options["source_operator"]
-            if not isinstance(source_operator, ReadingOperator):
+        if "sourceOperator" in options:
+            sourceOperator = options["sourceOperator"]
+            if not isinstance(sourceOperator, ReadingOperator):
                 raise TypeError # todo
-            assert source_operator.READING_NAME == _get_reading_info(fromReading)[0]
+            assert sourceOperator.READING_NAME == _get_reading_info(fromReading)[0]
 
-            from_reading = Reading.from_operator(source_operator)
+            from_reading = Reading.from_operator(sourceOperator)
         else:
             source_options = _get_reading_info(fromReading)[1] | options.get("sourceOptions", {})
-            options["source_operator"] = self._getReadingOperatorInstance(_get_reading_info(fromReading)[0], **source_options)
+            options["sourceOperator"] = self._getReadingOperatorInstance(_get_reading_info(fromReading)[0], **source_options)
 
-            from_reading = Reading.from_operator(options["source_operator"]) # temp
+            from_reading = Reading.from_operator(options["sourceOperator"]) # temp
             
-        if "target_operator" in options:
-            target_operator = options["target_operator"]
-            if not isinstance(target_operator, ReadingOperator):
+        if "targetOperator" in options:
+            targetOperator = options["targetOperator"]
+            if not isinstance(targetOperator, ReadingOperator):
                 raise TypeError # todo
-            assert target_operator.READING_NAME == _get_reading_info(toReading)[0]
+            assert targetOperator.READING_NAME == _get_reading_info(toReading)[0]
 
-            to_reading = Reading.from_operator(target_operator)
+            to_reading = Reading.from_operator(targetOperator)
         else:
             target_options = _get_reading_info(toReading)[1] | options.get("targetOptions", {})
-            options["target_operator"] = self._getReadingOperatorInstance(_get_reading_info(toReading)[0], **target_options)
+            options["targetOperator"] = self._getReadingOperatorInstance(_get_reading_info(toReading)[0], **target_options)
             
-            to_reading = Reading.from_operator(options["target_operator"])
+            to_reading = Reading.from_operator(options["targetOperator"])
 
         options.pop("sourceOptions", None)
         options.pop("targetOptions", None)
@@ -790,8 +724,7 @@ class ReadingFactory(object):
                 "method 'getFormattingEntities' not supported")
         return readingOp.getFormattingEntities()
 
-    #}
-    #{ TonalFixedEntityOperator methods
+    # TonalFixedEntityOperator methods
 
     def getTones(self, readingN, **options):
         """
@@ -928,26 +861,22 @@ def convert(
     :type readingStr: str
     :param readingStr: string that needs to be converted
     :type fromReading: str | Reading | type[Reading]
-    :param fromReading: source reading
+    :param fromReading: name of the source reading
     :type toReading: str | Reading | type[Reading]
-    :param toReading: target reading
-    :param options: additional options for handling the input
-    :keyword sourceOperators: list of :class:`ReadingOperators
-        <hanzilib.reading.operator.ReadingOperator>` used for handling
-        source readings.
-    :keyword targetOperators: list of :class:`ReadingOperators
-        <hanzilib.reading.operator.ReadingOperator>` used for handling
-        target readings.
-    :keyword sourceOptions: dictionary of options to configure the
+    :param toReading: name of the target reading
+    :type allowBridge: bool
+    :param allowBridge: whether bridging is allowed
+    :param sourceOptions: dictionary of options to configure the
         :class:`ReadingOperators <hanzilib.reading.operator.ReadingOperator>`
         used for handling source readings. If an
         operator for the source reading is explicitly specified, no options
         can be given.
-    :keyword targetOptions: dictionary of options to configure the
+    :param targetOptions: dictionary of options to configure the
         :class:`ReadingOperators <hanzilib.reading.operator.ReadingOperator>`
         used for handling target readings. If an
         operator for the target reading is explicitly specified, no options
         can be given.
+    :param options: additional options passed to the converter
     :rtype: str
     :return: the converted string
     :raise DecompositionError: if the string can not be decomposed into
@@ -962,75 +891,6 @@ def convert(
     """
     return _get_factory().convert(readingStr, fromReading, toReading, allowBridge=allowBridge, sourceOptions=sourceOptions, targetOptions=targetOptions, **options)
 
-
-def decompose(string: str, readingN: str, **options):
-    """
-    Decomposes the given string into basic entities that can be mapped to
-    one Chinese character each for the given reading.
-
-    The given input string can contain other non reading characters, e.g.
-    punctuation marks.
-
-    The returned list contains a mix of basic reading entities and other
-    characters e.g. spaces and punctuation marks.
-
-    :type string: str
-    :param string: reading string
-    :type readingN: str
-    :param readingN: name of reading
-    :param options: additional options for handling the input
-    :rtype: list of str
-    :return: a list of basic entities of the input string
-    :raise DecompositionError: if the string can not be decomposed.
-    :raise UnsupportedError: if the given reading is not supported.
-    """
-    return _get_factory().decompose(string, readingN, **options)
-
-
-def compose(readingEntities: list[str], readingN: str, **options):
-    """
-    Composes the given list of basic entities to a string for the given
-    reading.
-
-    Composing entities can raise a :exc:`~cjklib.exception.CompositionError`
-    if a non-reading entity is about to be joined with a reading entity
-    and will result in a string that is impossible to decompose.
-
-    :type readingEntities: list of str
-    :param readingEntities: list of basic syllables or other content
-    :type readingN: str
-    :param readingN: name of reading
-    :param options: additional options for handling the input
-    :rtype: str
-    :return: composed entities
-    :raise CompositionError: if the given entities can not be composed.
-    :raise UnsupportedError: if the given reading is not supported.
-    """
-    return _get_factory().compose(readingEntities, readingN, **options)
-
-def segment(string: str, readingN: str, **options):
-    """
-    Takes a string written in the romanisation and returns the possible
-    segmentations as a list of syllables.
-
-    In contrast to :meth:`~cjklib.reading.ReadingFactory.decompose`
-    this method merely segments continuous entities of the romanisation.
-    Characters not part of the romanisation will not be dealt with,
-    this is the task of the more general decompose method.
-
-    :type string: str
-    :param string: reading string
-    :type readingN: str
-    :param readingN: name of reading
-    :param options: additional options for handling the input
-    :rtype: list of list of str
-    :return: a list of possible segmentations (several if ambiguous) into
-        single syllables
-    :raise DecompositionError: if the given string has an invalid format.
-    :raise UnsupportedError: if the given reading is not supported or the
-        reading doesn't support the specified method.
-    """
-    return _get_factory().segment(string, readingN, **options)
 
 # init
 from . import converter

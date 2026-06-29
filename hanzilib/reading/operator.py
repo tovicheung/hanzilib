@@ -17,9 +17,6 @@
 Operation on character readings.
 """
 
-# pylint: disable-msg=E1101
-#  member variables are set by setattr()
-
 __all__ = [
     # abstract
     "ReadingOperator", "RomanisationOperator", "TonalFixedEntityOperator",
@@ -31,14 +28,14 @@ __all__ = [
     "CantoneseIPAOperator"
     ]
 
+import abc
+import copy
+import functools
+from itertools import product
 import re
 import string
 from typing import Literal
 import unicodedata
-import copy
-import types
-from itertools import product
-import functools
 
 from sqlalchemy import select
 from sqlalchemy.sql import or_
@@ -50,7 +47,6 @@ from .. import dbconnector
 from ..util import titlecase, istitlecase, cachedmethod
 
 from .types import *
-import abc
 
 # Entity  (str)
 # An entity refers to a basic unit of a language's writing or pronunciation
@@ -1606,7 +1602,7 @@ class PinyinOperator(TonalRomanisationOperator):
             precedingEntity = entity
         return ''.join(newReadingEntities)
 
-    def removeApostrophes(self, readingEntities):
+    def removeApostrophes(self, readingEntities: list[str]) -> list[str]:
         """
         Removes apostrophes between two syllables for a given decomposition.
 
