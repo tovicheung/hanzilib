@@ -1225,8 +1225,11 @@ def new_main():
             try:
                 idx = int(args.radical)
             except ValueError:
-                print("Radicals can only be specified by KangXi index for now")
-                sys.exit(1)
+                # print("Radicals can only be specified by KangXi index for now")
+                # sys.exit(1)
+                if len(args.radical) != 1:
+                    raise ValueError("Unknown radical") # from None
+                idx = char_info.characterLookup.getKangxiRadicalIndex(args.radical)
 
             args.radical = idx
 

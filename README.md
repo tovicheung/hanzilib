@@ -2,7 +2,7 @@
 
 Hanzilib works with Han characters (Hanzi, Kanji, Hanja, and chu Han) used in Chinese, Japanese, Korean, and Vietnamese (CJKV) languages. It provides a comprehensive set of tools to manage, analyze, and query information about characters based on their visual structure (radicals, glyphs, strokes), pronunciation (readings), and dictionary definitions.
 
-**Hanzilib is a modern successor of [cjklib, created by Christoph Burgmer](https://github.com/cburgmer/cjklib)**. It has remain unmaintained since 2012. Cjklib is difficult to install and set up for modern versions of Python; some of its data sources are no longer available. Hence, this fork was created as an attempt to port most of / the entirety of cjklib to modern Python.
+**Hanzilib is a modern successor of [cjklib, created by Christoph Burgmer](https://github.com/cburgmer/cjklib)**. Cjklib is difficult to install and set up for modern versions of Python; some of its data sources are no longer available. Hence, this fork was created as an attempt to port most of / the entirety of cjklib to modern Python.
 
 Apart from a Python interface, hanzilib provides the `hanzi` cli tool for convenience (resembling the original `cjknife` command)
 
