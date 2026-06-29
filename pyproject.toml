@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hanzilib"
-version = "0.0.9"
+version = "0.0.10"
 description = "Python 3 Han character library for CJKV languages"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -21,7 +21,7 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.10",
     "Natural Language :: Chinese (Simplified)",
     "Natural Language :: Chinese (Traditional)",
     "Natural Language :: Japanese",
@@ -45,7 +45,8 @@ packages = [
     "hanzilib", 
     "hanzilib.reading", 
     "hanzilib.dictionary", 
-    "hanzilib.build"
+    "hanzilib.build",
+    "hanzilib.data"
 ]
 
 [tool.setuptools.package-data]

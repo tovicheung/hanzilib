@@ -130,6 +130,10 @@ class TableBuilder(ABC):
                 setattr(self, option, copy.deepcopy(optionValue))
             else:
                 setattr(self, option, optionValue)
+        
+        if log.verbose:
+            log.log(f"TableBuilder ({type(self).__name__}) initialized with options:")
+            log.log(str(options))
 
     @classmethod
     def getDefaultOptions(cls):
@@ -894,7 +898,7 @@ class UnihanDerivedBuilder(EntryGeneratorBuilder):
         :keyword dataPath: optional list of paths to the data file(s)
         :keyword quiet: if ``True`` no status information will be printed to
             stderr
-        :keyword ignoreMissing: if ``True`` a missing source column will be
+        :keyword ignoreMissingUnihanColumn: if ``True`` a missing source column will be
             ignored and a empty table will be built.
         """
         super(UnihanDerivedBuilder, self).__init__(**options)
@@ -908,13 +912,13 @@ class UnihanDerivedBuilder(EntryGeneratorBuilder):
     @classmethod
     def getDefaultOptions(cls):
         options = super(UnihanDerivedBuilder, cls).getDefaultOptions()
-        options.update({'ignoreMissing': True})
+        options.update({'ignoreMissingUnihanColumn': True})
 
         return options
 
     @classmethod
     def getOptionMetaData(cls, option):
-        optionsMetaData = {'ignoreMissing': {'type': bool,
+        optionsMetaData = {'ignoreMissingUnihanColumn': {'type': bool,
                 'description': \
                     "ignore missing Unihan column and build empty table"}}
 
@@ -933,7 +937,7 @@ class UnihanDerivedBuilder(EntryGeneratorBuilder):
                     table.c[self.COLUMN_SOURCE] != None
                 )
             )
-        elif self.ignoreMissing:
+        elif self.ignoreMissingUnihanColumn:
             tableEntries = []
             if not self.quiet:
                 log.warn("Column '%s' does not exist in source 'Unihan', ignoring"

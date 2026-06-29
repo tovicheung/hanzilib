@@ -1,5 +1,5 @@
 
-from hanzilib.reading import convert, _registry
+from hanzilib.reading import convert
 from hanzilib.reading.readings import *
 # import hanzilib.reading.converter
 

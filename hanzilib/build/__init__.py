@@ -69,6 +69,8 @@ class DatabaseBuilder:
         :raise ValueError: if two different options from two different builder
             collide.
         """
+
+        # set dataPath
         if 'dataPath' not in options:
             # look for data underneath the build module
             projectDataPath = os.path.join(
@@ -111,6 +113,9 @@ class DatabaseBuilder:
         # options for TableBuilders
         self.options = options
         """Table builder options dictionary"""
+
+        log.logv("DatabaseBuilder initialized with options:")
+        log.logv(str(options))
 
     def getBuilderOptions(self, builderClass, ignoreUnknown=False):
         """
@@ -283,6 +288,13 @@ class DatabaseBuilder:
                 # get specific options given to the DatabaseBuilder
                 options = self.getBuilderOptions(builder, ignoreUnknown=True)
                 options['dbConnectInst'] = self.db
+                
+                location = ""
+                x = self.db.getDatabaseIdFromTable(builder.PROVIDES)
+                if x is not None and x > 0:
+                    location = f" in [{x}]"
+                log.task(f"Building table '{builder.PROVIDES}'{location}\033[m")
+
                 instance: TableBuilder = builder(**options)
                 # mark tables as deletable if its only provided because of
                 #   dependencies and the table doesn't exists yet
@@ -294,12 +306,6 @@ class DatabaseBuilder:
                     # will only remove the table if found in the main database
                     log.log(f"Removing previously built table '{builder.PROVIDES}'")
                     instance.remove()
-
-                x = self.db.getDatabaseIdFromTable(builder.PROVIDES)
-                location = ""
-                if x is not None and x > 0:
-                    location = f" in [{x}]"
-                log.task(f"Building table '{builder.PROVIDES}'{location}\033[m")
 
                 # remove old metadata
                 if builder.PROVIDES in self.db.tables:

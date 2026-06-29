@@ -315,12 +315,17 @@ format --BuilderName-option or --TableName-option, e.g.
             dest="verbose", default=False,
             help="verbose logging")
 
-        optionSet = set(['rebuildExisting', 'rebuildDepending', 'quiet',
+        optionSet = set(['rebuildDepending', 'quiet',
             'databaseUrl', "verbose"
             # 'attach', 'prefer'
         ])
-        globalBuilderGroup = build_p.add_argument_group("Global builder options")
-        localBuilderGroup = build_p.add_argument_group("Local builder options")
+        globalBuilderGroup = build_p.add_argument_group(
+            title="Builder options",
+            description="To apply the option to a specific table, use --[table name]-[option]=[value] . This also applies to --quiet.\nRedundant options will be ignored.",
+        )
+
+        # may remove?
+        localBuilderGroup = build_p.add_argument_group("Specific builder options")
 
         for builder in DatabaseBuilder.getTableBuilderClasses(preferClassNameSet=cls.DB_PREFER_BUILDERS):
             if not builder.PROVIDES:
@@ -367,12 +372,14 @@ format --BuilderName-option or --TableName-option, e.g.
 
                 # local options
                 #options['help'] = optparse.SUPPRESS_HELP
-                localBuilderOption = '--%s-%s' % (builder.__name__, option)
-                options_for_option['dest'] = localBuilderOption
-                localBuilderGroup.add_argument(localBuilderOption, **options_for_option)
-
+                # localBuilderOption = '--%s-%s' % (builder.__name__, option)
+                # options_for_option['dest'] = localBuilderOption
+                # localBuilderGroup.add_argument(localBuilderOption, **options_for_option)
+                
+                # assume that PROVIDES is unique
                 localTableOption = '--%s-%s' % (builder.PROVIDES, option)
                 options_for_option['dest'] = localTableOption
+                options_for_option["help"] = argparse.SUPPRESS
                 localBuilderGroup.add_argument(localTableOption, **options_for_option)
 
         return parser
@@ -508,11 +515,11 @@ format --BuilderName-option or --TableName-option, e.g.
         return [clss.__name__ for clss in dbPreferClasses]
 
     def runBuild(self, groups: list[str], options: dict[str, Any]):
-        if options.get("verbose", None):
+        if options.get("verbose"):
             log.verbose = True
-        if options.get("quiet", None):
+        if options.get("quiet"):
             log.enabled = False
-        # A group can be a table name
+        
         if not groups:
             log.log("No group list provided, defaulting to allAvail")
             groups = ["allAvail"]
@@ -563,6 +570,18 @@ format --BuilderName-option or --TableName-option, e.g.
         except ValueError as e:
             print("Error: %s" % e, file=sys.stderr)
             return False
+        
+        # temp maybe?
+        for k, v in tuple(options.items()): # make a copy
+            if v is None:
+                del options[k]
+
+        # print()
+        # print("OPTIONS:")
+        # from pprint import pprint
+        # pprint(options)
+        # print()
+        # print()
 
         # create builder instance
         dbBuilder = DatabaseBuilder(dbConnectInst=db, **options)
@@ -597,19 +616,24 @@ format --BuilderName-option or --TableName-option, e.g.
             print("Usage: hanzi db [build | groups]; pass --help for more")
             return True
         
+        if False:
+            print()
+            print()
+            print("ARGS:")
+            for name in dir(args):
+                if not name.startswith("_"):
+                    print(name, getattr(args, name), type(getattr(args, name)))
+            print()
+            print()
+        
         command = args.db_command.lower()
         if command == "groups":
             self.listBuildGroups(all=args.all)
             return True
         elif command == "build":
-            # temp, from buildParser
-            optionSet = set(['rebuildExisting', 'rebuildDepending', 'quiet',
-                'databaseUrl', "verbose"
-                # 'attach', 'prefer'
-            ])
             options = self.getDefaultOptions(includeConfig=not args.ignoreConfig)
             options.update({option: getattr(args, option) for option \
-                in optionSet if hasattr(args, option)})
+                in dir(args) if not option.startswith("_")})
 
             return self.runBuild(args.groups, options)
         else:
