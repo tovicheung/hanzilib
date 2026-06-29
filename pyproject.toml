@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "hanzilib"
 version = "0.0.10"
 description = "Python 3 Han character library for CJKV languages"
+keywords = ["cjk", "cjkv", "chinese", "piniyn", "jyutping", "unihan"]
 readme = "README.md"
 requires-python = ">=3.10"
 license = "LGPL-3.0-only"
