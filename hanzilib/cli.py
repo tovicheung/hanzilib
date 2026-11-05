@@ -1119,11 +1119,14 @@ def new_main():
     dict_sub = dict_p.add_subparsers(dest="dict_action")
 
     # hanzi dict install
-    install_p = dict_sub.add_parser("install", help="Install a dictionary")
+    install_p = dict_sub.add_parser("install", help="Install dictionaries")
     install_p.add_argument("names", nargs="+", help="Names of the dictionary to install")
     
     # hanzi dict list
     dict_sub.add_parser("list", help="List installed dictionaries")
+    
+    # hanzi dict remove
+    # dict_sub.add_parser("remove", help="Remove installed dictionaries")
 
     # hanzi dict search
     # search_p = dict_sub.add_parser("search", help="Search dictionary definitions/headwords")

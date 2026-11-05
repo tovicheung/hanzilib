@@ -478,18 +478,19 @@ format --BuilderName-option or --TableName-option, e.g.
     #     return parser
 
     def listBuildGroups(self, all: bool = False):
+        HIGHLIGHT = "\033[1;36m"
         print("\033[1mGeneric groups:\033[m")
-        print("       \033[33mall\033[m    for all tables understood by the build script (may fail if data is not available)")
-        print("  \033[33mallAvail\033[m    for all data available to the build script")
+        print(f"       {HIGHLIGHT}all\033[m    for all tables understood by the build script (may fail if data is not available)")
+        print(f"  {HIGHLIGHT}allAvail\033[m    for all data available to the build script")
         for key, names in self.BUILD_GROUPS_CATEGORY.items():
             print()
             print(f"\033[1m{key} groups:\033[m")
             for name in names:
-                print(f"  \033[33m{name}\033[m")
+                print(f"  {HIGHLIGHT}{name}\033[m")
                 if all:
                     lst = ", ".join(self.BUILD_GROUPS[name])
                 else:
-                    lst = ", ".join(("*" if x in self.BUILD_GROUPS else "") + x for x in self.BUILD_GROUPS[name][:3])
+                    lst = ", ".join((HIGHLIGHT if x in self.BUILD_GROUPS else "") + x + ("\033[39m\033[22m" if x in self.BUILD_GROUPS else "") for x in self.BUILD_GROUPS[name][:3])
                     if len(self.BUILD_GROUPS[name]) > 3:
                         lst += f", ... (+{len(self.BUILD_GROUPS[name])-3} more)"
                 print(f"\033[3m    {lst}\033[m")
@@ -616,17 +617,7 @@ format --BuilderName-option or --TableName-option, e.g.
             print("Usage: hanzi db [build | groups]; pass --help for more")
             return True
         
-        if False:
-            print()
-            print()
-            print("ARGS:")
-            for name in dir(args):
-                if not name.startswith("_"):
-                    print(name, getattr(args, name), type(getattr(args, name)))
-            print()
-            print()
-        
-        command = args.db_command.lower()
+        command: str = args.db_command.lower()
         if command == "groups":
             self.listBuildGroups(all=args.all)
             return True

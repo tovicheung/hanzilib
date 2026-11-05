@@ -50,16 +50,24 @@ __all__ = [
     ]
 
 import sys
+import abc
 import re
 import os
-import types
-import locale
 import shutil
-import urllib.request, urllib.parse, urllib.error
+import urllib.request, urllib.parse
 import urllib.parse
 from datetime import datetime, date, time
 from optparse import OptionParser, OptionGroup, Values
 import configparser
+
+DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+
+
+def getProjectDataPath() -> str:
+    """Return the project dictionary data directory."""
+    return os.path.abspath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, 'data')
+    )
 
 from sqlalchemy import select
 from sqlalchemy.engine.url import make_url
@@ -88,7 +96,7 @@ def progress(i, chunkSize, total):
 
 #{ Access methods
 
-def getDownloaderClasses():
+def getDownloaderClasses() -> set[type[DownloaderBase]]:
     """
     Gets all classes in module that implement
     :class:`~cjklib.dictionary.install.DownloaderBase`.
@@ -97,16 +105,23 @@ def getDownloaderClasses():
     :return: list of all classes inheriting form
         :class:`~cjklib.dictionary.install.DownloaderBase`
     """
-    dictionaryModule = __import__("hanzilib.dictionary.install")
-    # get all classes that inherit from DownloaderBase
-    return set([clss \
-        for clss in list(dictionaryModule.dictionary.install.__dict__.values()) \
-        if type(clss) == type \
-        and issubclass(clss,
-            dictionaryModule.dictionary.install.DownloaderBase) \
-        and clss.PROVIDES])
+    module = sys.modules.get(__name__)
+    if module is None:
+        return set()
 
-_dictionaryMap = None
+    return {
+        cls
+        for cls in vars(module).values()
+        if isinstance(cls, type)
+        and issubclass(cls, DownloaderBase)
+        and cls is not DownloaderBase
+        and getattr(cls, 'PROVIDES', None)
+    }
+
+
+_dictionaryMap: dict[str | None, type[DownloaderBase]] = None
+
+
 def getDownloaderClass(dictionaryName) -> type[DownloaderBase]:
     """
     Get a dictionary downloader class by dictionary name.
@@ -118,13 +133,15 @@ def getDownloaderClass(dictionaryName) -> type[DownloaderBase]:
     """
     global _dictionaryMap
     if _dictionaryMap is None:
-        _dictionaryMap = dict([(downloaderCls.PROVIDES, downloaderCls)
-            for downloaderCls in getDownloaderClasses()])
+        _dictionaryMap = {
+            downloaderCls.PROVIDES: downloaderCls
+            for downloaderCls in getDownloaderClasses()
+        }
 
     try:
         return _dictionaryMap[dictionaryName]
-    except KeyError:
-        raise ValueError("Unknown dictionary '%s'" % dictionaryName)
+    except KeyError as exc:
+        raise ValueError("Unknown dictionary '%s'" % dictionaryName) from exc
 
 def getDownloader(dictionaryName, **options) -> DownloaderBase:
     """
@@ -139,20 +156,21 @@ def getDownloader(dictionaryName, **options) -> DownloaderBase:
     return downloaderCls(**options)
 
 
-class DownloaderBase(object):
+class DownloaderBase(abc.ABC):
     """Abstract class for downloading dictionaries."""
-    PROVIDES = None
+    PROVIDES: str | None = None
 
     def __init__(self, quiet=True):
         self.quiet = quiet
 
+    @abc.abstractmethod
     def getDownloadLink(self):
         """
         Gets the download link for the online dictionary.
 
         Needs to be implemented by subclasses.
         """
-        raise NotImplementedError()
+        pass
 
     @cachedmethod
     def getVersion(self):
@@ -162,11 +180,23 @@ class DownloaderBase(object):
         link = self.getDownloadLink()
 
         log.log("Sending HEAD request to %s..." % link)
-        with urllib.request.urlopen(link) as response:
+        with urllib.request.urlopen(link, timeout=30) as response:
             last_modified = response.headers.get('Last-Modified')
         log.log("Done")
         if last_modified:
             return datetime.strptime(last_modified, '%a, %d %b %Y %H:%M:%S %Z')
+
+    @staticmethod
+    def buildDownloadFileName(targetName: Optional[str] = None,
+                             targetPath: Optional[str] = None,
+                             onlinePath: Optional[str] = None) -> str | None:
+        if targetName:
+            return targetName
+        if onlinePath is None:
+            return targetName or os.path.basename(onlinePath)
+        if targetPath:
+            return os.path.join(targetPath, os.path.basename(onlinePath))
+        return os.path.basename(onlinePath)
 
     def download(self, targetName: Optional[str] = None, targetPath: Optional[str] = None, temporary: bool = False):
         """
@@ -182,22 +212,17 @@ class DownloaderBase(object):
         :rtype: str
         :return: path to local file
         """
-        # if self.downloadFunc:
-        #     return self.downloadFunc(**options)
-        # else:
         return self._download(targetName, targetPath, temporary)
 
     def _download(self, targetName: Optional[str] = None, targetPath: Optional[str] = None, temporary: bool = False):
-        log.task("Downloading " + str(self.PROVIDES))
-        
+        log.task(f"Downloading {self.PROVIDES} ...")
+
         link = self.getDownloadLink()
 
         _, _, onlinePath, _, _ = urllib.parse.urlsplit(link)
-        originalFileName = os.path.basename(onlinePath)
-        
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        req = urllib.request.Request(link, headers=headers)
 
+        headers = {'User-Agent': DEFAULT_USER_AGENT}
+        req = urllib.request.Request(link, headers=headers)
 
         if not self.quiet:
             version = self.getVersion()
@@ -206,20 +231,18 @@ class DownloaderBase(object):
 
         if temporary:
             with tempfile.NamedTemporaryFile(delete=False) as tf, \
-                urllib.request.urlopen(req) as response:
+                urllib.request.urlopen(req, timeout=60) as response:
                 shutil.copyfileobj(response, tf)
                 fileName = tf.name
         else:
-            if targetName:
-                fileName = targetName
-            elif targetPath:
-                fileName = os.path.join(targetPath, originalFileName)
-            else:
-                fileName = originalFileName
-            with urllib.request.urlopen(req) as response, open(fileName, 'wb') as out_file:
+            fileName = self.buildDownloadFileName(targetName, targetPath, onlinePath)
+            targetDir = os.path.dirname(fileName)
+            if targetDir and not os.path.exists(targetDir):
+                os.makedirs(targetDir)
+            with urllib.request.urlopen(req, timeout=60) as response, open(fileName, 'wb') as out_file:
                 # TODO: progress
                 shutil.copyfileobj(response, out_file)
-        
+
         if not self.quiet:
             log.log(f"Saved as {fileName}")
 
@@ -268,9 +291,9 @@ class PageDownloaderBase(DownloaderBase):
     def getDownloadPage(self):
         if not self.quiet:
             log.log(f"Getting download page {self.DEFAULT_DOWNLOAD_PAGE}...")
-        with urllib.request.urlopen(self.DEFAULT_DOWNLOAD_PAGE) as response:
+        with urllib.request.urlopen(self.DEFAULT_DOWNLOAD_PAGE, timeout=30) as response:
             download_page = response.read().decode("utf-8")
-        
+
         return download_page
 
     @cachedmethod
@@ -366,6 +389,17 @@ class DictionaryInstaller(object):
         filePath = os.path.join(path, '%s.db' % dictionaryName.lower())
         return 'sqlite:///%s' % filePath
 
+    @staticmethod
+    def ensureSqliteDirectory(databaseUrl):
+        url = make_url(databaseUrl)
+        if url.drivername != 'sqlite' or not url.database:
+            return
+
+        databaseFile = url.database
+        directory, _ = os.path.split(databaseFile)
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory)
+
     def install(self, dictionaryName, **options):
         """
         Installs the given dictionary to a database.
@@ -394,7 +428,6 @@ class DictionaryInstaller(object):
         :keyword quiet: if ``True`` no status information will be printed to
             stdout
         """
-        # get database connection
         configuration = {}
 
         local = options.pop('local', False)
@@ -408,14 +441,7 @@ class DictionaryInstaller(object):
                 configuration['sqlalchemy.url'] = self.getDefaultDatabaseUrl(
                     dictionaryName, local=local, prefix=prefix)
 
-            # for sqlite check if directory exists
-            url = make_url(configuration['sqlalchemy.url'])
-            if url.drivername == 'sqlite':
-                if url.database:
-                    databaseFile = url.database
-                    directory, _ = os.path.split(databaseFile)
-                    if not os.path.exists(directory):
-                        os.makedirs(directory)
+            self.ensureSqliteDirectory(configuration['sqlalchemy.url'])
 
             configuration['attach'] = options.pop('attach', [])
             if 'registerUnicode' in options:
@@ -424,10 +450,8 @@ class DictionaryInstaller(object):
 
             db = dbconnector.DatabaseConnector(configuration)
 
-        # download
         downloader = getDownloader(dictionaryName, quiet=self.quiet)
 
-        # check if we already have newest version
         forceUpdate = options.pop('forceUpdate', False)
         if not forceUpdate and db.hasTable(dictionaryName):
             if db.hasTable('Version'):
@@ -435,7 +459,7 @@ class DictionaryInstaller(object):
                 curVersion = db.selectScalar(
                     select(table.c.ReleaseDate)
                     .where(
-                        table.c.TableName==dictionaryName
+                        table.c.TableName == dictionaryName
                     )
                 )
 
@@ -447,10 +471,8 @@ class DictionaryInstaller(object):
                     log.log("Newest version already installed (set forceUpdate=True to override)")
                     return configuration['sqlalchemy.url']
 
-        projectDataPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../data')
-        filePath = downloader.download(targetPath=projectDataPath)
+        filePath = downloader.download(targetPath=getProjectDataPath())
 
-        # create builder instance
         dbBuilder = build.DatabaseBuilder(dbConnectInst=db, filePath=filePath,
             **options)
 
@@ -469,7 +491,6 @@ class DictionaryInstaller(object):
                 db.execute(table.insert().values(TableName=dictionaryName,
                     ReleaseDate=version))
         finally:
-            # remove temporary tables
             dbBuilder.clearTemporary()
 
         return configuration['sqlalchemy.url']

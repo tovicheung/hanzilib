@@ -219,7 +219,7 @@ class DatabaseBuilder:
         
         tables: list[str]
 
-        log.task("Building tables in databse")
+        log.task("Building tables in databse ...")
         log.log(f"\033[1mMain database:")
         log.list([f"[0] {self.db.databaseUrl}"])
         if self.db.attached:
@@ -293,7 +293,7 @@ class DatabaseBuilder:
                 x = self.db.getDatabaseIdFromTable(builder.PROVIDES)
                 if x is not None and x > 0:
                     location = f" in [{x}]"
-                log.task(f"Building table '{builder.PROVIDES}'{location}\033[m")
+                log.task(f"Building table '{builder.PROVIDES}'{location} ...")
 
                 instance: TableBuilder = builder(**options)
                 # mark tables as deletable if its only provided because of
