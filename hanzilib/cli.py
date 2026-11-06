@@ -1224,8 +1224,15 @@ def new_main():
         elif args.dict_action == "list":
             db = char_info.db
             attached = list(db.attached.keys())
-            for x in dictionary.getAvailableDictionaries():
-                print(x.PROVIDES, "from", attached[db.getDatabaseIdFromTable(x.PROVIDES) - 1])
+            for x in dictionary.getAvailableDictionaries(db):
+                database_id = db.getDatabaseIdFromTable(x.PROVIDES)
+                if database_id == 0:
+                    database_url = db.databaseUrl
+                elif database_id is not None and database_id <= len(attached):
+                    database_url = attached[database_id - 1]
+                else:
+                    continue
+                print(x.PROVIDES, "from", database_url)
 
     elif args.command == "lookup":
         cmd_lookup(args.char, char_info)

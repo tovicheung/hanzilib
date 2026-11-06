@@ -18,13 +18,15 @@ Apart from a Python interface, hanzilib provides the `hanzi` cli tool for conven
 * `kanjidic2.xml` is taken from https://www.edrdg.org/kanjidic/kanjd2index_legacy.html
 * the other `.csv` and `.sql` files are provided by the original author(s) of cjklib
 
-## Installation
+## Installation & Setup
 
 ```sh
 pip install hanzilib
 ```
 
 After that, run `hanzi db build` to set up the internal database.
+
+**Optional:** If you want to use dictionary-based features (not completely stablized for now), you can follow the output of `hanzi db build` to install the required dictionaries.
 
 ## CLI examples
 
