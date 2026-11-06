@@ -1,8 +1,8 @@
 from __future__ import annotations
-from typing import Literal
+from typing import Literal, TypeAlias
 
-type Entity = str
-type Decomposition = list[Entity]
-type SyllableTree = tuple[str, list[SyllableTree] | None]
+Entity: TypeAlias = str
+Decomposition: TypeAlias = list[Entity]
+SyllableTree: TypeAlias = tuple[str, list["SyllableTree"] | None]
 
-type Reading = Literal["Hangul", "Hiragana", "Katakana", "Kana", "Pinyin", "WadeGiles", "GR", "MandarinIPA", "MandarinBraille", "Jyutping", "CantoneseYale", "CantoneseIPA", "ShanghaineseIPA"]
+Reading: TypeAlias = Literal["Hangul", "Hiragana", "Katakana", "Kana", "Pinyin", "WadeGiles", "GR", "MandarinIPA", "MandarinBraille", "Jyutping", "CantoneseYale", "CantoneseIPA", "ShanghaineseIPA"]

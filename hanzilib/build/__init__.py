@@ -241,7 +241,7 @@ class DatabaseBuilder:
 
             dependingTables = self.getRebuiltDependingTables(tables)
             if dependingTables:
-                log.log("These tables will be rebuilt because their dependencies will be updated: '"
+                log.log("These tables may be rebuilt because their dependencies might be updated: '"
                         + "', '".join(dependingTables) + "'")
                 tables.extend(dependingTables)
 

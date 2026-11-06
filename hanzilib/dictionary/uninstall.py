@@ -6,6 +6,7 @@ __all__ = ["uninstall_dictionaries", "main"]
 
 import argparse
 import os
+import subprocess
 import sys
 from collections.abc import Iterable, Sequence
 from urllib.parse import urlsplit
@@ -21,19 +22,20 @@ from hanzilib.dictionary.install import (
 
 
 def _uninstall_from_database(db: dbconnector.DatabaseConnector, dictionary_name: str) -> bool:
-	if not db.hasTable(dictionary_name):
-		return False
-
-	table = db.tables[dictionary_name]
-	table.drop(bind=db.connection)
+	removed = False
+	if db.hasTable(dictionary_name):
+		table = db.tables[dictionary_name]
+		table.drop(bind=db.connection)
+		removed = True
 
 	if db.hasTable("Version"):
 		version_table = db.tables["Version"]
-		db.execute(version_table.delete().where(
+		result = db.execute(version_table.delete().where(
 			version_table.c.TableName == dictionary_name
 		))
+		removed = removed or result.rowcount > 0
 
-	return True
+	return removed
 
 
 def _get_downloaded_data_path(dictionary_name: str) -> str:
@@ -50,6 +52,25 @@ def _get_downloaded_data_path(dictionary_name: str) -> str:
 	return os.path.join(getProjectDataPath(), os.path.basename(file_name))
 
 
+def _schedule_windows_cleanup(paths: Sequence[str]) -> None:
+	subprocess.Popen(
+		[
+			sys.executable,
+			"-m",
+			"hanzilib.dictionary._cleanup",
+			str(os.getpid()),
+			*paths,
+		],
+		stdin=subprocess.DEVNULL,
+		stdout=subprocess.DEVNULL,
+		stderr=subprocess.DEVNULL,
+		close_fds=True,
+		creationflags=(
+			subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+		),
+	)
+
+
 def uninstall_dictionaries(
 	dictionary_names: Iterable[str],
 	*,
@@ -64,9 +85,10 @@ def uninstall_dictionaries(
 	"""Uninstall dictionaries, reusing one connection for each database URL.
 
 	Results correspond to the input names and are true when database state or a
-	local downloaded file was removed. An explicit ``database_url`` lets multiple
-	dictionary tables share one connector. The default installer URL is
-	dictionary-specific, so it may require a separate connector for each name.
+	local downloaded file was removed or queued for removal. An explicit
+	``database_url`` lets multiple dictionary tables share one connector. The
+	default installer URL is dictionary-specific, so it may require a separate
+	connector for each name.
 	"""
 	names = list(dictionary_names)
 	for dictionary_name in names:
@@ -96,12 +118,17 @@ def uninstall_dictionaries(
 
 	for target_url, grouped_entries in groups:
 		owns_db = db_connect_inst is None
+		database_path = None
 		if owns_db:
 			url = make_url(target_url)
 			if (url.drivername.startswith("sqlite") and url.database
 					and url.database != ":memory:"
 					and not os.path.exists(url.database)):
 				continue
+			if (database_url is None and url.drivername.startswith("sqlite")
+					and url.database and url.database != ":memory:"
+					and url.query.get("mode") != "memory"):
+				database_path = url.database
 
 			configuration = {
 				"sqlalchemy.url": target_url,
@@ -112,6 +139,20 @@ def uninstall_dictionaries(
 			db = dbconnector.DatabaseConnector(configuration)
 		else:
 			db = db_connect_inst
+			if len(grouped_entries) == 1:
+				_, dictionary_name = grouped_entries[0]
+				url = make_url(db.databaseUrl)
+				default_url = make_url(
+					DictionaryInstaller.getDefaultDatabaseUrl(
+						dictionary_name,
+						prefix=prefix,
+						local=local,
+					)
+				)
+				if (url == default_url and url.drivername.startswith("sqlite")
+						and url.database and url.database != ":memory:"
+						and url.query.get("mode") != "memory"):
+					database_path = url.database
 
 		try:
 			for index, dictionary_name in grouped_entries:
@@ -127,6 +168,27 @@ def uninstall_dictionaries(
 			if owns_db:
 				db.connection.close()
 				db.engine.dispose()
+
+		if database_path is not None:
+			pending_paths = []
+			for path in (database_path, database_path + "-journal",
+					database_path + "-wal", database_path + "-shm"):
+				try:
+					os.remove(path)
+				except FileNotFoundError:
+					continue
+				except PermissionError as exc:
+					if (os.name != "nt"
+							or getattr(exc, "winerror", None) not in (32, 33)):
+						raise
+					pending_paths.append(path)
+				else:
+					for index, _ in grouped_entries:
+						results[index] = True
+			if pending_paths:
+				_schedule_windows_cleanup(pending_paths)
+				for index, _ in grouped_entries:
+					results[index] = True
 
 	for index, dictionary_name in enumerate(names):
 		data_path = _get_downloaded_data_path(dictionary_name)

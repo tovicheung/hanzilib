@@ -30,9 +30,11 @@ from __future__ import annotations
 __all__ = ["CharacterInfo"]
 
 import sys
+import platform
 import getopt
 import locale
 import warnings
+import importlib.metadata
 
 from dataclasses import dataclass, field, KW_ONLY
 import typing
@@ -1105,7 +1107,7 @@ def new_main():
     )
 
     # global Options
-    parser.add_argument("--version", action="version", version="%(prog)s 0.0.9") # temp hardcode
+    parser.add_argument("--version", action="version", version=f"%(prog)s {importlib.metadata.version('hanzilib')} running on python {platform.python_version()}") # temp hardcode
     # parser.add_argument("--json", action="store_true", help="Output results in JSON format")
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")

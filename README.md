@@ -6,13 +6,14 @@ Hanzilib works with Han characters (Hanzi, Kanji, Hanja, and chu Han) used in Ch
 
 Apart from a Python interface, hanzilib provides the `hanzi` cli tool for convenience (resembling the original `cjknife` command)
 
-**Important ⚠️**
-* hanzilib is a work in progress; the interface (both Python and CLI) are not final
-    * Names and naming conventions may change in the future
-* hanzilib is not backwards-compatible with cjklib. The API has been modified for clarity and maintainability.
-* Character decomposition is not stable yet; see [this page from the cjklib wiki](https://code.google.com/archive/p/cjklib/wikis/Decomposition.wiki)
+> [!WARNING]
+> * Hanzilib is a work in progress; the interface (both Python and CLI) are not final
+>     * Names and naming conventions may change in the future
+> * hanzilib is not backwards-compatible with cjklib. The API has been modified for clarity and maintainability.
+> * Character decomposition is not stable yet; see [this page from the cjklib wiki](https://code.google.com/archive/p/cjklib/wikis/Decomposition.wiki)
+> * Hanzilib is built and tested for **Windows** running **Python 3.12** or above. Other platforms and lower versions of Python (down until 3.10) receive secondary support. There may also be bugs related to venv.
 
-#### Data sources in `hanzilib/data`
+**Data sources in `hanzilib/data`**
 * `Unihan_*.txt` files are from Unihan
 * `kanjidic2.xml` is taken from https://www.edrdg.org/kanjidic/kanjd2index_legacy.html
 * the other `.csv` and `.sql` files are provided by the original author(s) of cjklib
@@ -23,7 +24,7 @@ Apart from a Python interface, hanzilib provides the `hanzi` cli tool for conven
 pip install hanzilib
 ```
 
-After installing, run `hanzi db build` to set up the internal database
+After that, run `hanzi db build` to set up the internal database.
 
 ## CLI examples
 

@@ -24,14 +24,14 @@ import math
 from sqlalchemy import select, union
 from sqlalchemy.sql import and_, or_
 
-from typing import Literal, Optional
+from typing import Literal, Optional, TypeAlias
 
-type Locale = Literal["T", "C", "J", "K", "V"]
+Locale: TypeAlias = Literal["TCJKV"]
 """
 Character locale
 """
 
-type VariantType = Literal["CMPZST"]
+VariantType: TypeAlias = Literal["CMPZST"]
 """
 Character variant
 - C, *compatible character* form (if character was added to Unicode
@@ -49,7 +49,7 @@ character simplification process of the PR China.
 """
 
 # Recursive
-type DecompositionTree = list[str | tuple[str, int, list[DecompositionTree]]]
+DecompositionTree: TypeAlias = list[str | tuple[str, int, list["DecompositionTree"]]]
 # str is IDSoperator
 # other is (char, glyph, list of subtrees)
 
