@@ -44,7 +44,8 @@ __all__ = [
     # downloader
     'EDICTDownloader', 'CEDICTDownloader',
     # 'CEDICTGR',
-    'HanDeDict', 'CFDICT',
+    # 'HanDeDict',
+    'CFDICT',
     # installer
     'DictionaryInstaller',
     ]
@@ -268,7 +269,7 @@ class EDICTDownloader(DownloaderBase):
 #     def getDownloadLink(self):
 #         return self.DOWNLOAD_LINK
 
-
+# broken?
 class HanDeDictDownloader(DownloaderBase):
     PROVIDES = "HanDeDict"
     DOWNLOAD_LINK = "http://www.handedict.de/handedict/handedict-20110528.tar.bz2"
@@ -316,6 +317,7 @@ class PageDownloaderBase(DownloaderBase):
 class CEDICTDownloader(PageDownloaderBase):
     """Downloader for the CEDICT dictionary."""
     PROVIDES = 'CEDICT'
+    DOWNLOAD_FILE_NAME = 'cedict_1_0_ts_utf-8_mdbg.txt.gz'
     DEFAULT_DOWNLOAD_PAGE = 'https://www.mdbg.net/chinese/dictionary?page=cc-cedict'
     DOWNLOAD_REGEX = re.compile('<a href="(export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz)">')
     DATE_REGEX = re.compile('Latest release: <strong>([^<]+)</strong>')

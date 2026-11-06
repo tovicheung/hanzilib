@@ -81,13 +81,13 @@ class DatabaseBuilder:
             # wrap as list
             options['dataPath'] = [options['dataPath']]
 
-        self.quiet = options.get('quiet', False)
+        self.quiet = bool(options.get('quiet', False))
         """Controls status information printed to stderr"""
-        self.rebuildDepending = options.pop('rebuildDepending', True)
+        self.rebuildDepending = bool(options.pop('rebuildDepending', True))
         """Controls if tables that depend on updated tables will be rebuilt."""
-        self.rebuildExisting = options.pop('rebuildExisting', True)
+        self.rebuildExisting = bool(options.pop('rebuildExisting', True))
         """Controls if existing tables will be rebuilt."""
-        self.noFail = options.pop('noFail', False)
+        self.noFail = bool(options.pop('noFail', False))
         """Controls if build process terminate on failed tables."""
         # get connector to database
         databaseUrl = options.pop('databaseUrl', None)
@@ -117,7 +117,7 @@ class DatabaseBuilder:
         log.logv("DatabaseBuilder initialized with options:")
         log.logv(str(options))
 
-    def getBuilderOptions(self, builderClass, ignoreUnknown=False):
+    def getBuilderOptions(self, builderClass: type[TableBuilder], ignoreUnknown=False):
         """
         Gets a dictionary of options for the given builder that were specified
         to the DatabaseBuilder.
@@ -143,67 +143,50 @@ class DatabaseBuilder:
         understoodOptions = builderClass.getDefaultOptions()
 
         # set all globals first
-        builderOptions = dict([(o, v) for o, v in list(self.options.items()) \
-            if not o.startswith('--')])
+        options = {o: v for o, v in list(self.options.items()) if not o.startswith('--')}
 
-        # no set (and maybe overwrite with) locals
-        builderSpecificOptions = {}
+        table_options: dict[str, typing.Any] = {}
+        builder_options: dict[str, typing.Any] = {}
+
         for option, value in list(self.options.items()):
-            if option.startswith('--'):
-                # local options
-                className, optionName = option[2:].split('-', 1)
+            if not option.startswith('--'):
+                continue
 
-                if className == builderClass.__name__ \
-                    or className == builderClass.PROVIDES:
-                    if optionName in understoodOptions:
-                        if className == builderClass.__name__:
-                            # queue for later adding
-                            builderSpecificOptions[optionName] = value
-                        else:
-                            builderOptions[optionName] = value
-                    elif className and not self.quiet:
-                        errorMsg = "Unknown option '%s' for builder '%s'" \
-                            % (optionName, className)
-                        if ignoreUnknown:
-                            log.warn(errorMsg + ", ignoring")
-                        else:
-                            raise ValueError(errorMsg)
+            # local options: --<builder/table>-<option>
+            prefix, sep, name = option[2:].partition("-")
+            if not sep or prefix not in (
+                builderClass.__name__,
+                builderClass.PROVIDES,
+            ):
+                continue
 
-        # now add builder specific options that can overwrite table options
-        builderOptions.update(builderSpecificOptions)
+            if name not in understoodOptions:
+                if not self.quiet:
+                    message = f"Unknown option '{option}' for builder '{prefix}'"
+                    if ignoreUnknown:
+                        log.warn(message + ", ignoring")
+                    else:
+                        raise ValueError(message)
 
-        return builderOptions
+            if prefix == builderClass.__name__:
+                builder_options[name] = value
+            else:
+                table_options[name] = value
 
-    def setBuilderOptions(self, builderClass, options, exclusive=False):
-        """
-        Sets the options for the given builder that were specified.
+        options.update(table_options)
+        options.update(builder_options) # builder-specific options have higher priority
 
-        :type builderClass: classobj
-        :param builderClass: :class:`~hanzilib.build.builder.TableBuilder` class
-        :type options: dict
-        :param options: dictionary of options for the given table builder.
-        :type exclusive: bool
-        :param exclusive: if set to ``True`` unspecified options will be set to
-            the default value.
-        :raise ValueError: if unknown option is specified
-        """
-        understoodOptions = builderClass.getDefaultOptions()
-        newOptions = {}
+        return options
 
-        for option, value in list(options.items()):
-            if option not in understoodOptions:
-                raise ValueError("Unknown option '%s' for builder '%s'" \
-                    % (option, builderClass.__name__))
-            localOptName = '--%s-%s' % (builderClass.__name__, option)
-            newOptions[localOptName] = value
-
-        if exclusive:
-            for option, defaultValue in list(understoodOptions.items()):
-                if option not in options:
-                    localOptName = '--%s-%s' % (builderClass.__name__, option)
-                    newOptions[localOptName] = defaultValue
-
-        self.options.update(newOptions)
+    @staticmethod
+    def displaySetup(db: dbconnector.DatabaseConnector):
+        log.task("Database info:")
+        log.log(f"\033[1mMain database:")
+        log.list([f"[0] {db.databaseUrl}"])
+        if db.attached:
+            log.log("\033[1mAttached databases:\033[m")
+            log.list(f"[{i+1}] {x}" for i, x in enumerate(db.attached.keys()))
+        log.dedent()
 
     def build(self, tables: list[str] | str):
         """
@@ -219,12 +202,9 @@ class DatabaseBuilder:
         
         tables: list[str]
 
-        log.task("Building tables in databse ...")
-        log.log(f"\033[1mMain database:")
-        log.list([f"[0] {self.db.databaseUrl}"])
-        if self.db.attached:
-            log.log("\033[1mAttached databases:\033[m")
-            log.list(f"[{i+1}] {x}" for i, x in enumerate(self.db.attached.keys()))
+        self.displaySetup(self.db)
+        log.log("")
+        log.task("Building tables in database ...")
         log.logv("\033[1mTables to build:\033[m " + ", ".join(tables))
         log.logv("\033[1mBuilder options:\033[m " + str(self.options))
 
@@ -280,62 +260,63 @@ class DatabaseBuilder:
         self.db.connection.commit()
 
         while builderClasses:
-            builder = builderClasses.pop()
+            builderClass = builderClasses.pop()
 
             transaction = self.db.connection.begin()
 
             try:
                 # get specific options given to the DatabaseBuilder
-                options = self.getBuilderOptions(builder, ignoreUnknown=True)
-                options['dbConnectInst'] = self.db
+                options = self.getBuilderOptions(builderClass, ignoreUnknown=True)
+                options["dbConnectInst"] = self.db
                 
                 location = ""
-                x = self.db.getDatabaseIdFromTable(builder.PROVIDES)
+                x = self.db.getDatabaseIdFromTable(builderClass.PROVIDES)
                 if x is not None and x > 0:
                     location = f" in [{x}]"
-                log.task(f"Building table '{builder.PROVIDES}'{location} ...")
+                log.task(f"Building table '{builderClass.PROVIDES}'{location} ...")
 
-                instance: TableBuilder = builder(**options)
+                builder: TableBuilder = builderClass(**options)
                 # mark tables as deletable if its only provided because of
                 #   dependencies and the table doesn't exists yet
-                if builder.PROVIDES in buildDependentTables \
-                    and not self.db.mainHasTable(builder.PROVIDES):
-                    self._instancesUnrequestedTable.add(instance)
+                if builderClass.PROVIDES in buildDependentTables \
+                    and not self.db.mainHasTable(builderClass.PROVIDES):
+                    self._instancesUnrequestedTable.add(builder)
 
-                if self.db.mainHasTable(builder.PROVIDES):
+                if self.db.mainHasTable(builderClass.PROVIDES):
                     # will only remove the table if found in the main database
-                    log.log(f"Removing previously built table '{builder.PROVIDES}'")
-                    instance.remove()
+                    log.log(f"Removing previously built table '{builderClass.PROVIDES}'")
+                    builder.remove()
 
                 # remove old metadata
-                if builder.PROVIDES in self.db.tables:
-                    del self.db.tables[builder.PROVIDES]
+                if builderClass.PROVIDES in self.db.tables:
+                    del self.db.tables[builderClass.PROVIDES]
 
-                instance.build()
+                builder.build()
                 transaction.commit()
-                summary_success.append(builder.PROVIDES)
+                summary_success.append(builderClass.PROVIDES)
             except IOError as e:
                 transaction.rollback()
                 # data not available, can't build table
-                if self.noFail:
-                    summary_failed.append(builder.PROVIDES)
-                    log.warn(f"Failed to build table '{builder.PROVIDES}', skipping; Error: {e}")
-                    dependingTables = [builder.PROVIDES]
-                    remainingBuilderClasses = []
-                    for clss in builderClasses:
-                        if set(clss.DEPENDS) & set(dependingTables):
-                            # this class depends on one being removed
-                            dependingTables.append(clss.PROVIDES)
-                        else:
-                            remainingBuilderClasses.append(clss)
-                    summary_ignored.extend(x for x in dependingTables if x != builder.PROVIDES)
-                    if len(dependingTables) > 1:
-                        log.warn("Ignoring depending table(s): '%s'" \
-                            % "', '".join(dependingTables[1:]))
-                    builderClasses = remainingBuilderClasses
-                else:
+                if not self.noFail:
                     self.clearTemporary()
                     raise
+
+                summary_failed.append(builderClass.PROVIDES)
+                log.warn(f"Failed to build table '{builderClass.PROVIDES}', skipping; Error: {e}")
+                dependingTables = [builderClass.PROVIDES]
+                remainingBuilderClasses = []
+                for clss in builderClasses:
+                    if set(clss.DEPENDS) & set(dependingTables):
+                        # this class depends on one being removed
+                        dependingTables.append(clss.PROVIDES)
+                    else:
+                        remainingBuilderClasses.append(clss)
+                summary_ignored.extend(x for x in dependingTables if x != builderClass.PROVIDES)
+                if len(dependingTables) > 1:
+                    log.warn("Ignoring depending table(s): '%s'" \
+                        % "', '".join(dependingTables[1:]))
+                builderClasses = remainingBuilderClasses
+
             except sqlalchemy.exc.IntegrityError:
                 transaction.rollback()
                 raise
@@ -357,13 +338,17 @@ class DatabaseBuilder:
         if summary_failed:
             log.log(f"{len(summary_failed):>3} tables were skipped due to missing data source (check logs for details):")
             log.indent()
+            log.indent()
             # log.list([x.ljust(12) + "help: install dictionary data with: \033[1mhanzi dict install " + x if x in dicts else x for x in summary_failed])
             log.list([x for x in summary_failed])
+            log.dedent()
             log.dedent()
         if summary_ignored:
             log.log(f"{len(summary_ignored):>3} tables were skipped due to their dependencies being skipped:")
             log.indent()
+            log.indent()
             log.list(summary_ignored)
+            log.dedent()
             log.dedent()
         log.dedent()
 
@@ -788,8 +773,7 @@ class DatabaseBuilder:
         :rtype: list of str
         :return: names of tables
         """
-        classList = DatabaseBuilder.getTableBuilderClasses(
-            resolveConflicts=False)
+        classList = DatabaseBuilder.getTableBuilderClasses(resolveConflicts=False)
         return set([clss.PROVIDES for clss in classList])
 
     def getCurrentSupportedTables(self):

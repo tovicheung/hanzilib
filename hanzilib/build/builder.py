@@ -3749,26 +3749,26 @@ class TimestampedCEDICTFormatBuilder(CEDICTFormatBuilder):
                 + "' for file names '" + "', '".join(fileGlobs) + "'")
 
 
-class HanDeDictBuilder(TimestampedCEDICTFormatBuilder):
-    """
-    Builds the HanDeDict dictionary.
-    """
-    PROVIDES = 'HanDeDict'
-    FILE_NAMES = ['handedict-*.zip', 'handedict-*.tar.bz2', 'handedict.u8']
-    ENCODING = 'utf-8'
+# class HanDeDictBuilder(TimestampedCEDICTFormatBuilder):
+#     """
+#     Builds the HanDeDict dictionary.
+#     """
+#     PROVIDES = 'HanDeDict'
+#     FILE_NAMES = ['handedict-*.zip', 'handedict-*.tar.bz2', 'handedict.u8']
+#     ENCODING = 'utf-8'
 
-    EXTRACT_TIMESTAMP = r'handedict-(\d{8})\.'
-    ARCHIVE_CONTENT_PATTERN = r'handedict-(\d{8})/handedict.u8'
+#     EXTRACT_TIMESTAMP = r'handedict-(\d{8})\.'
+#     ARCHIVE_CONTENT_PATTERN = r'handedict-(\d{8})/handedict.u8'
 
 
-class HanDeDictWordIndexBuilder(WordIndexBuilder):
-    """
-    Builds the word index of the HanDeDict dictionary.
-    """
-    PROVIDES = 'HanDeDict_Words'
-    DEPENDS = ['HanDeDict']
-    TABLE_SOURCE = 'HanDeDict'
-    HEADWORD_SOURCE = 'HeadwordTraditional'
+# class HanDeDictWordIndexBuilder(WordIndexBuilder):
+#     """
+#     Builds the word index of the HanDeDict dictionary.
+#     """
+#     PROVIDES = 'HanDeDict_Words'
+#     DEPENDS = ['HanDeDict']
+#     TABLE_SOURCE = 'HanDeDict'
+#     HEADWORD_SOURCE = 'HeadwordTraditional'
 
 
 # class CFDICTBuilder(CEDICTFormatBuilder):

@@ -1009,6 +1009,7 @@ Text Processing:
 Dictionary:
   dict install <NAME>       Download and install a specific dictionary
   dict list                 List installed and available dictionaries
+    dict uninstall <NAME>     Uninstall a dictionary and its downloaded data
   
 Global Options (ignored if not applicable):
   -l, --locale <TCJKV>      Set locale (default: C)
@@ -1125,8 +1126,15 @@ def new_main():
     # hanzi dict list
     dict_sub.add_parser("list", help="List installed dictionaries")
     
-    # hanzi dict remove
-    # dict_sub.add_parser("remove", help="Remove installed dictionaries")
+    # hanzi dict uninstall
+    uninstall_p = dict_sub.add_parser("uninstall", help="Uninstall dictionaries")
+    uninstall_p.add_argument("names", nargs="+", help="Names of the dictionaries to uninstall")
+    uninstall_p.add_argument("--local", action="store_true", help="uninstall from the user directory")
+    uninstall_p.add_argument("--prefix", metavar="PREFIX", help="installation prefix (Unix only)")
+    uninstall_p.add_argument("--database", dest="databaseUrl", metavar="URL", help="database URL")
+    uninstall_p.add_argument("--attach", action="append", default=[], metavar="URL",
+                          help="attachable database URL or project name")
+    uninstall_p.add_argument("-q", "--quiet", action="store_true", help="don't print status information")
 
     # hanzi dict search
     # search_p = dict_sub.add_parser("search", help="Search dictionary definitions/headwords")
@@ -1162,16 +1170,23 @@ def new_main():
     args = parser.parse_args()
 
     if args.command == "db":
-        build_cli.CommandLineBuilder().run(args)
+        return build_cli.CommandLineBuilder().run(args)
 
-    configSettings = getConfigSettings("hanzi")
+    if args.command == "dict" and args.dict_action == "uninstall":
+        from hanzilib.dictionary.uninstall import main
+        sys.argv.remove("dict")
+        sys.argv.remove("uninstall")
+        main()
+        return
+
+    hanziFileConfig = getConfigSettings("hanzi")
     # url = configSettings.get("url")
     config = HanziConfig(
-        locale = configSettings.get("locale"),
-        source_reading = configSettings.get("reading"),
-        target_reading = configSettings.get("reading"),
-        domain = configSettings.get("domain", "Unicode"),
-        dictionary = configSettings.get("dictionary"),
+        locale = hanziFileConfig.get("locale"),
+        source_reading = hanziFileConfig.get("reading"),
+        target_reading = hanziFileConfig.get("reading"),
+        domain = hanziFileConfig.get("domain", "Unicode"),
+        dictionary = hanziFileConfig.get("dictionary"),
     )
 
     config = config.apply_args(args)
@@ -1181,34 +1196,24 @@ def new_main():
             charLocale = config.locale,
             readingN = config.target_reading,
             dictionaryN = config.dictionary,
-            # dictionaryDatabaseUrl = 
         )
     except ValueError:
-        print((("Error: dictionary '%(dict)s' not available."
-            "\nInstall by running 'hanzi install-dict %(dict)s'")
-                % {'dict': config.dictionary}), file=sys.stderr)
+        print(f"Error: dictionary '{config.dictionary}' is specified but is not available. Install by running 'hanzi dict install {config.dictionary}'", file=sys.stderr)
         sys.exit(1)
     
-    # Resolved (TODO: remove excess processing)
+    # Resolved
     config.locale = char_info.locale
     config.dictionary = char_info.dictionary
     
     if not char_info.setCharacterDomain(config.domain):
-        print("Warning: Unknown character domain '%s'" \
-            % config.domain, file=sys.stderr)
+        print(f"Warning: Unknown character domain '{config.domain}'", file=sys.stderr)
     
     if config.source_reading is None:
         config.source_reading = char_info.reading
     if config.target_reading is None:
         config.target_reading = char_info.reading
 
-
-    if args.command == "build":
-        from hanzilib.build.cli import main
-        main()
-        return
-        
-    elif args.command == "dict":
+    if args.command == "dict":
         if args.dict_action == "install":
             from hanzilib.dictionary.install import main
             sys.argv.remove("dict")

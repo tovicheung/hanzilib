@@ -40,7 +40,7 @@ __all__ = [
     "EDICT",
     # "CEDICTGR",
     "CEDICT",
-    "HanDeDict",
+    # "HanDeDict",
     "CFDICT"
 ]
 

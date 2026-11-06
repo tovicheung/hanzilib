@@ -118,7 +118,7 @@ format --BuilderName-option or --TableName-option, e.g.
         'Dictionaries': [
             'CEDICT',
             # 'CEDICTGR',
-            'HanDeDict',
+            # 'HanDeDict',
             # 'CFDICT',
             'EDICT'
         ],
@@ -137,52 +137,6 @@ format --BuilderName-option or --TableName-option, e.g.
     DB_PREFER_BUILDERS =  ['CombinedStrokeCountBuilder',
         'CombinedCharacterResidualStrokeCountBuilder']
     """Builders prefered for build process."""
-
-    @classmethod
-    def printFormattedLine(cls, outputString, lineLength=None,
-        subsequentPrefix=''):
-        """
-        Formats the given input string to fit to a output with a limited line
-        length and prints it to stdout with the systems encoding.
-
-        :type outputString: str
-        :param outputString: a string that is formated to fit to the screen
-        :type lineLength: int
-        :param lineLength: with of screen
-        :type subsequentPrefix: str
-        :param subsequentPrefix: prefix used after line break
-        """
-        if lineLength is None:
-            try:
-                lineLength = int(os.environ['COLUMNS'])
-            except (KeyError, ValueError):
-                lineLength = 80
-
-        outputLines = []
-        for line in outputString.split("\n"):
-            outputEntityList = line.split()
-            outputEntityList.reverse()
-            column = 0
-            output = ''
-            while outputEntityList:
-                entity = outputEntityList.pop()
-                # if the next entity including one trailing space will
-                # reach over, break the line
-                if column > 0 and len(entity) + column >= lineLength:
-                    output = output + "\n" + subsequentPrefix + entity
-                    column = len(subsequentPrefix) + len(entity)
-                else:
-                    if column > 0:
-                        output = output + ' '
-                        column = column + 1
-                    column = column + len(entity)
-                    output = output + entity
-                #if len(column) >= lineLength and outputEntityList:
-                    #output = output + "\n" + subsequentPrefix
-                    #column = len(subsequentPrefix)
-            outputLines.append(output)
-
-        print("\n".join(outputLines))
 
     @classmethod
     def getBuilderConfigSettings(cls):
@@ -384,99 +338,6 @@ format --BuilderName-option or --TableName-option, e.g.
 
         return parser
 
-
-    # def buildParser(self):
-    #     usage = "%(prog)s [options] [list | build TABLE [TABLE_2 ...]]"
-    #     description = self.DESCRIPTION
-    #     
-    #     parser = OptionParser(usage=usage, description=description, option_class=ExtendedOption)
-# 
-    #     defaults = self.getDefaultOptions()
-    #     parser.add_option("-r", "--rebuild", action="store_true",
-    #         dest="rebuildExisting", default=False,
-    #         help="build tables even if they already exist")
-    #     parser.add_option("-d", "--keepDepending", action="store_false",
-    #         dest="rebuildDepending", default=True,
-    #         help="don't rebuild build-depends tables that are not given")
-    #     parser.add_option("-p", "--prefer", action="appendResetDefault",
-    #         metavar="BUILDER", dest="prefer",
-    #         help="builder preferred where several provide the same table" \
-    #             + " [default: %s]" % defaults.get("prefer", []))
-    #     parser.add_option("-q", "--quiet", action="store_true", dest="quiet",
-    #         default=False, help="don't print anything on stdout")
-    #     parser.add_option("--database", action="store", metavar="URL",
-    #         dest="databaseUrl", default=defaults.get("databaseUrl", None),
-    #         help="database url [default: %default]")
-    #     parser.add_option("--attach", action="appendResetDefault",
-    #         metavar="URL", dest="attach",
-    #         help="attachable databases [default: %s]"
-    #             % defaults.get("attach", []))
-    #     parser.add_option("--registerUnicode", action="store", type='bool',
-    #         metavar="BOOL", dest="registerUnicode",
-    #         help=("register own Unicode functions if no ICU support available"
-    #             " [default: %s]" % defaults.get("registerUnicode", False)))
-    #     parser.add_option("--ignoreConfig", action="store_true",
-    #         dest="ignoreConfig", default=False,
-    #         help="ignore settings from hanzilib.conf")
-# 
-    #     optionSet = set(['rebuildExisting', 'rebuildDepending', 'quiet',
-    #         'databaseUrl', 'attach', 'prefer'])
-    #     globalBuilderGroup = OptionGroup(parser, "Global builder commands")
-    #     localBuilderGroup = OptionGroup(parser, "Local builder commands")
-    #     for builder in DatabaseBuilder.getTableBuilderClasses(resolveConflicts=False):
-    #         if not builder.PROVIDES:
-    #             continue
-# 
-    #         for option, defaultValue in sorted(
-    #             builder.getDefaultOptions().items()):
-    #             try:
-    #                 metadata = builder.getOptionMetaData(option)
-    #             except KeyError:
-    #                 continue
-# 
-    #             includeOptions = {'action': 'action', 'type': 'type',
-    #                 'metavar': 'metavar', 'choices': 'choices',
-    #                     'description': 'help'}
-    #             options = dict([(includeOptions[key], value) for key, value \
-    #                 in list(metadata.items()) if key in includeOptions])
-# 
-    #             if 'metavar' not in options:
-    #                 if 'type' in options and options['type'] == 'bool':
-    #                     options['metavar'] = 'BOOL'
-    #                 else:
-    #                     options['metavar'] = 'VALUE'
-# 
-    #             if 'help' not in options:
-    #                 options['help'] = ''
-# 
-    #             default = defaults.get(option, defaultValue)
-    #             if default == []:
-    #                 options['help'] += ' [default: ""]'
-    #             elif default is not None:
-    #                 options['help'] += ' [default: %s]' % default
-# 
-    #             # global option, only need to add it once, DatabaseBuilder makes
-    #             #   sure option is consistent between builder
-    #             options['dest'] = option
-    #             if option not in optionSet:
-    #                 globalBuilderGroup.add_option('--' + option, **options)
-    #                 optionSet.add(option)
-# 
-    #             # local options
-    #             #options['help'] = optparse.SUPPRESS_HELP
-    #             localBuilderOption = '--%s-%s' % (builder.__name__, option)
-    #             options['dest'] = localBuilderOption
-    #             localBuilderGroup.add_option(localBuilderOption, **options)
-# 
-    #             localTableOption = '--%s-%s' % (builder.PROVIDES, option)
-    #             options['dest'] = localTableOption
-    #             localBuilderGroup.add_option(localTableOption, **options)
-# 
-    #     parser.add_option_group(globalBuilderGroup)
-    #     parser.add_option_group(localBuilderGroup)
-# 
-    #     return parser
-
     def listBuildGroups(self, all: bool = False):
         HIGHLIGHT = "\033[1;36m"
         print("\033[1mGeneric groups:\033[m")
@@ -577,13 +438,6 @@ format --BuilderName-option or --TableName-option, e.g.
             if v is None:
                 del options[k]
 
-        # print()
-        # print("OPTIONS:")
-        # from pprint import pprint
-        # pprint(options)
-        # print()
-        # print()
-
         # create builder instance
         dbBuilder = DatabaseBuilder(dbConnectInst=db, **options)
 
@@ -614,10 +468,34 @@ format --BuilderName-option or --TableName-option, e.g.
 
         if args.db_command is None:
             print("Hanzilib database manager (hanzi db)")
-            print("Usage: hanzi db [build | groups]; pass --help for more")
+            print("Usage:")
+            print("  hanzi db build")
+            print("  hanzi db groups")
+            print()
+
+            options = self.getDefaultOptions()
+            options.update({option: getattr(args, option) for option \
+                in dir(args) if not option.startswith("_")})
+            # get database connection
+            configuration = dbconnector.getDefaultConfiguration()
+            configuration['sqlalchemy.url'] = options.pop('databaseUrl',
+                configuration['sqlalchemy.url'])
+            configuration['attach'] = [attach for attach in
+                options.pop('attach', configuration.get('attach', [])) if attach]
+            if 'registerUnicode' in options:
+                configuration['registerUnicode'] = options.pop('registerUnicode')
+            try:
+                db = dbconnector.DatabaseConnector(configuration)
+            except ValueError as e:
+                print("Error getting database info: %s" % e, file=sys.stderr)
+                return False
+
+            DatabaseBuilder.displaySetup(db)            
+
             return True
         
         command: str = args.db_command.lower()
+
         if command == "groups":
             self.listBuildGroups(all=args.all)
             return True

@@ -77,6 +77,16 @@ $ hanzi find --radical 30 # 30 corresponds to 口
 ...
 ```
 
+Find characters with KangXi radical:
+```console
+$ hanzi find --radical 日
++1: 旦旧
++2: 旨旭旬旫旯旪早旮
++3: 旱时旴旷旵昅旲旰旳
++4: 昻旾昒昁旿昏昘昍昕昙昃昛昅昄昖昋昑昊昈昂昐昉昗昇旻旺旼明昌昆昀旽昔易旹
+...
+```
+
 Find characters from reading:
 ```console
 $ hanzi find --reading dòng # defaults to Pinyin
@@ -226,5 +236,6 @@ Therefore, in hanzilib:
 Finding new data sources for:
 - `CEDICTGR` ([Original data source (broken)](http://home.iprimus.com.au/richwarm/gr/cedictgr.zip))
 - `CFDICT` ([Original data source(broken)](https://chine.in/chinois/open/CFDICT/cfdict.zip))
+- `HanDeDict`
 
 Also, the legacy `EDICT` is used instead of `EDICT2`, this will be changed shortly

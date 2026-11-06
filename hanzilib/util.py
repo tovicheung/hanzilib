@@ -36,20 +36,6 @@ from sqlalchemy.types import String, Text
 
 # Configuration and file access
 
-def locateProjectFile(relPath, projectName='hanzilib'):
-    """
-    Locates a project file relative to the project's directory. Returns ``None``
-    if module ``pkg_resources`` is not installed or package information is not
-    available.
-
-    :type relPath: str
-    :param relPath: path relative to project directory
-    :type projectName: str
-    :param projectName: name of project which will be used as name of the
-        config file
-    """
-    return
-
 def getConfigSettings(section, projectName='hanzilib'):
     """
     Reads the configuration from the given section of the project's config file.
@@ -70,14 +56,6 @@ def getConfigSettings(section, projectName='hanzilib'):
         homeDir = os.path.expanduser('~')
 
         configFiles = []
-        # Library directory
-        # libdir = locateProjectFile(projectName)
-        # if not libdir:
-        #     if projectName != 'hanzilib':
-        #         import warnings
-        #         warnings.warn("Cannot locate packaged files for project '%s'"
-        #             % projectName)
-        #     # fall back to the directory of this file, only works for cjklib
         libdir = os.path.dirname(os.path.abspath(__file__))
         configFiles.append(os.path.join(libdir, '%s.conf' % projectName))
 
@@ -157,14 +135,6 @@ def getSearchPaths(projectName='hanzilib'):
     if env in os.environ and os.environ[env].strip():
         searchPath += os.environ[env].strip().split(os.path.pathsep)
 
-    # Library directory
-    # libdir = locateProjectFile(projectName)
-    # if not libdir:
-    #     if projectName != 'hanzilib':
-    #         import warnings
-    #         warnings.warn("Cannot locate packaged files for project '%s'"
-    #             % projectName)
-    #     # fall back to the directory of this file, only works for cjklib
     libdir = os.path.dirname(os.path.abspath(__file__))
 
     searchPath.append(libdir)
